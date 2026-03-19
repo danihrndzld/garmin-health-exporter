@@ -743,9 +743,82 @@
       transition-duration: 0.01ms !important;
     }
   }
+
+  /* ── Setup overlay ─────────────────────────────────────────────────────── */
+  #setup-overlay {
+    position: fixed; inset: 0; z-index: 9999;
+    background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .setup-box {
+    display: flex; flex-direction: column; align-items: center; gap: 16px;
+    width: 420px; padding: 40px 36px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-mid);
+    border-radius: 6px;
+  }
+  .setup-title {
+    font-family: 'Oxanium', sans-serif;
+    font-size: 15px; font-weight: 600;
+    letter-spacing: .12em; color: var(--text-bright);
+    text-transform: uppercase;
+  }
+  .setup-body {
+    text-align: center; line-height: 1.7;
+    color: var(--text); font-size: 13px;
+  }
+  .setup-body code, .setup-note code {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--teal); font-size: 12px;
+  }
+  #setup-log {
+    width: 100%; max-height: 180px; overflow-y: auto;
+    background: var(--bg-input); border: 1px solid var(--border);
+    border-radius: 4px; padding: 10px 12px;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    color: var(--text-dim); line-height: 1.6;
+  }
+  #setup-error {
+    color: var(--red-text); font-size: 12px; text-align: center;
+  }
+  .setup-note {
+    font-size: 11px; color: var(--text-dim); text-align: center;
+  }
+  #setup-install-btn {
+    width: 100%; padding: 10px;
+    background: var(--red); color: #fff;
+    border: none; border-radius: 4px;
+    font-family: 'Oxanium', sans-serif; font-size: 13px;
+    font-weight: 600; letter-spacing: .08em;
+    cursor: pointer; transition: background .15s;
+  }
+  #setup-install-btn:hover:not(:disabled) { background: var(--red-bright); }
+  #setup-install-btn:disabled { opacity: .5; cursor: default; }
 </style>
 </head>
 <body>
+
+<!-- ── Setup overlay (shown when uv is missing) ─────────────────────────── -->
+<div id="setup-overlay" style="display:none;">
+  <div class="setup-box">
+    <div class="setup-icon">
+      <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" width="40" height="40">
+        <circle cx="16" cy="16" r="14" stroke="var(--red)" stroke-width="1.5"/>
+        <path d="M16 9v8M16 22v1" stroke="var(--red)" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="setup-title">Setup Required</div>
+    <div class="setup-body">
+      <code>uv</code> is not installed. It's needed to run the Garmin download scripts.<br>
+      Click <strong>Install</strong> to set it up automatically.
+    </div>
+    <div id="setup-log" style="display:none;"></div>
+    <div id="setup-error" style="display:none;"></div>
+    <button class="btn" id="setup-install-btn">Install Dependencies</button>
+    <div class="setup-note">Installs via <code>astral.sh/uv</code> — no admin required</div>
+  </div>
+</div>
+
 <div id="app">
 
   <!-- Titlebar -->
@@ -1047,7 +1120,7 @@
   });
 
   // ── IPC listeners ─────────────────────────────────────────────────────────
-  window.garmin.onProgress(({ current, total, phase }) => {
+  function progressHandler({ current, total, phase }) {
     const pct = Math.round((current / total) * 100);
     progressFill.style.width = pct + '%';
     progressFill.setAttribute('aria-valuenow', pct);
@@ -1056,11 +1129,14 @@
     const phaseLabel = (labels[phase] || phase) + ' — ' + current + '/' + total;
     progressPhase.textContent = phaseLabel;
     progressFill.setAttribute('aria-label', 'Export progress: ' + phaseLabel + ' (' + pct + '%)');
-  });
+  }
 
-  window.garmin.onLog(({ type, msg, ts }) => {
+  function logHandler({ type, msg, ts }) {
     appendLog(type, msg, ts);
-  });
+  }
+
+  window.garmin.onProgress(progressHandler);
+  window.garmin.onLog(logHandler);
 
   // ── Download Health Data + Convert to CSVs ───────────────────────────────
   btnHealth.addEventListener('click', async () => {
@@ -1083,6 +1159,53 @@
       setConnStatus('error');
       appendLog('error', res.error || 'Unknown error');
       showBanner(false, res.error || 'Download failed');
+    }
+  });
+
+  // ── Setup overlay ─────────────────────────────────────────────────────────
+  const setupOverlay  = $('setup-overlay');
+  const setupInstBtn  = $('setup-install-btn');
+  const setupLog      = $('setup-log');
+  const setupError    = $('setup-error');
+
+  function showSetup() {
+    setupOverlay.style.display = 'flex';
+  }
+
+  function hideSetup() {
+    setupOverlay.style.display = 'none';
+  }
+
+  window.garmin.onSetupRequired(() => showSetup());
+
+  setupInstBtn.addEventListener('click', async () => {
+    setupInstBtn.disabled = true;
+    setupInstBtn.textContent = 'Installing…';
+    setupError.style.display = 'none';
+    setupLog.style.display = 'block';
+    setupLog.innerHTML = '';
+
+    window.garmin.onSetupLog(({ msg, type }) => {
+      const el = document.createElement('div');
+      el.style.color = type === 'success' ? 'var(--teal)' : type === 'info' ? 'var(--text-bright)' : '';
+      el.textContent = msg;
+      setupLog.appendChild(el);
+      setupLog.scrollTop = setupLog.scrollHeight;
+    });
+
+    const res = await window.garmin.installDeps();
+    window.garmin.removeAllListeners();
+    // re-attach main listeners
+    window.garmin.onProgress(progressHandler);
+    window.garmin.onLog(logHandler);
+
+    if (res.ok) {
+      hideSetup();
+    } else {
+      setupError.textContent = res.error || 'Install failed.';
+      setupError.style.display = '';
+      setupInstBtn.disabled = false;
+      setupInstBtn.textContent = 'Retry';
     }
   });
 
