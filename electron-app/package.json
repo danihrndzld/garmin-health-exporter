@@ -29,8 +29,9 @@
       "!node_modules/.cache"
     ],
     "extraResources": [
-      { "from": "scripts/json_to_csv.py", "to": "scripts/json_to_csv.py" },
-      { "from": "scripts/garmin_health_export.py", "to": "scripts/garmin_health_export.py" }
+      { "from": "scripts/json_to_csv.py",                "to": "scripts/json_to_csv.py" },
+      { "from": "scripts/garmin_health_export.py",        "to": "scripts/garmin_health_export.py" },
+      { "from": "scripts/download_activity_details.py",   "to": "scripts/download_activity_details.py" }
     ]
   },
   "dependencies": {

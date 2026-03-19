@@ -227,6 +227,10 @@ ipcMain.handle('download-health', async (event, { email, password, daysBack, out
       ? path.join(process.resourcesPath, 'scripts', 'json_to_csv.py')
       : path.join(__dirname, 'scripts', 'json_to_csv.py');
 
+    const detailsScript = app.isPackaged
+      ? path.join(process.resourcesPath, 'scripts', 'download_activity_details.py')
+      : path.join(__dirname, 'scripts', 'download_activity_details.py');
+
     // ── Step 1: Download via Python ───────────────────────────────────────
     let jsonFile = null;
     const uv = resolveUv();
@@ -289,7 +293,43 @@ ipcMain.handle('download-health', async (event, { email, password, daysBack, out
     });
 
     sendProgress(2, 2, 'csv');
-    send('success', `Done. ${daysBack} days exported | CSVs → csv_${today}/`);
+    send('success', 'Health CSVs done.');
+
+    // ── Step 3: Activity details (per-type CSVs with detailed metrics) ────
+    send('info', 'Downloading activity details…');
+
+    await new Promise((resolve, reject) => {
+      const py = spawn(uv, [
+        'run', detailsScript,
+        '--email',    email,
+        '--password', password,
+        '--json',     jsonFile,
+        '--output',   outputDir,
+      ]);
+
+      py.stdout.on('data', chunk => {
+        for (const line of chunk.toString().split('\n')) {
+          const l = line.trim();
+          if (!l) continue;
+          if (l.startsWith('PROGRESS:')) {
+            const [, cur, tot] = l.split(':');
+            sendProgress(parseInt(cur), parseInt(tot), 'activity-details');
+          } else {
+            send('dim', l);
+          }
+        }
+      });
+
+      py.stderr.on('data', chunk => {
+        const msg = chunk.toString().trim();
+        if (msg) send('warn', msg);
+      });
+
+      py.on('close', code => code === 0 ? resolve() : reject(new Error(`Activity details script exited ${code}`)));
+      py.on('error', err => reject(new Error(`Could not run uv: ${err.message}`)));
+    });
+
+    send('success', `Done. ${daysBack} days | CSVs → csv_${today}/`);
     return { ok: true, path: csvDir };
 
   } catch (err) {
