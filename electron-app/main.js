@@ -157,7 +157,8 @@ ipcMain.handle('download-health', async (event, { email, password, daysBack, out
     // Save JSON
     const outDir = path.join(outputDir);
     fs.mkdirSync(outDir, { recursive: true });
-    const outFile = path.join(outDir, `garmin_health_${endDate}.json`);
+    const ts = new Date().toTimeString().slice(0, 8).replace(/:/g, '-');
+    const outFile = path.join(outDir, `garmin_health_${endDate}_${ts}.json`);
     fs.writeFileSync(outFile, JSON.stringify(result, null, 2));
     send('success', `JSON saved → ${path.basename(outFile)}`);
 
