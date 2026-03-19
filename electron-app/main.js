@@ -65,134 +65,88 @@ ipcMain.handle('download-health', async (event, { email, password, daysBack, out
     if (!event.sender.isDestroyed())
       event.sender.send('log', { type, msg, ts: new Date().toLocaleTimeString() });
   };
+  const sendProgress = (current, total, phase) => {
+    if (!event.sender.isDestroyed())
+      event.sender.send('progress', { current, total, phase });
+  };
 
   try {
-    const { GarminConnect } = require('garmin-connect');
-    const gc = new GarminConnect({ username: email, password });
+    fs.mkdirSync(outputDir, { recursive: true });
 
-    send('info', `Connecting as ${email}…`);
-    await gc.login(email, password);
-    send('success', 'Login successful.');
+    const exportScript = app.isPackaged
+      ? path.join(process.resourcesPath, 'scripts', 'garmin_health_export.py')
+      : path.join(__dirname, 'scripts', 'garmin_health_export.py');
 
-    const today = new Date();
-    const fmt = (d) => d.toISOString().split('T')[0];
-    const dates = Array.from({ length: daysBack }, (_, i) => {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      return fmt(d);
-    });
-    const startDate = dates[dates.length - 1];
-    const endDate = dates[0];
-
-    send('info', `Pulling ${daysBack} days: ${startDate} → ${endDate}`);
-
-    const result = {
-      export_date: endDate,
-      date_range: { start: startDate, end: endDate, days: daysBack },
-      daily: {},
-      aggregated: {},
-      activities: [],
-      goals: [],
-    };
-
-    // Per-day metrics
-    for (const d of dates) {
-      send('dim', `  ${d}`);
-      const daily = {};
-      const dateObj = new Date(d + 'T12:00:00');
-      const safe = async (label, fn) => {
-        try { return await fn(); }
-        catch (e) { send('dim', `    [skip] ${label}: ${e.message}`); return null; }
-      };
-
-      daily.heartRate  = await safe('heartRate',  () => gc.getHeartRate(dateObj));
-      daily.sleepData  = await safe('sleepData',  () => gc.getSleepData(dateObj));
-      daily.steps      = await safe('steps',      () => gc.getSteps(dateObj));
-      daily.weight     = await safe('weight',     () => gc.getDailyWeightData(dateObj));
-      daily.hydration  = await safe('hydration',  () => gc.getDailyHydration(dateObj));
-
-      result.daily[d] = daily;
-
-      // Report progress
-      const idx = dates.indexOf(d) + 1;
-      if (!event.sender.isDestroyed())
-        event.sender.send('progress', { current: idx, total: daysBack, phase: 'daily' });
-    }
-
-    // Aggregated
-    send('info', 'Pulling aggregated metrics…');
-    const safeAgg = async (label, fn) => {
-      try { return await fn(); }
-      catch (e) { send('dim', `    [skip] ${label}: ${e.message}`); return null; }
-    };
-
-    result.aggregated.userSettings    = await safeAgg('userSettings',    () => gc.getUserSettings());
-    result.aggregated.userProfile     = await safeAgg('userProfile',     () => gc.getUserProfile());
-
-    // Activities
-    send('info', 'Pulling activities…');
-    const activities = await safeAgg('activities', () => gc.getActivities(0, 100)) || [];
-    const filtered = activities.filter(a => {
-      const d = (a.startTimeLocal || '').split(' ')[0];
-      return d >= startDate && d <= endDate;
-    });
-    send('info', `Found ${filtered.length} activities in range.`);
-
-    for (let i = 0; i < filtered.length; i++) {
-      const act = filtered[i];
-      const name = act.activityName || act.activityType?.typeKey || 'unknown';
-      send('dim', `  [${i + 1}/${filtered.length}] ${(act.startTimeLocal || '').split(' ')[0]} | ${name}`);
-      try {
-        // getActivity returns the activity summary (same structure as list item, with more fields)
-        const details = await gc.getActivity({ activityId: act.activityId });
-        act._activityDetail = details;
-      } catch (e) {
-        send('dim', `    [skip] details: ${e.message}`);
-      }
-      if (!event.sender.isDestroyed())
-        event.sender.send('progress', { current: i + 1, total: filtered.length, phase: 'activities' });
-    }
-    result.activities = filtered;
-
-    // Save JSON
-    const outDir = path.join(outputDir);
-    fs.mkdirSync(outDir, { recursive: true });
-    const ts = new Date().toTimeString().slice(0, 8).replace(/:/g, '-');
-    const outFile = path.join(outDir, `garmin_health_${endDate}_${ts}.json`);
-    fs.writeFileSync(outFile, JSON.stringify(result, null, 2));
-    send('success', `JSON saved → ${path.basename(outFile)}`);
-
-    // Convert JSON → CSVs via Python script
-    send('info', 'Converting to CSVs…');
-    if (!event.sender.isDestroyed())
-      event.sender.send('progress', { current: 1, total: 2, phase: 'csv' });
-
-    const scriptPath = app.isPackaged
+    const csvScript = app.isPackaged
       ? path.join(process.resourcesPath, 'scripts', 'json_to_csv.py')
       : path.join(__dirname, 'scripts', 'json_to_csv.py');
 
-    const csvDir = path.join(outDir, `csv_${endDate}`);
+    // ── Step 1: Download via Python (full 22-endpoint suite) ─────────────────
+    let jsonFile = null;
 
     await new Promise((resolve, reject) => {
-      const py = spawn('python3', [scriptPath, outFile, outDir]);
-      py.stdout.on('data', d => {
-        for (const line of d.toString().split('\n').filter(l => l.trim())) {
-          send('dim', line.trim());
+      const py = spawn('uv', [
+        'run', exportScript,
+        '--email',    email,
+        '--password', password,
+        '--days',     String(daysBack),
+        '--output',   outputDir,
+      ]);
+
+      py.stdout.on('data', chunk => {
+        for (const line of chunk.toString().split('\n')) {
+          const l = line.trim();
+          if (!l) continue;
+
+          // Structured progress lines
+          if (l.startsWith('PROGRESS:')) {
+            const [, phase, cur, tot] = l.split(':');
+            sendProgress(parseInt(cur), parseInt(tot), phase);
+          } else if (l.startsWith('JSON_PATH:')) {
+            jsonFile = l.slice('JSON_PATH:'.length).trim();
+            send('success', `JSON saved → ${path.basename(jsonFile)}`);
+          } else {
+            send('dim', l);
+          }
         }
       });
-      py.stderr.on('data', d => {
-        const msg = d.toString().trim();
+
+      py.stderr.on('data', chunk => {
+        const msg = chunk.toString().trim();
         if (msg) send('warn', msg);
       });
-      py.on('close', code => code === 0 ? resolve() : reject(new Error(`python3 exited ${code}`)));
+
+      py.on('close', code => code === 0 ? resolve() : reject(new Error(`Export script exited ${code}`)));
+      py.on('error', err => reject(new Error(`Could not run uv: ${err.message}`)));
+    });
+
+    if (!jsonFile) throw new Error('Export script did not return a JSON path.');
+
+    // ── Step 2: Convert JSON → CSVs ──────────────────────────────────────────
+    send('info', 'Converting to CSVs…');
+    sendProgress(1, 2, 'csv');
+
+    const today = new Date().toISOString().split('T')[0];
+    const csvDir = path.join(outputDir, `csv_${today}`);
+
+    await new Promise((resolve, reject) => {
+      const py = spawn('python3', [csvScript, jsonFile, outputDir]);
+      py.stdout.on('data', chunk => {
+        for (const line of chunk.toString().split('\n').filter(l => l.trim()))
+          send('dim', line.trim());
+      });
+      py.stderr.on('data', chunk => {
+        const msg = chunk.toString().trim();
+        if (msg) send('warn', msg);
+      });
+      py.on('close', code => code === 0 ? resolve() : reject(new Error(`CSV script exited ${code}`)));
       py.on('error', err => reject(new Error(`Could not run python3: ${err.message}`)));
     });
 
-    if (!event.sender.isDestroyed())
-      event.sender.send('progress', { current: 2, total: 2, phase: 'csv' });
-
-    send('success', `Done. ${daysBack} days | ${filtered.length} activities | CSVs → csv_${endDate}/`);
+    sendProgress(2, 2, 'csv');
+    send('success', `Done. ${daysBack} days exported | CSVs → csv_${today}/`);
     return { ok: true, path: csvDir };
+
   } catch (err) {
     return { ok: false, error: err.message };
   }
