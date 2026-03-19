@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Garmin Data Exporter</title>
+<!--
+  Fonts are served from bundled WOFF2 files in renderer/fonts/.
+  Run `npm run fonts` once to download them. The Google Fonts fallback below
+  is only used if the local files are missing (e.g. fresh clone before running
+  the download script).
+-->
+<style>
+  /* ── Bundled fonts (local WOFF2, no network required) ── */
+  @font-face { font-family: 'Oxanium'; font-style: normal; font-weight: 400; font-display: swap; src: local('Oxanium'), url('fonts/oxanium-400.woff2') format('woff2'); }
+  @font-face { font-family: 'Oxanium'; font-style: normal; font-weight: 500; font-display: swap; src: local('Oxanium Medium'), url('fonts/oxanium-500.woff2') format('woff2'); }
+  @font-face { font-family: 'Oxanium'; font-style: normal; font-weight: 600; font-display: swap; src: local('Oxanium SemiBold'), url('fonts/oxanium-600.woff2') format('woff2'); }
+  @font-face { font-family: 'Oxanium'; font-style: normal; font-weight: 700; font-display: swap; src: local('Oxanium Bold'), url('fonts/oxanium-700.woff2') format('woff2'); }
+
+  @font-face { font-family: 'JetBrains Mono'; font-style: normal; font-weight: 300; font-display: swap; src: local('JetBrains Mono Light'), url('fonts/jetbrains-mono-300.woff2') format('woff2'); }
+  @font-face { font-family: 'JetBrains Mono'; font-style: normal; font-weight: 400; font-display: swap; src: local('JetBrains Mono'), url('fonts/jetbrains-mono-400.woff2') format('woff2'); }
+
+  @font-face { font-family: 'Barlow Condensed'; font-style: normal; font-weight: 700; font-display: swap; src: local('Barlow Condensed Bold'), url('fonts/barlow-condensed-700.woff2') format('woff2'); }
+</style>
+<!-- Online fallback: only activates when local WOFF2 files are absent -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oxanium:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400&family=Barlow+Condensed:wght@700&display=swap" media="print" onload="this.media='all'">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:            #080808;
+    --bg-panel:      #0d0d0d;
+    --bg-input:      #060606;
+    --bg-hover:      #121212;
+    --red:           #e8001c;
+    --red-dim:       #2a0007;
+    --red-mid:       #b50016;
+    --red-glow:      rgba(232, 0, 28, 0.18);
+    --red-glow2:     rgba(232, 0, 28, 0.07);
+    --red-bright:    #ff1a30;
+    --teal:          #00d4a0;
+    --teal-dim:      rgba(0, 212, 160, 0.1);
+    --orange:        #ff7a1a;
+    --orange-dim:    rgba(255, 122, 26, 0.09);
+    --text:          #b8b4b0;  /* 9.73:1 AAA ✓ */
+    --text-bright:   #f0ece6;  /* ~15:1   AAA ✓ */
+    --text-dim:      #9e9a97;  /* 7.19:1  AAA ✓ */
+    --text-mid:      #a8a4a0;  /* 8.09:1  AAA ✓ */
+    --red-text:      #ff2235;  /* 5.28:1  AA  ✓ */
+    --border:        #242020;
+    --border-mid:    #342e2e;
+    --border-bright: #4e4646;
+    --panel-accent:  #1a0005;
+  }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Prevent selection only on chrome/UI elements, not content */
+  #titlebar, #statusbar, .section-title, label, .btn, .slider-val, .slider-unit,
+  .sb-item, .sb-sep, #terminal-title, .hint { user-select: none; }
+
+  /* Grain texture — oversized so translate never shows edges; will-change
+     promotes to its own compositor layer so the constant animation doesn't
+     repaint the rest of the document. */
+  body::before {
+    content: '';
+    position: fixed;
+    top: -50%; left: -50%;
+    width: 200%; height: 200%;
+    background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/></filter><rect width='200' height='200' filter='url(%23n)'/></svg>");
+    opacity: 0.028;
+    pointer-events: none;
+    z-index: 9999;
+    will-change: transform;
+    animation: grain 9s steps(10) infinite;
+  }
+
+  @keyframes grain {
+    0%,100% { transform: translate(0,0); }
+    10% { transform: translate(-2%,-3%); }
+    30% { transform: translate(3%,2%); }
+    50% { transform: translate(-1%,4%); }
+    70% { transform: translate(2%,-2%); }
+    90% { transform: translate(-3%,1%); }
+  }
+
+  /* Vignette */
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse 85% 85% at 50% 50%, transparent 55%, rgba(0,0,0,0.65) 100%);
+    pointer-events: none;
+    z-index: 9998;
+  }
+
+  /* ── Layout ── */
+  #app { display: grid; grid-template-rows: 44px 1fr 26px; height: 100vh; overflow: hidden; }
+
+  /* ── Titlebar ── */
+  #titlebar {
+    -webkit-app-region: drag;
+    display: flex; align-items: center; gap: 14px;
+    padding: 0 18px 0 82px;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  /* Red top line with fade */
+  #titlebar::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent 0%, var(--red) 15%, var(--red) 85%, transparent 100%);
+    opacity: 0.8;
+  }
+
+  /* subtle bottom gradient suggesting depth */
+  #titlebar::after {
+    content: '';
+    position: absolute; bottom: 0; left: 0; right: 0; height: 40px;
+    background: linear-gradient(to bottom, transparent, rgba(232,0,28,0.015));
+    pointer-events: none;
+  }
+
+  .logo-mark {
+    width: 30px; height: 30px;
+    border: 1px solid var(--border-mid);
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+    background: linear-gradient(135deg, var(--bg) 0%, var(--panel-accent) 100%);
+    flex-shrink: 0;
+    transition: border-color 0.3s, box-shadow 0.3s;
+  }
+
+  .logo-mark:hover {
+    border-color: rgba(232,0,28,0.4);
+    box-shadow: 0 0 12px rgba(232,0,28,0.1);
+  }
+
+  .logo-mark svg { width: 18px; height: 11px; }
+  .logo-mark svg path { stroke: var(--red); }
+
+  .logo-pulse {
+    position: absolute; inset: -6px;
+    border: 1px solid var(--red);
+    border-radius: 8px;
+    animation: pulse-ring 3s ease-out infinite;
+    opacity: 0;
+  }
+
+  @keyframes pulse-ring {
+    0%   { transform: scale(0.88); opacity: 0.5; }
+    100% { transform: scale(1.6);  opacity: 0; }
+  }
+
+  #title-text {
+    font-family: 'Oxanium', sans-serif;
+    font-size: 14px; font-weight: 600;
+    letter-spacing: 0.28em; color: var(--text-bright);
+    text-transform: uppercase;
+  }
+
+  .title-divider {
+    width: 1px; height: 16px;
+    background: linear-gradient(to bottom, transparent, var(--border-mid), transparent);
+    flex-shrink: 0;
+  }
+
+  .title-sub {
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    color: var(--text-dim);
+    font-family: 'Oxanium', sans-serif;
+    font-weight: 400;
+    text-transform: uppercase;
+  }
+
+  .tb-right {
+    margin-left: auto;
+    display: flex; align-items: center; gap: 8px;
+    -webkit-app-region: no-drag;
+  }
+
+  /* Status pill */
+  .status-pill {
+    display: flex; align-items: center; gap: 6px;
+    padding: 3px 9px 3px 7px;
+    border: 1px solid var(--border-mid);
+    border-radius: 20px;
+    background: rgba(0,0,0,0.3);
+    transition: border-color .3s;
+  }
+
+  .status-pill.connected { border-color: rgba(0,212,160,0.3); }
+  .status-pill.error     { border-color: rgba(232,0,28,0.3); }
+
+  #status-dot {
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--border-bright);
+    transition: background .3s, box-shadow .3s;
+    flex-shrink: 0;
+  }
+
+  #status-dot.connected {
+    background: var(--teal);
+    box-shadow: 0 0 5px var(--teal), 0 0 10px rgba(0,212,160,0.4);
+    animation: dot-beat 2.2s ease-in-out infinite;
+  }
+  #status-dot.error { background: var(--red); box-shadow: 0 0 6px var(--red); }
+
+  @keyframes dot-beat {
+    0%,100% { opacity: 1; transform: scale(1); }
+    50%     { opacity:.5; transform: scale(1.5); }
+  }
+
+  #status-label {
+    font-size: 10px; letter-spacing: .15em;
+    color: var(--text-dim); transition: color .3s;
+    font-family: 'Oxanium', sans-serif; font-weight: 500;
+    text-transform: uppercase;
+  }
+  #status-label.connected { color: var(--teal); }
+  #status-label.error     { color: var(--red-text); }
+
+  /* ── Main ── */
+  #main { display: grid; grid-template-columns: 284px 1fr; overflow: hidden; }
+
+  /* ── Sidebar ── */
+  #sidebar {
+    border-right: 1px solid var(--border);
+    background: var(--bg-panel);
+    display: flex; flex-direction: column;
+    overflow-y: auto; overflow-x: hidden;
+    scrollbar-width: thin; scrollbar-color: var(--border-mid) transparent;
+    position: relative;
+  }
+
+  /* Subtle red ambient glow on sidebar background */
+  #sidebar::before {
+    content: '';
+    position: absolute; top: 0; right: 0; width: 120px; height: 120px;
+    background: radial-gradient(circle at top right, rgba(232,0,28,0.04) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  #sidebar::-webkit-scrollbar { width: 2px; }
+  #sidebar::-webkit-scrollbar-thumb { background: var(--border-mid); border-radius: 1px; }
+
+  .section {
+    border-bottom: 1px solid var(--border);
+    padding: 15px 16px;
+    position: relative;
+  }
+
+  .section-title {
+    font-family: 'Oxanium', sans-serif;
+    font-size: 10px; font-weight: 600;
+    letter-spacing: .2em; color: var(--text-dim);
+    text-transform: uppercase;
+    margin-bottom: 13px;
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  .section-title::before {
+    content: '';
+    display: inline-block;
+    width: 12px; height: 1px;
+    background: var(--red);
+    flex-shrink: 0;
+  }
+
+  .section-num {
+    margin-left: auto;
+    font-size: 8px; letter-spacing: .1em;
+    color: var(--border-bright);
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 300;
+  }
+
+  /* ── Fields ── */
+  .field { margin-bottom: 11px; }
+  .field:last-child { margin-bottom: 0; }
+
+  label {
+    display: block; font-size: 10px; letter-spacing: .14em;
+    color: var(--text-dim); text-transform: uppercase;
+    margin-bottom: 5px; font-weight: 400;
+    font-family: 'Oxanium', sans-serif;
+  }
+
+  input[type="email"], input[type="password"], input[type="text"] {
+    width: 100%;
+    background: var(--bg-input);
+    border: 1px solid var(--border-mid);
+    border-left: 2px solid var(--border-mid);
+    color: var(--text-bright);
+    font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 400;
+    padding: 7px 10px;
+    border-radius: 2px; outline: none;
+    transition: border-color .2s, box-shadow .2s, border-left-color .2s;
+    caret-color: var(--red);
+  }
+
+  input:focus {
+    border-color: var(--border-mid);
+    border-left-color: var(--red);
+    box-shadow: 0 0 0 3px var(--red-glow2), inset 0 0 12px rgba(232,0,28,0.02);
+  }
+
+  input::placeholder { color: var(--text-dim); font-weight: 300; }
+
+  .eye-wrap { position: relative; }
+  .eye-wrap input { padding-right: 34px; }
+
+  .eye-btn {
+    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; cursor: pointer;
+    color: var(--text-dim); font-size: 12px; padding: 2px;
+    transition: color .2s; line-height: 1;
+  }
+
+  .eye-btn:hover { color: var(--text); }
+  .eye-btn:focus-visible {
+    outline: 1px solid var(--red);
+    border-radius: 2px;
+  }
+
+  /* ── Slider ── */
+  .slider-row { display: flex; align-items: center; gap: 10px; }
+
+  input[type="range"] {
+    -webkit-appearance: none; flex: 1;
+    height: 2px;
+    background: linear-gradient(to right, var(--red-mid) 0%, var(--border-mid) 0%);
+    border-radius: 1px; outline: none; cursor: pointer;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px; height: 12px; border-radius: 2px;
+    background: var(--red);
+    box-shadow: 0 0 0 2px rgba(232,0,28,0.2), 0 0 10px rgba(232,0,28,0.3);
+    cursor: pointer; transition: box-shadow .2s, transform .15s;
+  }
+
+  input[type="range"]::-webkit-slider-thumb:hover {
+    box-shadow: 0 0 0 3px rgba(232,0,28,0.25), 0 0 16px rgba(232,0,28,0.5);
+    transform: scale(1.15);
+  }
+
+  .slider-val {
+    font-family: 'Barlow Condensed', sans-serif; font-size: 24px; font-weight: 700;
+    color: var(--text-bright); min-width: 32px; text-align: right;
+    letter-spacing: -0.01em;
+    line-height: 1;
+  }
+
+  .slider-unit {
+    font-size: 10px; color: var(--text-dim); letter-spacing: .12em;
+    font-weight: 500; align-self: flex-end; padding-bottom: 1px;
+    font-family: 'Oxanium', sans-serif;
+    text-transform: uppercase;
+  }
+
+  /* ── Dir row ── */
+  .dir-row { display: flex; gap: 6px; align-items: center; }
+  .dir-path {
+    margin-top: 6px; font-size: 10px; color: var(--text-dim);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    letter-spacing: .03em; font-weight: 300;
+    padding: 4px 7px;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+  }
+
+  /* ── Buttons ── */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+    padding: 8px 13px;
+    font-family: 'Oxanium', sans-serif; font-size: 10px; font-weight: 600;
+    letter-spacing: .2em; text-transform: uppercase;
+    border: 1px solid; border-radius: 2px;
+    cursor: pointer; transition: background-color .15s, border-color .15s, color .15s, box-shadow .15s, transform .15s;
+    white-space: nowrap; background: transparent;
+    position: relative; overflow: hidden;
+  }
+
+  /* Subtle shine on hover */
+  .btn::after {
+    content: '';
+    position: absolute; top: 0; left: -100%; width: 60%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.04), transparent);
+    transition: left .3s;
+    pointer-events: none;
+  }
+  .btn:hover:not(:disabled)::after { left: 140%; }
+
+  .btn-sm { padding: 5px 10px; font-size: 10px; }
+
+  .btn-primary {
+    border-color: rgba(232,0,28,0.35); color: var(--red-text);
+    background: rgba(232,0,28,0.04);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: rgba(232,0,28,0.1); border-color: rgba(232,0,28,0.7);
+    box-shadow: 0 0 20px rgba(232,0,28,0.15), inset 0 0 20px rgba(232,0,28,0.03);
+    color: var(--red-bright);
+  }
+  .btn-primary:active:not(:disabled) { transform: scale(.98); }
+
+  .btn-secondary {
+    border-color: var(--border-mid); color: var(--text-dim);
+    background: transparent;
+  }
+  .btn-secondary:hover:not(:disabled) {
+    border-color: var(--border-bright); color: var(--text);
+    background: rgba(255,255,255,.02);
+  }
+
+  .btn-amber {
+    border-color: rgba(255,122,26,0.3); color: var(--orange);
+    background: rgba(255,122,26,0.04);
+  }
+  .btn-amber:hover:not(:disabled) {
+    background: rgba(255,122,26,0.12); border-color: rgba(255,122,26,0.65);
+    box-shadow: 0 0 18px rgba(255,122,26,0.15);
+    color: #ff8c40;
+  }
+
+  .btn-full { width: 100%; }
+  .btn:disabled { opacity: .25; cursor: not-allowed; }
+  .btn-group { display: flex; flex-direction: column; gap: 6px; }
+
+  /* Action buttons */
+  #btn-health, #btn-activities {
+    padding: 11px 14px;
+    font-size: 11px; letter-spacing: .22em;
+  }
+
+  /* Corner marks on action buttons */
+  #btn-health::before, #btn-activities::before {
+    content: '';
+    position: absolute; top: 3px; right: 3px;
+    width: 5px; height: 5px;
+    border-top: 1px solid currentColor;
+    border-right: 1px solid currentColor;
+    opacity: 0.4;
+    transition: opacity .2s;
+  }
+  #btn-health:hover::before, #btn-activities:hover::before { opacity: 0.8; }
+
+  .hint {
+    margin-top: 10px; font-size: 10px; color: var(--text-dim);
+    line-height: 1.9; letter-spacing: .05em; font-weight: 300;
+    font-family: 'JetBrains Mono', monospace;
+    padding: 7px 9px;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    background: rgba(0,0,0,0.2);
+  }
+
+  .hint strong { color: var(--red-text); font-weight: 500; }
+
+  /* ── Terminal ── */
+  #terminal-panel {
+    display: flex; flex-direction: column; overflow: hidden;
+    background: var(--bg);
+    position: relative;
+  }
+
+  /* Dot grid background */
+  #terminal-panel::before {
+    content: '';
+    position: absolute; inset: 0;
+    background-image: radial-gradient(circle, rgba(255,255,255,0.025) 1px, transparent 1px);
+    background-size: 22px 22px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Scanline sweep.
+     Static position is top:-60% so the element starts fully above the panel.
+     Animation uses translateY (compositor-only, no layout) to sweep to 267%
+     of the element's own height (= 160% of panel height = fully past bottom).
+     will-change promotes this to its own compositor layer. */
+  #terminal-panel::after {
+    content: '';
+    position: absolute; top: -60%; left: 0; right: 0;
+    height: 60%;
+    background: linear-gradient(to bottom,
+      transparent 0%,
+      rgba(232, 0, 28, 0.012) 40%,
+      rgba(232, 0, 28, 0.025) 50%,
+      rgba(232, 0, 28, 0.012) 60%,
+      transparent 100%);
+    pointer-events: none;
+    z-index: 1;
+    will-change: transform;
+    animation: scanline 12s linear infinite;
+  }
+
+  @keyframes scanline {
+    0%   { transform: translateY(0); }
+    100% { transform: translateY(267%); }
+  }
+
+  #terminal-header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--border); flex-shrink: 0;
+    background: var(--bg-panel);
+    position: relative; z-index: 2;
+  }
+
+  #terminal-title {
+    font-family: 'Oxanium', sans-serif; font-size: 10px;
+    font-weight: 600; letter-spacing: .2em;
+    color: var(--text-dim); text-transform: uppercase;
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  /* Blinking cursor on terminal title */
+  #terminal-title::after {
+    content: '▮';
+    font-size: 8px; color: var(--red);
+    animation: blink-cursor 1.2s step-end infinite;
+    opacity: 0.6;
+  }
+
+  @keyframes blink-cursor {
+    0%,100% { opacity: 0.6; }
+    50%     { opacity: 0; }
+  }
+
+  #clear-btn { margin-left: auto; }
+
+  /* ── Progress ── */
+  #progress-wrap {
+    padding: 7px 14px 9px; flex-shrink: 0; display: none;
+    background: var(--bg-panel); border-bottom: 1px solid var(--border);
+    position: relative; z-index: 2;
+  }
+  #progress-wrap.active { display: block; }
+
+  #progress-label {
+    font-size: 10px; color: var(--text-dim); letter-spacing: .12em;
+    text-transform: uppercase; margin-bottom: 5px;
+    display: flex; justify-content: space-between; font-weight: 500;
+    font-family: 'Oxanium', sans-serif;
+  }
+
+  #progress-pct { color: var(--red-text); font-weight: 600; letter-spacing: .05em; }
+
+  #progress-track {
+    height: 3px; background: var(--border); border-radius: 1px; overflow: hidden;
+    position: relative;
+  }
+
+  /* Segmented tick marks over track */
+  #progress-track::before {
+    content: '';
+    position: absolute; inset: 0;
+    background-image: repeating-linear-gradient(
+      90deg,
+      transparent 0px,
+      transparent 9.5%,
+      var(--bg-panel) 9.5%,
+      var(--bg-panel) 10%
+    );
+    z-index: 2;
+    pointer-events: none;
+  }
+
+  #progress-fill {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--red-mid), var(--red));
+    border-radius: 1px;
+    transition: width .4s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 0 10px var(--red), 0 0 20px rgba(232,0,28,0.3);
+  }
+
+  /* ── Log ── */
+  #log {
+    flex: 1; overflow-y: auto; overflow-x: hidden;
+    padding: 10px 14px;
+    scrollbar-width: thin; scrollbar-color: var(--border-mid) transparent;
+    font-size: 12px; line-height: 1.9;
+    position: relative; z-index: 2;
+  }
+
+  #log::-webkit-scrollbar { width: 2px; }
+  #log::-webkit-scrollbar-thumb { background: var(--border-mid); border-radius: 1px; }
+
+  .log-entry {
+    display: flex; gap: 12px;
+    animation: fadeIn .15s ease;
+    padding: 1px 0;
+  }
+
+  /* Subtle hover highlight on log entries */
+  .log-entry:hover { background: rgba(255,255,255,0.01); }
+
+  @keyframes fadeIn {
+    from { opacity:0; transform: translateY(4px); }
+    to   { opacity:1; transform: translateY(0); }
+  }
+
+  .log-ts  { color: var(--text-dim); flex-shrink: 0; font-size: 10px; font-weight: 300; margin-top: 2px; }
+  .log-msg { word-break: break-all; font-weight: 400; }
+
+  .log-info    .log-msg { color: var(--text); }
+  .log-success .log-msg { color: var(--teal); }
+  .log-dim     .log-msg { color: var(--text-dim); }
+  .log-warn    .log-msg { color: var(--orange); }
+  .log-error   .log-msg { color: var(--red-text); }
+  .log-success .log-msg::before { content: '✓  '; opacity: 0.8; }
+  .log-error   .log-msg::before { content: '✗  '; }
+  .log-warn    .log-msg::before { content: '⚠  '; }
+
+  /* ── Welcome ── */
+  #welcome {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 100%; gap: 12px; pointer-events: none;
+    padding: 40px; text-align: center;
+    position: relative;
+  }
+
+  /* Corner brackets on welcome */
+  #welcome::before, #welcome::after {
+    content: '';
+    position: absolute;
+    width: 24px; height: 24px;
+    border-color: rgba(232,0,28,0.15);
+    border-style: solid;
+  }
+  #welcome::before {
+    top: 24px; left: 24px;
+    border-width: 1px 0 0 1px;
+  }
+  #welcome::after {
+    bottom: 24px; right: 24px;
+    border-width: 0 1px 1px 0;
+  }
+
+  .w-ecg {
+    width: 130px; height: 38px; margin-bottom: 4px; opacity: 0.2;
+  }
+
+  .w-ecg path {
+    fill: none; stroke: var(--red); stroke-width: 1.5;
+    stroke-linecap: round; stroke-linejoin: round;
+    stroke-dasharray: 300;
+    stroke-dashoffset: 300;
+    animation: ecg-draw 3.2s ease-in-out infinite;
+  }
+
+  @keyframes ecg-draw {
+    0%   { stroke-dashoffset: 300; opacity: 0; }
+    15%  { opacity: 1; }
+    60%  { stroke-dashoffset: 0; opacity: 1; }
+    85%  { stroke-dashoffset: 0; opacity: 0.4; }
+    100% { stroke-dashoffset: -300; opacity: 0; }
+  }
+
+  .w-title {
+    font-family: 'Oxanium', sans-serif; font-size: 26px; font-weight: 700;
+    letter-spacing: .35em; color: var(--text-dim); text-transform: uppercase;
+  }
+  .w-sub {
+    font-size: 10px; color: var(--text-dim); letter-spacing: .15em;
+    font-weight: 300;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* ── Result banner ── */
+  #result-banner {
+    display: none; margin: 0 14px 8px;
+    padding: 9px 12px; border-radius: 2px;
+    font-size: 10px; letter-spacing: .1em; font-weight: 500;
+    flex-shrink: 0; cursor: pointer; transition: opacity .2s;
+    align-items: center; gap: 8px;
+    font-family: 'Oxanium', sans-serif;
+    position: relative; z-index: 2;
+  }
+
+  #result-banner:hover { opacity: .75; }
+  #result-banner.active { display: flex; }
+  #result-banner.success {
+    background: rgba(0,212,160,.05); border: 1px solid rgba(0,212,160,.2);
+    color: var(--teal);
+    border-left: 2px solid var(--teal);
+  }
+  #result-banner.error {
+    background: rgba(232,0,28,.05); border: 1px solid rgba(232,0,28,.2);
+    color: var(--red-text);
+    border-left: 2px solid var(--red-text);
+  }
+
+  /* ── Status bar ── */
+  #statusbar {
+    display: flex; align-items: center; gap: 14px;
+    padding: 0 14px;
+    background: var(--bg-panel);
+    border-top: 1px solid var(--border);
+    font-size: 10px; color: var(--text-dim); letter-spacing: .1em;
+    font-family: 'Oxanium', sans-serif;
+  }
+
+  .sb-item { display: flex; align-items: center; gap: 4px; font-weight: 500; }
+  .sb-item span { color: var(--text-mid); font-weight: 600; }
+
+  #sb-last {
+    margin-left: auto; max-width: 280px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    cursor: pointer; transition: color .2s; font-weight: 300;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+  }
+  #sb-last:hover { color: var(--red); }
+  #sb-last:focus-visible { color: var(--red); outline: 1px solid var(--red); border-radius: 2px; }
+
+  #result-banner:focus-visible { outline: 1px solid currentColor; border-radius: 2px; }
+
+  .sb-sep { color: var(--border-bright); opacity: 0.5; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- Titlebar -->
+  <div id="titlebar">
+    <div class="logo-mark">
+      <div class="logo-pulse"></div>
+      <svg viewBox="0 0 32 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M1 10 L6 10 L9 4 L12 16 L15 7 L17 10 L31 10" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <span id="title-text">Garmin Data Exporter</span>
+    <div class="title-divider"></div>
+    <span class="title-sub">Health Sync</span>
+    <div class="tb-right">
+      <div class="status-pill" id="status-pill">
+        <div id="status-dot"></div>
+        <span id="status-label" aria-live="polite">OFFLINE</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div id="main">
+
+    <!-- Sidebar -->
+    <div id="sidebar">
+
+      <div class="section">
+        <div class="section-title">Credentials <span class="section-num" aria-hidden="true">01</span></div>
+        <div class="field">
+          <label for="email">Email</label>
+          <input type="email" id="email" placeholder="you@example.com" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <div class="eye-wrap">
+            <input type="password" id="password" placeholder="••••••••" aria-describedby="password-hint">
+            <button class="eye-btn" id="eye-btn" aria-label="Show password">👁</button>
+          </div>
+          <div class="dir-path" id="password-hint" style="margin-top:4px;">Not saved between sessions</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Settings <span class="section-num" aria-hidden="true">02</span></div>
+        <div class="field">
+          <label for="days-slider">Days Back</label>
+          <div class="slider-row">
+            <input type="range" id="days-slider" min="1" max="90" value="7"
+              aria-valuemin="1" aria-valuemax="90" aria-valuenow="7" aria-valuetext="7 days">
+            <span class="slider-val" id="days-val" aria-hidden="true">7</span>
+            <span class="slider-unit" aria-hidden="true">days</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>Output Directory</label>
+          <div class="dir-row">
+            <button class="btn btn-secondary btn-sm" id="choose-dir-btn">Browse…</button>
+          </div>
+          <div class="dir-path" id="dir-display">~/Documents/GarminExport</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Actions <span class="section-num" aria-hidden="true">03</span></div>
+        <div class="btn-group">
+          <button class="btn btn-primary btn-full" id="btn-health">Download Health Data</button>
+        </div>
+        <div class="hint">
+          Downloads <strong>N</strong> days from Garmin and converts to CSVs automatically.
+        </div>
+      </div>
+
+      <div class="section" id="open-section" style="display:none;">
+        <div class="section-title">Last Output</div>
+        <button class="btn btn-secondary btn-sm btn-full" id="open-folder-btn">Open in Finder →</button>
+      </div>
+
+    </div>
+
+    <!-- Terminal -->
+    <div id="terminal-panel">
+
+      <div id="terminal-header">
+        <span id="terminal-title">System Output</span>
+        <button class="btn btn-secondary btn-sm" id="clear-btn">Clear</button>
+      </div>
+
+      <div id="progress-wrap">
+        <div id="progress-label">
+          <span id="progress-phase">Processing…</span>
+          <span id="progress-pct" aria-hidden="true">0%</span>
+        </div>
+        <div id="progress-track">
+          <div id="progress-fill"
+            role="progressbar"
+            aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"
+            aria-label="Export progress"></div>
+        </div>
+      </div>
+
+      <div id="result-banner" role="alert" aria-atomic="true"></div>
+
+      <div id="log" aria-live="polite" aria-relevant="additions" aria-label="Export log output">
+        <div id="welcome">
+          <svg class="w-ecg" viewBox="0 0 120 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M0 18 L18 18 L26 4 L34 32 L42 12 L48 18 L120 18"/>
+          </svg>
+          <div class="w-title">Ready</div>
+          <div class="w-sub">Enter credentials and choose an action</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Status bar -->
+  <div id="statusbar">
+    <div class="sb-item">SYS <span id="sb-status">IDLE</span></div>
+    <span class="sb-sep">·</span>
+    <div class="sb-item">v<span>1.0.0</span></div>
+    <div id="sb-last" title="Click to open" role="button" tabindex="0" aria-label="Open last output folder"></div>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ── State ────────────────────────────────────────────────────────────────
+  let outputDir      = localStorage.getItem('garmin_dir') || null;
+  let lastOutputPath = null;
+  let isRunning      = false;
+
+  // ── DOM ──────────────────────────────────────────────────────────────────
+  const $ = id => document.getElementById(id);
+  const emailEl      = $('email');
+  const passEl       = $('password');
+  const eyeBtn       = $('eye-btn');
+  const daysSlider   = $('days-slider');
+  const daysVal      = $('days-val');
+  const dirDisplay   = $('dir-display');
+  const chooseDirBtn = $('choose-dir-btn');
+  const btnHealth    = $('btn-health');
+  const logEl        = $('log');
+  const clearBtn     = $('clear-btn');
+  const progressWrap = $('progress-wrap');
+  const progressPhase= $('progress-phase');
+  const progressPct  = $('progress-pct');
+  const progressFill = $('progress-fill');
+  const resultBanner = $('result-banner');
+  const statusDot    = $('status-dot');
+  const statusLabel  = $('status-label');
+  const statusPill   = $('status-pill');
+  const sbStatus     = $('sb-status');
+  const openSection  = $('open-section');
+  const openFolderBtn= $('open-folder-btn');
+  const sbLast       = $('sb-last');
+  const welcomeEl    = $('welcome');
+
+  // ── Init saved values ────────────────────────────────────────────────────
+  const savedEmail = localStorage.getItem('garmin_email');
+  if (savedEmail) emailEl.value = savedEmail;
+
+  const savedPass = localStorage.getItem('garmin_pass');
+  if (savedPass) passEl.value = savedPass;
+
+  if (outputDir) {
+    dirDisplay.textContent = outputDir;
+  } else {
+    window.garmin.defaultOutputDir().then(d => {
+      dirDisplay.textContent = d;
+    });
+  }
+
+  // Update slider gradient on init
+  function updateSliderGradient(slider) {
+    const pct = ((slider.value - slider.min) / (slider.max - slider.min)) * 100;
+    slider.style.background = `linear-gradient(to right, var(--red-mid) ${pct}%, var(--border-mid) ${pct}%)`;
+  }
+  updateSliderGradient(daysSlider);
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function appendLog(type, msg, ts) {
+    if (welcomeEl) welcomeEl.style.display = 'none';
+    const el = document.createElement('div');
+    el.className = `log-entry log-${type}`;
+    el.innerHTML = `<span class="log-ts">${ts || new Date().toLocaleTimeString()}</span><span class="log-msg">${esc(msg)}</span>`;
+    logEl.appendChild(el);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function setConnStatus(state) {
+    statusDot.className   = state || '';
+    statusLabel.className = state || '';
+    statusPill.className  = 'status-pill ' + (state || '');
+    statusLabel.textContent = state === 'connected' ? 'ONLINE' : state === 'error' ? 'ERROR' : 'OFFLINE';
+  }
+
+  function setRunning(val) {
+    isRunning = val;
+    btnHealth.disabled = val;
+    sbStatus.textContent = val ? 'RUNNING' : 'IDLE';
+    progressWrap.classList.toggle('active', val);
+    if (!val) {
+      progressFill.style.width = '0%';
+      progressFill.setAttribute('aria-valuenow', '0');
+    }
+  }
+
+  function setOutputPath(p, isDir) {
+    lastOutputPath = p;
+    const short = p.split('/').slice(-2).join('/');
+    sbLast.textContent = '…/' + short;
+    sbLast.title = p;
+    sbLast.setAttribute('aria-label', 'Open last output folder: ' + p);
+    openSection.style.display = '';
+    const openFolder = () => window.garmin.openFolder(isDir ? p : p.replace(/\/[^/]+$/, ''));
+    openFolderBtn.onclick = openFolder;
+    sbLast.onclick = openFolder;
+    sbLast.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openFolder(); } };
+  }
+
+  function showBanner(ok, msg) {
+    resultBanner.className = `active ${ok ? 'success' : 'error'}`;
+    resultBanner.textContent = ok ? '✓  ' + msg : '✗  ' + msg;
+    resultBanner.setAttribute('tabindex', '0');
+    resultBanner.setAttribute('role', 'alert');
+  }
+
+  resultBanner.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      resultBanner.click();
+    }
+  });
+
+  function getOpts() {
+    return {
+      email:     emailEl.value.trim(),
+      password:  passEl.value,
+      daysBack:  parseInt(daysSlider.value, 10),
+      outputDir: outputDir || dirDisplay.textContent || '.',
+    };
+  }
+
+  function validate() {
+    const { email, password } = getOpts();
+    if (!email || !password) { appendLog('error', 'Email and password are required.'); return false; }
+    return true;
+  }
+
+  // ── Slider ───────────────────────────────────────────────────────────────
+  daysSlider.addEventListener('input', () => {
+    daysVal.textContent = daysSlider.value;
+    daysSlider.setAttribute('aria-valuenow', daysSlider.value);
+    daysSlider.setAttribute('aria-valuetext', daysSlider.value + ' days');
+    updateSliderGradient(daysSlider);
+  });
+
+  // ── Eye toggle ────────────────────────────────────────────────────────────
+  eyeBtn.addEventListener('click', () => {
+    const show = passEl.type === 'password';
+    passEl.type = show ? 'text' : 'password';
+    eyeBtn.textContent = show ? '🙈' : '👁';
+    eyeBtn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+  });
+
+  // ── Choose dir ────────────────────────────────────────────────────────────
+  chooseDirBtn.addEventListener('click', async () => {
+    const dir = await window.garmin.chooseDir();
+    if (dir) {
+      outputDir = dir;
+      dirDisplay.textContent = dir;
+      localStorage.setItem('garmin_dir', dir);
+    }
+  });
+
+  // ── Clear ─────────────────────────────────────────────────────────────────
+  clearBtn.addEventListener('click', () => {
+    logEl.innerHTML = '';
+    resultBanner.className = '';
+    welcomeEl && (welcomeEl.style.display = '');
+    logEl.appendChild(welcomeEl);
+  });
+
+  // ── Save credentials on change ────────────────────────────────────────────
+  emailEl.addEventListener('change', () => {
+    localStorage.setItem('garmin_email', emailEl.value.trim());
+  });
+
+  passEl.addEventListener('change', () => {
+    localStorage.setItem('garmin_pass', passEl.value);
+  });
+
+  // ── IPC listeners ─────────────────────────────────────────────────────────
+  window.garmin.onProgress(({ current, total, phase }) => {
+    const pct = Math.round((current / total) * 100);
+    progressFill.style.width = pct + '%';
+    progressFill.setAttribute('aria-valuenow', pct);
+    progressPct.textContent  = pct + '%';
+    const labels = { daily: 'Daily Metrics', activities: 'Activities', csv: 'Building CSVs' };
+    const phaseLabel = (labels[phase] || phase) + ' — ' + current + '/' + total;
+    progressPhase.textContent = phaseLabel;
+    progressFill.setAttribute('aria-label', 'Export progress: ' + phaseLabel + ' (' + pct + '%)');
+  });
+
+  window.garmin.onLog(({ type, msg, ts }) => {
+    appendLog(type, msg, ts);
+  });
+
+  // ── Download Health Data + Convert to CSVs ───────────────────────────────
+  btnHealth.addEventListener('click', async () => {
+    if (isRunning || !validate()) return;
+    resultBanner.className = '';
+    setRunning(true);
+    setConnStatus('');
+
+    const opts = getOpts();
+    appendLog('info', 'Starting download — ' + opts.daysBack + ' days back…');
+
+    const res = await window.garmin.downloadHealth(opts);
+    setRunning(false);
+
+    if (res.ok) {
+      setConnStatus('connected');
+      setOutputPath(res.path, true);
+      showBanner(true, 'CSVs saved → click to open');
+    } else {
+      setConnStatus('error');
+      appendLog('error', res.error || 'Unknown error');
+      showBanner(false, res.error || 'Download failed');
+    }
+  });
+
+})();
+</script>
+</body>
+</html>

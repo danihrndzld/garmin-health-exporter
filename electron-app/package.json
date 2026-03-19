@@ -1,0 +1,42 @@
+{
+  "name": "garmin-data-exporter",
+  "version": "1.1.0",
+  "description": "Garmin Connect health data exporter",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "dist": "electron-builder --mac",
+    "dist:dir": "electron-builder --mac --dir",
+    "fonts": "node scripts/download-fonts.js"
+  },
+  "build": {
+    "appId": "com.garmin.data-exporter",
+    "productName": "Garmin Data Exporter",
+    "mac": {
+      "category": "public.app-category.healthcare-fitness",
+      "target": [
+        { "target": "dmg", "arch": ["arm64", "x64"] }
+      ],
+      "icon": "assets/icon.png"
+    },
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*",
+      "!dist",
+      "!node_modules/.cache"
+    ],
+    "extraResources": [
+      { "from": "scripts/json_to_csv.py", "to": "scripts/json_to_csv.py" }
+    ]
+  },
+  "dependencies": {
+    "garmin-connect": "^1.6.2"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  }
+}
