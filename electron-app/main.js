@@ -99,16 +99,17 @@ ipcMain.handle('download-health', async (event, { email, password, daysBack, out
     for (const d of dates) {
       send('dim', `  ${d}`);
       const daily = {};
+      const dateObj = new Date(d + 'T12:00:00');
       const safe = async (label, fn) => {
         try { return await fn(); }
         catch (e) { send('dim', `    [skip] ${label}: ${e.message}`); return null; }
       };
 
-      daily.heartRate  = await safe('heartRate',  () => gc.getHeartRate(d));
-      daily.sleepData  = await safe('sleepData',  () => gc.getSleepData(d));
-      daily.steps      = await safe('steps',      () => gc.getSteps(d));
-      daily.weight     = await safe('weight',     () => gc.getDailyWeightData(d));
-      daily.hydration  = await safe('hydration',  () => gc.getDailyHydration(d));
+      daily.heartRate  = await safe('heartRate',  () => gc.getHeartRate(dateObj));
+      daily.sleepData  = await safe('sleepData',  () => gc.getSleepData(dateObj));
+      daily.steps      = await safe('steps',      () => gc.getSteps(dateObj));
+      daily.weight     = await safe('weight',     () => gc.getDailyWeightData(dateObj));
+      daily.hydration  = await safe('hydration',  () => gc.getDailyHydration(dateObj));
 
       result.daily[d] = daily;
 
