@@ -1125,7 +1125,7 @@
     progressFill.style.width = pct + '%';
     progressFill.setAttribute('aria-valuenow', pct);
     progressPct.textContent  = pct + '%';
-    const labels = { daily: 'Daily Metrics', activities: 'Activities', csv: 'Building CSVs' };
+    const labels = { daily: 'Daily Metrics', activities: 'Activities', csv: 'Building CSVs', 'activity-details': 'Activity Details' };
     const phaseLabel = (labels[phase] || phase) + ' — ' + current + '/' + total;
     progressPhase.textContent = phaseLabel;
     progressFill.setAttribute('aria-label', 'Export progress: ' + phaseLabel + ' (' + pct + '%)');
