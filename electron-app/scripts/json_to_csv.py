@@ -89,9 +89,11 @@ def extract_daily_summary(daily: dict) -> list[dict]:
             row["stepsWellness"] = steps.get("totalSteps")
         # hydration
         hyd = d.get("hydration") or {}
-        row["hydrationGoalMl"]         = hyd.get("goalMl")
-        row["hydrationValueMl"]        = hyd.get("valueMl")
-        row["hydrationSweatLossMl"]    = hyd.get("sweatLossMl")
+        row["hydrationGoalMl"]            = hyd.get("goalInML")
+        row["hydrationValueMl"]           = hyd.get("valueInML")
+        row["hydrationSweatLossMl"]       = hyd.get("sweatLossInML")
+        row["hydrationDailyAverageMl"]    = hyd.get("dailyAverageinML")
+        row["hydrationActivityIntakeMl"]  = hyd.get("activityIntakeInML")
         rows.append(row)
     return rows
 
@@ -110,9 +112,20 @@ def extract_sleep(daily: dict) -> list[dict]:
                     "highestSpO2Value", "averageSpO2HRSleep", "averageRespirationValue",
                     "lowestRespirationValue", "highestRespirationValue",
                     "avgSleepStress", "sleepScores", "sleepResultType",
-                    "sleepStartTimestampGMT", "sleepEndTimestampGMT"]:
+                    "sleepStartTimestampGMT", "sleepEndTimestampGMT",
+                    "sleepStartTimestampLocal", "sleepEndTimestampLocal",
+                    "awakeCount", "avgHeartRate", "sleepScoreFeedback",
+                    "sleepScoreInsight", "sleepNeed", "nextSleepNeed",
+                    "breathingDisruptionSeverity", "sleepAlignment",
+                    "sleepWindowConfirmed"]:
             val = dto.get(key)
             row[key] = json.dumps(val) if isinstance(val, (dict, list)) else val
+        # sleep top-level fields
+        row["restlessMomentsCount"]   = sleep.get("restlessMomentsCount")
+        row["avgOvernightHrv"]        = sleep.get("avgOvernightHrv")
+        row["avgSkinTempDeviationC"]  = sleep.get("avgSkinTempDeviationC")
+        row["restingHeartRate"]       = sleep.get("restingHeartRate")
+        row["bodyBatteryChange"]      = sleep.get("bodyBatteryChange")
         rows.append(row)
     return rows
 
@@ -157,8 +170,11 @@ def extract_training(daily: dict) -> list[dict]:
         # morning readiness
         mr_raw = d.get("morning_training_readiness") or {}
         mr = mr_raw[-1] if isinstance(mr_raw, list) and mr_raw else (mr_raw if isinstance(mr_raw, dict) else {})
-        row["morning_readiness_level"] = mr.get("level")
-        row["morning_readiness_feedback"] = mr.get("feedbackShort")
+        row["morning_readiness_level"]              = mr.get("level")
+        row["morning_readiness_feedback"]           = mr.get("feedbackShort")
+        row["morning_readiness_recoveryTime"]       = mr.get("recoveryTime")
+        row["morning_readiness_sleepScoreFactor"]   = mr.get("sleepScoreFactorPercent")
+        row["morning_readiness_recoveryTimeFactor"] = mr.get("recoveryTimeFactorPercent")
         # training status
         ts = d.get("training_status") or {}
         vo2 = ts.get("mostRecentVO2Max") or {}
@@ -205,8 +221,13 @@ def extract_activities(activities: list) -> list[dict]:
                     "hrTimeInZone_1", "hrTimeInZone_2", "hrTimeInZone_3",
                     "hrTimeInZone_4", "hrTimeInZone_5",
                     "minTemperature", "maxTemperature", "avgElevation",
+                    "elevationGain", "elevationLoss",
                     "totalReps", "totalSets", "activeSets",
-                    "aerobicTrainingEffectMessage", "anaerobicTrainingEffectMessage"]:
+                    "aerobicTrainingEffectMessage", "anaerobicTrainingEffectMessage",
+                    "vO2MaxValue", "avgStrideLength", "locationName",
+                    "startLatitude", "startLongitude", "endLatitude", "endLongitude",
+                    "averageRunningCadenceInStepsPerMinute",
+                    "maxRunningCadenceInStepsPerMinute"]:
             row[key] = act.get(key)
         act_type = act.get("activityType") or {}
         row["activityType"] = act_type.get("typeKey") if isinstance(act_type, dict) else act_type
@@ -243,6 +264,44 @@ def extract_aggregated_misc(aggregated: dict) -> list[dict]:
     return [row] if row else []
 
 
+def extract_running_tolerance(daily: dict) -> list[dict]:
+    rows = []
+    for date, d in daily.items():
+        for entry in (d.get("running_tolerance") or []):
+            row = {"date": date}
+            for key in ["totalImpactLoad", "totalDistance", "tolerance",
+                        "startOfWeek", "endOfWeek", "weekIndex"]:
+                row[key] = entry.get(key)
+            rows.append(row)
+    return rows
+
+
+def extract_aggregated_daily_steps(aggregated: dict) -> list[dict]:
+    return [
+        {k: entry.get(k) for k in ["calendarDate", "totalSteps", "totalDistance", "stepGoal"]}
+        for entry in (aggregated.get("daily_steps") or [])
+    ]
+
+
+def extract_weekly_intensity(aggregated: dict) -> list[dict]:
+    return [
+        {k: entry.get(k) for k in ["calendarDate", "weeklyGoal", "moderateValue", "vigorousValue"]}
+        for entry in (aggregated.get("weekly_intensity") or [])
+    ]
+
+
+def extract_hill_score_daily(aggregated: dict) -> list[dict]:
+    hs = aggregated.get("hill_score") or {}
+    rows = []
+    for entry in (hs.get("hillScoreDTOList") or []):
+        row = {}
+        for key in ["calendarDate", "overallScore", "strengthScore", "enduranceScore",
+                    "hillScoreClassificationId", "hillScoreFeedbackPhraseId"]:
+            row[key] = entry.get(key)
+        rows.append(row)
+    return rows
+
+
 def extract_blood_pressure(aggregated: dict) -> list[dict]:
     bp = aggregated.get("blood_pressure") or {}
     rows = []
@@ -254,14 +313,13 @@ def extract_blood_pressure(aggregated: dict) -> list[dict]:
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
-def convert(json_path: Path, output_base=None):
+def convert(json_path: Path):
     print(f"Reading {json_path.name}...")
     data = json.loads(json_path.read_text())
 
     date_tag = data.get("export_date", "export")
-    base     = output_base if output_base is not None else OUTPUT_DIR
-    csv_dir  = base / f"csv_{date_tag}"
-    csv_dir.mkdir(parents=True, exist_ok=True)
+    csv_dir  = OUTPUT_DIR / f"csv_{date_tag}"
+    csv_dir.mkdir(exist_ok=True)
     print(f"Writing CSVs to {csv_dir}/\n")
 
     daily      = data.get("daily", {})
@@ -275,14 +333,17 @@ def convert(json_path: Path, output_base=None):
     write_csv("training",           extract_training(daily),                 csv_dir)
     write_csv("spo2_respiration",   extract_spo2_respiration(daily),         csv_dir)
     write_csv("activities",         extract_activities(activities),          csv_dir)
-    write_csv("weight_body_comp",   extract_weight(aggregated),              csv_dir)
-    write_csv("blood_pressure",     extract_blood_pressure(aggregated),      csv_dir)
-    write_csv("misc_metrics",       extract_aggregated_misc(aggregated),     csv_dir)
+    write_csv("weight_body_comp",        extract_weight(aggregated),                  csv_dir)
+    write_csv("blood_pressure",          extract_blood_pressure(aggregated),          csv_dir)
+    write_csv("misc_metrics",            extract_aggregated_misc(aggregated),         csv_dir)
+    write_csv("running_tolerance",       extract_running_tolerance(daily),            csv_dir)
+    write_csv("daily_steps_aggregated",  extract_aggregated_daily_steps(aggregated),  csv_dir)
+    write_csv("weekly_intensity",        extract_weekly_intensity(aggregated),        csv_dir)
+    write_csv("hill_score_daily",        extract_hill_score_daily(aggregated),        csv_dir)
 
     print("\nDone.")
 
 
 if __name__ == "__main__":
-    path        = Path(sys.argv[1]) if len(sys.argv) > 1 else latest_json()
-    output_base = Path(sys.argv[2]) if len(sys.argv) > 2 else None
-    convert(path, output_base)
+    path = Path(sys.argv[1]) if len(sys.argv) > 1 else latest_json()
+    convert(path)
