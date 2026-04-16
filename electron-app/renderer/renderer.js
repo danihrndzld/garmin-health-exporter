@@ -265,6 +265,8 @@
     if (res.ok) {
       setConnStatus('connected');
       setOutputPath(res.path, true);
+      // Delight: terminal-handshake line before the banner.
+      appendLog('complete', 'Export complete · ' + opts.daysBack + ' days captured');
       showBanner(true, 'Done — click to open output folder');
     } else {
       setConnStatus('error');

@@ -638,6 +638,17 @@ input[type="range"]:focus { outline: 2px solid var(--red-mid); outline-offset: 3
 .log-dim     .log-msg { color: var(--text-dim); }
 .log-info    .log-msg { color: var(--text-bright); }
 
+/* Delight: terminal-handshake line on successful export */
+.log-complete {
+  animation: logEntryIn .36s cubic-bezier(.16, 1, .3, 1) both;
+}
+.log-complete .log-msg {
+  color: var(--teal-arrival);
+  text-transform: uppercase;
+  letter-spacing: var(--ls-head);
+  font-weight: var(--fw-ui-bold);
+}
+
 /* ── Welcome ───────────────────────────────────────────────────────────── */
 #welcome {
   display: flex;
@@ -658,10 +669,19 @@ input[type="range"]:focus { outline: 2px solid var(--red-mid); outline-offset: 3
   stroke-linejoin: round;
   stroke-dasharray: 200;
   stroke-dashoffset: 200;
-  animation: draw 2s ease forwards .3s;
+  /* Draw in, then idle-heartbeat 6x (~9.6s) and rest — not a permanent loop */
+  animation:
+    draw 2s ease forwards .3s,
+    ecgIdlePulse 1.6s ease-in-out 6 2.3s;
+  will-change: opacity;
 }
 
 @keyframes draw { to { stroke-dashoffset: 0; } }
+
+@keyframes ecgIdlePulse {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1;    }
+}
 
 .w-title {
   font-family: var(--font-head);
