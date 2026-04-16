@@ -17,7 +17,7 @@ function createWindow() {
     height: 760,
     minWidth: 800,
     minHeight: 600,
-    backgroundColor: '#080c08',
+    backgroundColor: '#0a0908',
     titleBarStyle: 'hiddenInset',
     vibrancy: 'under-window',
     webPreferences: {
