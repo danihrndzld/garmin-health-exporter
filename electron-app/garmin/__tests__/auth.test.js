@@ -390,6 +390,40 @@ test('login creates data directory if it does not exist', async () => {
   assert.ok(fs.existsSync(path.join(nested, 'tokens.json')));
 });
 
+test('loadTokens caches tokens in memory after first read (no second disk read)', async () => {
+  const dir = makeTmpDir();
+  const tokenPath = path.join(dir, 'tokens.json');
+  const data = makeTokenData();
+  fs.writeFileSync(tokenPath, JSON.stringify(data), { mode: 0o600 });
+
+  const client = createClient(dir);
+  const first = await client.loadTokens();
+  assert.strictEqual(first.ok, true);
+
+  // Mutate the file on disk — if we re-read it, we'd see the change.
+  fs.writeFileSync(tokenPath, 'CORRUPTED-JUNK', { mode: 0o600 });
+
+  const second = await client.loadTokens();
+  assert.strictEqual(second.ok, true, 'second loadTokens should hit the in-memory cache');
+  assert.strictEqual(second.tokens.oauth2.access_token, 'test-access-token-abc123');
+});
+
+test('clearTokens invalidates in-memory cache', async () => {
+  const dir = makeTmpDir();
+  const tokenPath = path.join(dir, 'tokens.json');
+  const data = makeTokenData();
+  fs.writeFileSync(tokenPath, JSON.stringify(data), { mode: 0o600 });
+
+  const client = createClient(dir);
+  const first = await client.loadTokens();
+  assert.strictEqual(first.ok, true);
+
+  client.clearTokens();
+  // File is gone and memory cache cleared — next load should fail with missing file
+  const second = await client.loadTokens();
+  assert.strictEqual(second.ok, false);
+});
+
 test('login flow makes correct sequence of fetch calls', async () => {
   const dir = makeTmpDir();
   const mockFetch = createLoginMockFetch();

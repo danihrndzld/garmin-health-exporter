@@ -118,6 +118,7 @@ class GarminAuth {
     this.dataDir = dataDir;
     this.tokenPath = path.join(dataDir, TOKEN_FILE);
     this._fetch = opts.fetch || globalThis.fetch;
+    this._cachedTokens = null;
   }
 
   // -----------------------------------------------------------------------
@@ -294,15 +295,16 @@ class GarminAuth {
    */
   async loadTokens() {
     try {
-      if (!fs.existsSync(this.tokenPath)) {
-        return { ok: false, error: 'No token file found — login required' };
-      }
-
-      let data;
-      try {
-        data = JSON.parse(fs.readFileSync(this.tokenPath, 'utf8'));
-      } catch {
-        return { ok: false, error: 'Token file is corrupted — login required' };
+      let data = this._cachedTokens;
+      if (!data) {
+        if (!fs.existsSync(this.tokenPath)) {
+          return { ok: false, error: 'No token file found — login required' };
+        }
+        try {
+          data = JSON.parse(fs.readFileSync(this.tokenPath, 'utf8'));
+        } catch {
+          return { ok: false, error: 'Token file is corrupted — login required' };
+        }
       }
 
       if (!data.oauth2 || !data.oauth1 || !data.consumer) {
@@ -326,6 +328,7 @@ class GarminAuth {
         this._writeTokens(data);
       }
 
+      this._cachedTokens = data;
       return { ok: true, tokens: data };
     } catch (err) {
       return { ok: false, error: err.message };
@@ -350,6 +353,7 @@ class GarminAuth {
    */
   clearTokens() {
     try {
+      this._cachedTokens = null;
       if (fs.existsSync(this.tokenPath)) {
         fs.unlinkSync(this.tokenPath);
       }
@@ -420,10 +424,12 @@ class GarminAuth {
     }
   }
 
-  /** Write token data to disk with mode 0600. */
+  /** Write token data to disk with mode 0600 (enforced on both create and overwrite). */
   _writeTokens(data) {
     fs.mkdirSync(this.dataDir, { recursive: true });
     fs.writeFileSync(this.tokenPath, JSON.stringify(data, null, 2), { mode: 0o600 });
+    try { fs.chmodSync(this.tokenPath, 0o600); } catch (_e) { /* best-effort on platforms w/o chmod */ }
+    this._cachedTokens = data;
   }
 }
 

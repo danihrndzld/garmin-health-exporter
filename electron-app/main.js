@@ -66,7 +66,13 @@ ipcMain.handle('open-folder', async (_, folderPath) => {
 
 // ── IPC: open external URL ────────────────────────────────────────────────────
 ipcMain.handle('open-url', async (_, url) => {
-  shell.openExternal(url);
+  try {
+    const u = new URL(url);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return;
+    shell.openExternal(url);
+  } catch {
+    // Invalid URL — silently drop
+  }
 });
 
 // ── IPC: get app version ──────────────────────────────────────────────────────
@@ -115,11 +121,13 @@ ipcMain.handle('download-health', async (event, { email, password, daysBack, out
     return { ok: false, error: 'refreshWindow must be an integer between 1 and 7.' };
   }
 
-  // Validate outputDir — must be an absolute path within home or default output
+  // Validate outputDir — must be strictly contained within home (path.relative
+  // avoids the prefix-match bypass of startsWith, e.g. `/Users/dani-evil/...`).
   const resolvedOutput = path.resolve(outputDir);
   const home = os.homedir();
-  const defaultOutput = path.join(app.getPath('documents'), 'GarminExport');
-  if (!resolvedOutput.startsWith(home) && !resolvedOutput.startsWith(defaultOutput)) {
+  const rel = path.relative(home, resolvedOutput);
+  const escapesHome = rel.startsWith('..') || path.isAbsolute(rel);
+  if (escapesHome) {
     return { ok: false, error: 'Output directory must be within your home directory.' };
   }
 

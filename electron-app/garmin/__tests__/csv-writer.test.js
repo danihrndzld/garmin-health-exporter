@@ -385,5 +385,133 @@ test('generateCsvs: writes expected CSV files from sample data', () => {
 // Summary
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// R10: activity-type grouping tests
+// ---------------------------------------------------------------------------
+
+const { extractGroupSummary, extractGroupLaps } = require('../csv-writer');
+
+test('groupFor: maps known typeKeys to their groups', () => {
+  assert.strictEqual(groupFor('walking'), 'caminar');
+  assert.strictEqual(groupFor('hiking'), 'caminar');
+  assert.strictEqual(groupFor('running'), 'correr');
+  assert.strictEqual(groupFor('treadmill_running'), 'correr');
+  assert.strictEqual(groupFor('strength_training'), 'gym');
+  assert.strictEqual(groupFor('indoor_cardio'), 'gym');
+  assert.strictEqual(groupFor('cycling'), null);
+  assert.strictEqual(groupFor('unknown'), null);
+});
+
+test('extractGroupSummary: emits one row per activity with SUMMARY_FIELDS', () => {
+  const acts = [
+    {
+      activityId: 1,
+      activityName: 'Morning Run',
+      startTimeLocal: '2026-04-15 07:00',
+      distance: 5000,
+      duration: 1800,
+      calories: 350,
+      averageHR: 140,
+      maxHR: 160,
+      activityType: { typeKey: 'running' },
+    },
+  ];
+  const rows = extractGroupSummary(acts);
+  assert.strictEqual(rows.length, 1);
+  assert.strictEqual(rows[0].activityId, 1);
+  assert.strictEqual(rows[0].activityName, 'Morning Run');
+  assert.strictEqual(rows[0].distance, 5000);
+  assert.strictEqual(rows[0].activityType, 'running');
+  // Unset SUMMARY_FIELDS come through as null, not undefined
+  assert.strictEqual(rows[0].trainingEffectLabel, null);
+});
+
+test('extractGroupSummary: empty array returns empty array', () => {
+  assert.deepStrictEqual(extractGroupSummary([]), []);
+});
+
+test('extractGroupLaps: flattens laps across activities in a group', () => {
+  const acts = [
+    {
+      activityId: 42,
+      activityName: 'Run A',
+      splits: {
+        lapDTOs: [
+          { lapIndex: 1, distance: 1000, duration: 300 },
+          { lapIndex: 2, distance: 1000, duration: 310 },
+        ],
+      },
+    },
+    {
+      activityId: 43,
+      activityName: 'Run B',
+      splits: { lapDTOs: [{ lapIndex: 1, distance: 500, duration: 150 }] },
+    },
+    {
+      activityId: 44,
+      activityName: 'Run C',
+      splits: null, // no laps — skip
+    },
+  ];
+  const rows = extractGroupLaps(acts);
+  assert.strictEqual(rows.length, 3);
+  assert.strictEqual(rows[0].activityId, 42);
+  assert.strictEqual(rows[0].lap_lapIndex, 1);
+  assert.strictEqual(rows[0].lap_distance, 1000);
+  assert.strictEqual(rows[2].activityId, 43);
+});
+
+test('generateCsvs: emits per-group summary + laps CSVs for matched activity types', () => {
+  setup();
+  const jsonData = {
+    export_date: '2026-04-16',
+    daily: {},
+    aggregated: {},
+    activities: [
+      {
+        activityId: 1,
+        activityName: 'Run',
+        activityType: { typeKey: 'running' },
+        distance: 5000,
+        splits: { lapDTOs: [{ lapIndex: 1, distance: 5000, duration: 1800 }] },
+      },
+      {
+        activityId: 2,
+        activityName: 'Walk',
+        activityType: { typeKey: 'walking' },
+        distance: 3000,
+        splits: null,
+      },
+      {
+        activityId: 3,
+        activityName: 'Lift',
+        activityType: { typeKey: 'strength_training' },
+        totalReps: 50,
+        splits: null,
+      },
+      {
+        activityId: 4,
+        activityName: 'Bike',
+        activityType: { typeKey: 'cycling' }, // ungrouped — excluded
+        distance: 20000,
+        splits: null,
+      },
+    ],
+  };
+  const { csvDir } = generateCsvs(jsonData, tmpDir);
+  assert.ok(fs.existsSync(path.join(csvDir, 'correr.csv')), 'correr.csv should exist');
+  assert.ok(fs.existsSync(path.join(csvDir, 'caminar.csv')), 'caminar.csv should exist');
+  assert.ok(fs.existsSync(path.join(csvDir, 'gym.csv')), 'gym.csv should exist');
+  assert.ok(fs.existsSync(path.join(csvDir, 'correr_laps.csv')), 'correr_laps.csv should exist');
+  // Ungrouped activity (cycling) should NOT appear in any group file
+  const correrCsv = fs.readFileSync(path.join(csvDir, 'correr.csv'), 'utf8');
+  assert.ok(!correrCsv.includes('Bike'), 'cycling activity must not leak into correr.csv');
+  cleanup();
+});
+
+// ---------------------------------------------------------------------------
+// Summary
+// ---------------------------------------------------------------------------
+
 console.log(`\nResults: ${passed} passed, ${failed} failed out of ${passed + failed} tests`);
 if (failed > 0) process.exit(1);

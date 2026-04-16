@@ -89,9 +89,14 @@ class GarminCache {
   }
 
   close() {
-    this.save();
-    this._db.close();
-    this._db = null;
+    try {
+      this.save();
+    } finally {
+      if (this._db) {
+        this._db.close();
+        this._db = null;
+      }
+    }
   }
 
   getStats() {

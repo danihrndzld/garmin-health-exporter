@@ -402,6 +402,39 @@ const SUMMARY_FIELDS = [
 ];
 
 /**
+ * R10: per-group activity summary. One row per activity, SUMMARY_FIELDS columns.
+ */
+function extractGroupSummary(acts) {
+  const rows = [];
+  for (const act of acts) {
+    const row = {};
+    for (const key of SUMMARY_FIELDS) {
+      row[key] = act[key] !== undefined ? act[key] : null;
+    }
+    const actType = act.activityType || {};
+    row.activityType = (typeof actType === 'object' && actType !== null) ? actType.typeKey : actType;
+    rows.push(row);
+  }
+  return rows;
+}
+
+/**
+ * R10: per-group laps. One row per lap across all activities in the group.
+ * Uses `act.splits` (populated by exporter).
+ */
+function extractGroupLaps(acts) {
+  const rows = [];
+  for (const act of acts) {
+    if (!act.splits) continue;
+    const laps = flattenLaps(act.splits);
+    for (const lap of laps) {
+      rows.push({ activityId: act.activityId, activityName: act.activityName || null, ...lap });
+    }
+  }
+  return rows;
+}
+
+/**
  * Flatten activity detail metrics into avg/max/min summary per metric key.
  */
 function flattenDetails(details) {
@@ -479,6 +512,14 @@ function generateCsvs(jsonData, outputDir) {
   const aggregated = jsonData.aggregated || {};
   const activities = jsonData.activities || [];
 
+  // R10: group activities by type (caminar/correr/gym) → one summary CSV + one laps CSV per group
+  const grouped = { caminar: [], correr: [], gym: [] };
+  for (const act of activities) {
+    const typeKey = (act.activityType && act.activityType.typeKey) || act.activityType;
+    const g = groupFor(typeKey);
+    if (g) grouped[g].push(act);
+  }
+
   const csvFiles = [
     ['daily_summary',           extractDailySummary(daily)],
     ['sleep',                   extractSleep(daily)],
@@ -494,6 +535,12 @@ function generateCsvs(jsonData, outputDir) {
     ['daily_steps_aggregated',  extractAggregatedDailySteps(aggregated)],
     ['weekly_intensity',        extractWeeklyIntensity(aggregated)],
     ['hill_score_daily',        extractHillScoreDaily(aggregated)],
+    ['caminar',                 extractGroupSummary(grouped.caminar)],
+    ['correr',                  extractGroupSummary(grouped.correr)],
+    ['gym',                     extractGroupSummary(grouped.gym)],
+    ['caminar_laps',            extractGroupLaps(grouped.caminar)],
+    ['correr_laps',             extractGroupLaps(grouped.correr)],
+    ['gym_laps',                extractGroupLaps(grouped.gym)],
   ];
 
   const written = [];
@@ -536,4 +583,6 @@ module.exports = {
   extractWeeklyIntensity,
   extractHillScoreDaily,
   extractBloodPressure,
+  extractGroupSummary,
+  extractGroupLaps,
 };

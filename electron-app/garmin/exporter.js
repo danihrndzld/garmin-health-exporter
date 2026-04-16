@@ -44,6 +44,39 @@ function formatTimeForFile(d) {
 }
 
 /**
+ * Fetch `daily_steps` in 28-day chunks (Garmin API hard limit) and concat.
+ * Returns a flat array of day-summary objects, newest chunk last.
+ */
+async function fetchDailyStepsChunked(client, startDate, endDate) {
+  const MAX_DAYS = 28;
+  const results = [];
+  const start = new Date(startDate + 'T00:00:00');
+  const end = new Date(endDate + 'T00:00:00');
+  let cursor = new Date(start);
+  while (cursor <= end) {
+    const chunkEnd = new Date(cursor);
+    chunkEnd.setDate(chunkEnd.getDate() + MAX_DAYS - 1);
+    const capped = chunkEnd > end ? end : chunkEnd;
+    const fmt = (d) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    };
+    const chunk = await client.safe('daily_steps', {
+      startDate: fmt(cursor),
+      endDate: fmt(capped),
+    });
+    if (Array.isArray(chunk)) results.push(...chunk);
+    else if (chunk && Array.isArray(chunk.values)) results.push(...chunk.values);
+    cursor = new Date(capped);
+    cursor.setDate(cursor.getDate() + 1);
+    if (client.authFailed) break;
+  }
+  return results;
+}
+
+/**
  * Generate array of date strings from startDate to endDate inclusive,
  * most recent first (matching Python's date_range which counts down).
  * @param {string} startDate  'YYYY-MM-DD'
@@ -95,12 +128,10 @@ async function exportHealth(opts) {
 
   // -- 1. Auth ---------------------------------------------------------------
   const auth = createClient(dataDir);
-  let loggedIn = false;
 
   // Try loading saved tokens first
   const tokenResult = await auth.loadTokens();
   if (tokenResult.ok) {
-    loggedIn = true;
     onLog({ type: 'dim', message: 'Loaded saved tokens' });
   } else {
     // Fall back to credential login
@@ -109,7 +140,6 @@ async function exportHealth(opts) {
     if (!loginResult.ok) {
       return { ok: false, error: `Auth failed: ${loginResult.error}` };
     }
-    loggedIn = true;
     onLog({ type: 'success', message: 'Login successful' });
   }
 
@@ -140,6 +170,9 @@ async function exportHealth(opts) {
 
   // -- Date range ------------------------------------------------------------
   const now = new Date();
+  if (isNaN(now.getTime())) {
+    return { ok: false, error: 'System clock returned an invalid date' };
+  }
   const endDate = formatDate(now);
   const startDateObj = new Date(now);
   startDateObj.setDate(startDateObj.getDate() - (daysBack - 1));
@@ -189,6 +222,10 @@ async function exportHealth(opts) {
     dailyData[date] = dayEntry;
     onProgress({ current: i + 1, total: totalDailyWork, phase: 'daily' });
     onLog({ type: 'dim', message: `  ${date}` });
+
+    if (client.authFailed) {
+      return { ok: false, error: 'Auth failed mid-export — re-login required' };
+    }
   }
 
   // -- 6. Aggregated endpoints (always re-fetched per R8) --------------------
@@ -198,13 +235,19 @@ async function exportHealth(opts) {
 
   for (let i = 0; i < aggEps.length; i++) {
     const ep = aggEps[i];
-    const result = await client.safe(ep.name, {
-      startDate,
-      endDate,
-      displayName,
-    });
+    let result;
+    if (ep.name === 'daily_steps') {
+      // R13: chunk into 28-day windows and concat the per-chunk arrays
+      result = await fetchDailyStepsChunked(client, startDate, endDate);
+    } else {
+      result = await client.safe(ep.name, { startDate, endDate, displayName });
+    }
     aggregatedData[ep.name] = result;
     onProgress({ current: i + 1, total: aggEps.length, phase: 'aggregated' });
+
+    if (client.authFailed) {
+      return { ok: false, error: 'Auth failed mid-export — re-login required' };
+    }
   }
 
   // -- 7. Activity list (with pagination) ------------------------------------
@@ -277,10 +320,15 @@ async function exportHealth(opts) {
     }
 
     onProgress({ current: i + 1, total: allActivities.length, phase: 'activities' });
+
+    if (client.authFailed) {
+      return { ok: false, error: 'Auth failed mid-export — re-login required' };
+    }
   }
 
   // -- Goals -----------------------------------------------------------------
-  const goals = await client.safe('goals', { status: 'active' }) || [];
+  const goalsRaw = await client.safe('goals', { status: 'active' });
+  const goals = Array.isArray(goalsRaw) ? goalsRaw : [];
 
   // -- 9. Build output JSON --------------------------------------------------
   const exportDate = formatDate(now);
@@ -304,12 +352,15 @@ async function exportHealth(opts) {
   onLog({ type: 'success', message: `JSON saved: ${jsonPath}` });
 
   // -- 11. Generate CSVs -----------------------------------------------------
-  const csvOutputDir = path.join(outputDir, `csv_${exportDate}`);
+  let csvDir = null;
+  let csvError = null;
   try {
     const csvResult = generateCsvs(jsonData, outputDir);
+    csvDir = csvResult.csvDir;
     onProgress({ current: 1, total: 1, phase: 'csv' });
-    onLog({ type: 'success', message: `CSVs written to ${csvResult.csvDir}` });
+    onLog({ type: 'success', message: `CSVs written to ${csvDir}` });
   } catch (err) {
+    csvError = err.message;
     onLog({ type: 'warn', message: `CSV generation failed: ${err.message}` });
   }
 
@@ -322,8 +373,12 @@ async function exportHealth(opts) {
     }
   }
 
+  if (csvError) {
+    return { ok: false, error: `CSV generation failed: ${csvError}`, jsonPath };
+  }
+
   onLog({ type: 'success', message: `Done. ${daysBack} days | ${allActivities.length} activities` });
-  return { ok: true, jsonPath, csvDir: csvOutputDir };
+  return { ok: true, jsonPath, csvDir };
 }
 
 // ---------------------------------------------------------------------------
@@ -336,4 +391,5 @@ module.exports = {
   formatDateTime,
   formatTimeForFile,
   generateDateRange,
+  fetchDailyStepsChunked,
 };

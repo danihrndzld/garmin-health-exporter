@@ -482,6 +482,50 @@ async function runClientTests() {
     assert.strictEqual(result.data.raw, true);
     assert.strictEqual(calls[0].url, 'https://example.com/api/test');
   });
+
+  await test('error path: 401 sets authFailed flag and short-circuits subsequent calls', async () => {
+    const { fetch, calls } = mockFetch([
+      { status: 401, body: 'unauthorized' },
+    ]);
+    let tokensCleared = 0;
+    const auth = mockAuth({ clearTokens: () => { tokensCleared++; return { ok: true }; } });
+    const client = createGarminClient(auth, { fetch, delay: 0 });
+
+    const first = await client.fetchUrl('https://example.com/a');
+    assert.strictEqual(first.ok, false);
+    assert.match(first.error, /Auth failed/);
+    assert.strictEqual(client.authFailed, true);
+    assert.strictEqual(tokensCleared, 1);
+    assert.strictEqual(calls.length, 1);
+
+    // Second call must short-circuit without hitting fetch
+    const second = await client.fetchUrl('https://example.com/b');
+    assert.strictEqual(second.ok, false);
+    assert.match(second.error, /Auth previously failed/);
+    assert.strictEqual(calls.length, 1, 'fetch should not be invoked after authFailed');
+  });
+
+  await test('error path: AbortError (timeout) is retried and surfaced as Timeout', async () => {
+    let attempts = 0;
+    const fetchFn = async () => {
+      attempts++;
+      const err = new Error('aborted');
+      err.name = 'AbortError';
+      throw err;
+    };
+    const client = createGarminClient(mockAuth(), {
+      fetch: fetchFn,
+      delay: 0,
+      maxRetries: 1,
+      sleep: async () => {},
+      timeoutMs: 10,
+    });
+
+    const result = await client.fetchUrl('https://example.com/slow');
+    assert.strictEqual(result.ok, false);
+    assert.match(result.error, /Timeout after 10ms/);
+    assert.strictEqual(attempts, 2, 'should retry once then fail');
+  });
 }
 
 // ---------------------------------------------------------------------------

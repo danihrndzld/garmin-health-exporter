@@ -638,6 +638,52 @@ async function runTests() {
     }
   });
 
+  await test('fetchDailyStepsChunked splits 60-day window into 28-day chunks', async () => {
+    const { exporter } = buildExporter();
+    restoreModules();
+    const { fetchDailyStepsChunked } = exporter;
+
+    const calls = [];
+    const client = {
+      authFailed: false,
+      safe: async (name, params) => {
+        calls.push({ name, ...params });
+        // Fake: return one entry per chunk
+        return [{ startDate: params.startDate, endDate: params.endDate }];
+      },
+    };
+
+    const result = await fetchDailyStepsChunked(client, '2026-01-01', '2026-03-01');
+    // 60 days / 28-day chunks = 3 chunks (28 + 28 + rest)
+    assert.strictEqual(calls.length, 3, `expected 3 chunks, got ${calls.length}`);
+    assert.strictEqual(calls[0].startDate, '2026-01-01');
+    assert.strictEqual(calls[0].endDate, '2026-01-28');
+    assert.strictEqual(calls[1].startDate, '2026-01-29');
+    assert.strictEqual(calls[1].endDate, '2026-02-25');
+    assert.strictEqual(calls[2].startDate, '2026-02-26');
+    assert.strictEqual(calls[2].endDate, '2026-03-01');
+    assert.strictEqual(result.length, 3);
+  });
+
+  await test('fetchDailyStepsChunked short-circuits when authFailed becomes true', async () => {
+    const { exporter } = buildExporter();
+    restoreModules();
+    const { fetchDailyStepsChunked } = exporter;
+
+    const calls = [];
+    const client = {
+      authFailed: false,
+      safe: async (name, params) => {
+        calls.push(params);
+        client.authFailed = true; // auth fails on first call
+        return [];
+      },
+    };
+
+    await fetchDailyStepsChunked(client, '2026-01-01', '2026-03-01');
+    assert.strictEqual(calls.length, 1, 'should stop after first chunk when authFailed');
+  });
+
   await test('happy path: cache init failure does not break export', async () => {
     const { exporter } = buildExporter({
       cacheInitFails: true,

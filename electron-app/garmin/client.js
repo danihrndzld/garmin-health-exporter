@@ -57,10 +57,12 @@ class GarminClient {
     this.auth = auth;
     this.delay = opts.delay ?? 500;
     this.maxRetries = opts.maxRetries ?? 5;
+    this.timeoutMs = opts.timeoutMs ?? 30000;
     this._fetch = opts.fetch || globalThis.fetch;
     this._log = opts.log || console.log;
     this._sleep = opts.sleep || sleep;
     this._lastRequestTime = 0;
+    this.authFailed = false;
   }
 
   /**
@@ -84,12 +86,17 @@ class GarminClient {
    * @returns {Promise<{ok: true, data: any} | {ok: false, error: string}>}
    */
   async fetchUrl(url) {
+    if (this.authFailed) {
+      return { ok: false, error: 'Auth previously failed — aborting further requests' };
+    }
+
     await this._throttle();
 
     let token;
     try {
       token = await this.auth.getAccessToken();
     } catch (err) {
+      this.authFailed = true;
       return { ok: false, error: `Auth error: ${err.message}` };
     }
 
@@ -100,12 +107,16 @@ class GarminClient {
     };
 
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.timeoutMs);
       try {
-        const resp = await this._fetch(url, { headers });
+        const resp = await this._fetch(url, { headers, signal: controller.signal });
+        clearTimeout(timer);
 
-        // 401/403: clear tokens, fail immediately
+        // 401/403: clear tokens, fail immediately, block subsequent requests
         if (resp.status === 401 || resp.status === 403) {
           this.auth.clearTokens();
+          this.authFailed = true;
           return {
             ok: false,
             error: `Auth failed (${resp.status}) — tokens cleared, re-login required`,
@@ -118,7 +129,6 @@ class GarminClient {
             const wait = backoffDelay(attempt);
             this._log(`[client] 429 rate-limited on attempt ${attempt + 1}/${this.maxRetries + 1}, retrying in ${wait}ms`);
             await this._sleep(wait);
-            this._lastRequestTime = Date.now();
             continue;
           }
           return {
@@ -140,15 +150,16 @@ class GarminClient {
         const data = await resp.json();
         return { ok: true, data };
       } catch (err) {
-        // Network error on last attempt
+        clearTimeout(timer);
+        const isTimeout = err.name === 'AbortError';
+        const label = isTimeout ? `Timeout after ${this.timeoutMs}ms` : `Network error: ${err.message}`;
+        // Fail on last attempt
         if (attempt >= this.maxRetries) {
-          return { ok: false, error: `Network error: ${err.message}` };
+          return { ok: false, error: label };
         }
-        // Network error — retry with backoff (treat like transient failure)
         const wait = backoffDelay(attempt);
-        this._log(`[client] Network error on attempt ${attempt + 1}, retrying in ${wait}ms: ${err.message}`);
+        this._log(`[client] ${label} on attempt ${attempt + 1}, retrying in ${wait}ms`);
         await this._sleep(wait);
-        this._lastRequestTime = Date.now();
       }
     }
 
