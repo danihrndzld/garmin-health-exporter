@@ -1,7 +1,7 @@
 ---
 title: "refactor: Replace Python backend with in-process Node.js + SQLite cache"
 type: refactor
-status: active
+status: completed
 date: 2026-04-16
 origin: docs/brainstorms/2026-04-16-node-backend-rewrite-requirements.md
 ---
