@@ -161,6 +161,24 @@
     transition: border-color .2s, color .2s;
   }
 
+  #update-btn {
+    background: none;
+    border: 1px solid var(--border-mid);
+    border-radius: 20px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: .08em;
+    padding: 3px 9px;
+    cursor: pointer;
+    transition: border-color .2s, color .2s;
+    white-space: nowrap;
+  }
+  #update-btn:hover { border-color: var(--border-bright); color: var(--text-bright); }
+  #update-btn.checking { color: var(--text-dim); cursor: default; }
+  #update-btn.up-to-date { border-color: var(--teal); color: var(--teal); }
+  #update-btn.update-available { border-color: var(--orange); color: var(--orange); }
+
   .status-pill.connected { border-color: var(--teal); color: var(--teal); }
   .status-pill.error     { border-color: var(--red-text); color: var(--red-text); }
 
@@ -611,56 +629,52 @@
   #sb-last:hover { color: var(--teal); }
   #sb-last:focus-visible { outline: 1px solid var(--red-mid); outline-offset: 2px; }
 
-  /* ── Setup overlay ─────────────────────────────────────────────────────── */
-  #setup-overlay {
-    position: fixed; inset: 0; z-index: 9999;
-    background: var(--bg);
-    display: flex; align-items: center; justify-content: center;
-  }
-  .setup-box {
-    display: flex; flex-direction: column; align-items: center; gap: 16px;
-    width: 420px; padding: 40px 36px;
-    background: var(--bg-panel);
+  /* ── Select dropdown ───────────────────────────────────────────────────── */
+  select {
+    background: var(--bg-input);
     border: 1px solid var(--border-mid);
-    border-radius: 6px;
+    border-radius: 4px;
+    color: var(--text-bright);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 7px 10px;
+    outline: none;
+    width: 100%;
+    transition: border-color .15s;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%239e9a97'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
   }
-  .setup-title {
-    font-family: 'Oxanium', sans-serif;
-    font-size: 15px; font-weight: 600;
-    letter-spacing: .12em; color: var(--text-bright);
-    text-transform: uppercase;
+
+  select:focus {
+    border-color: var(--red-mid);
+    box-shadow: 0 0 0 2px var(--red-glow2);
   }
-  .setup-body {
-    text-align: center; line-height: 1.7;
-    color: var(--text); font-size: 13px;
+
+  select option {
+    background: var(--bg-input);
+    color: var(--text-bright);
   }
-  .setup-body code, .setup-note code {
-    font-family: 'JetBrains Mono', monospace;
-    color: var(--teal); font-size: 12px;
+
+  /* ── Clear cache link ─────────────────────────────────────────────────── */
+  .cache-link {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: .06em;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    transition: color .15s;
   }
-  #setup-log {
-    width: 100%; max-height: 180px; overflow-y: auto;
-    background: var(--bg-input); border: 1px solid var(--border);
-    border-radius: 4px; padding: 10px 12px;
-    font-family: 'JetBrains Mono', monospace; font-size: 11px;
-    color: var(--text-dim); line-height: 1.6;
-  }
-  #setup-error {
-    color: var(--red-text); font-size: 12px; text-align: center;
-  }
-  .setup-note {
-    font-size: 11px; color: var(--text-dim); text-align: center;
-  }
-  #setup-install-btn {
-    width: 100%; padding: 10px;
-    background: var(--red); color: #fff;
-    border: none; border-radius: 4px;
-    font-family: 'Oxanium', sans-serif; font-size: 13px;
-    font-weight: 600; letter-spacing: .08em;
-    cursor: pointer; transition: background .15s;
-  }
-  #setup-install-btn:hover:not(:disabled) { background: var(--red-bright); }
-  #setup-install-btn:disabled { opacity: .5; cursor: default; }
+
+  .cache-link:hover { color: var(--text-bright); }
 
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
@@ -672,27 +686,6 @@
 </style>
 </head>
 <body>
-
-<!-- ── Setup overlay (shown when uv is missing) ─────────────────────────── -->
-<div id="setup-overlay" style="display:none;">
-  <div class="setup-box">
-    <div class="setup-icon">
-      <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" width="40" height="40">
-        <circle cx="16" cy="16" r="14" stroke="var(--red)" stroke-width="1.5"/>
-        <path d="M16 9v8M16 22v1" stroke="var(--red)" stroke-width="2" stroke-linecap="round"/>
-      </svg>
-    </div>
-    <div class="setup-title">Setup Required</div>
-    <div class="setup-body">
-      <code>uv</code> is not installed. It's needed to run the Garmin download scripts.<br>
-      Click <strong>Install</strong> to set it up automatically.
-    </div>
-    <div id="setup-log" style="display:none;"></div>
-    <div id="setup-error" style="display:none;"></div>
-    <button class="btn" id="setup-install-btn">Install Dependencies</button>
-    <div class="setup-note">Installs via <code>astral.sh/uv</code> — no admin required</div>
-  </div>
-</div>
 
 <div id="app">
 
@@ -708,6 +701,7 @@
     <div class="title-divider"></div>
     <span class="title-sub">Health Sync</span>
     <div class="tb-right">
+      <button id="update-btn" title="Check for updates">v<span id="app-version">…</span></button>
       <div class="status-pill" id="status-pill">
         <div id="status-dot"></div>
         <span id="status-label" aria-live="polite">OFFLINE</span>
@@ -744,6 +738,16 @@
           <span class="slider-val" id="days-val">7</span>
           <span class="slider-unit">days</span>
         </div>
+        <div class="field" style="margin-top:10px;">
+          <label for="refresh-window" title="Days to always re-fetch from Garmin (captures retroactive updates)">Refresh window</label>
+          <select id="refresh-window" title="Days to always re-fetch from Garmin (captures retroactive updates)">
+            <option value="1">1 day</option>
+            <option value="2">2 days</option>
+            <option value="3" selected>3 days</option>
+            <option value="5">5 days</option>
+            <option value="7">7 days</option>
+          </select>
+        </div>
       </div>
 
       <div class="section">
@@ -757,6 +761,9 @@
       <div class="section">
         <div class="section-title">Export <span class="section-num" aria-hidden="true">04</span></div>
         <button class="btn btn-primary btn-full" id="btn-health">Download Health Data</button>
+        <div style="text-align:center; margin-top:8px;">
+          <button class="cache-link" id="clear-cache-btn">Clear cache</button>
+        </div>
       </div>
 
       <div class="section" id="open-section" style="display:none;">
@@ -806,7 +813,7 @@
   <div id="statusbar">
     <div class="sb-item">SYS <span id="sb-status">IDLE</span></div>
     <span class="sb-sep">·</span>
-    <div class="sb-item">v<span>2.0.0</span></div>
+    <div class="sb-item">v<span id="sb-version">…</span></div>
     <div id="sb-last" title="Click to open" role="button" tabindex="0" aria-label="Open last output folder"></div>
   </div>
 
@@ -828,9 +835,11 @@
   const eyeBtn       = $('eye-btn');
   const daysSlider   = $('days-slider');
   const daysVal      = $('days-val');
+  const refreshSel   = $('refresh-window');
   const dirDisplay   = $('dir-display');
   const chooseDirBtn = $('choose-dir-btn');
   const btnHealth    = $('btn-health');
+  const clearCacheBtn= $('clear-cache-btn');
   const logEl        = $('log');
   const clearBtn     = $('clear-btn');
   const progressWrap = $('progress-wrap');
@@ -851,8 +860,12 @@
   const savedEmail = localStorage.getItem('garmin_email');
   if (savedEmail) emailEl.value = savedEmail;
 
-  const savedPass = localStorage.getItem('garmin_pass');
-  if (savedPass) passEl.value = savedPass;
+  // Security: clear any previously stored password
+  localStorage.removeItem('garmin_pass');
+
+  // Restore saved refresh window (default 3)
+  const savedRefresh = localStorage.getItem('garmin_refresh_window');
+  if (savedRefresh) refreshSel.value = savedRefresh;
 
   if (outputDir) {
     dirDisplay.textContent = outputDir;
@@ -930,10 +943,11 @@
 
   function getOpts() {
     return {
-      email:     emailEl.value.trim(),
-      password:  passEl.value,
-      daysBack:  parseInt(daysSlider.value, 10),
-      outputDir: outputDir || dirDisplay.textContent || '.',
+      email:         emailEl.value.trim(),
+      password:      passEl.value,
+      daysBack:      parseInt(daysSlider.value, 10),
+      refreshWindow: parseInt(refreshSel.value, 10),
+      outputDir:     outputDir || dirDisplay.textContent || '.',
     };
   }
 
@@ -977,13 +991,20 @@
     logEl.appendChild(welcomeEl);
   });
 
-  // ── Save credentials on change ────────────────────────────────────────────
+  // ── Save email on change (password is never persisted) ─────────────────
   emailEl.addEventListener('change', () => {
     localStorage.setItem('garmin_email', emailEl.value.trim());
   });
 
-  passEl.addEventListener('change', () => {
-    localStorage.setItem('garmin_pass', passEl.value);
+  // ── Refresh window ──────────────────────────────────────────────────────
+  refreshSel.addEventListener('change', () => {
+    localStorage.setItem('garmin_refresh_window', refreshSel.value);
+  });
+
+  // ── Clear cache ─────────────────────────────────────────────────────────
+  clearCacheBtn.addEventListener('click', async () => {
+    await window.garmin.clearCache();
+    appendLog('success', 'Cache cleared.');
   });
 
   // ── IPC listeners ─────────────────────────────────────────────────────────
@@ -1029,44 +1050,50 @@
     }
   });
 
-  // ── Setup overlay ─────────────────────────────────────────────────────────
-  const setupOverlay  = $('setup-overlay');
-  const setupInstBtn  = $('setup-install-btn');
-  const setupLog      = $('setup-log');
-  const setupError    = $('setup-error');
+  // ── Version + Update check ───────────────────────────────────────────────
+  const updateBtn   = $('update-btn');
+  const appVersionEl= $('app-version');
+  const sbVersionEl = $('sb-version');
 
-  function showSetup() { setupOverlay.style.display = 'flex'; }
-  function hideSetup() { setupOverlay.style.display = 'none'; }
+  let currentVersion = '';
 
-  window.garmin.onSetupRequired(() => showSetup());
+  window.garmin.getVersion().then(v => {
+    currentVersion = v;
+    appVersionEl.textContent = v;
+    sbVersionEl.textContent  = v;
+  });
 
-  setupInstBtn.addEventListener('click', async () => {
-    setupInstBtn.disabled = true;
-    setupInstBtn.textContent = 'Installing…';
-    setupError.style.display = 'none';
-    setupLog.style.display = 'block';
-    setupLog.innerHTML = '';
+  updateBtn.addEventListener('click', async () => {
+    if (updateBtn.classList.contains('checking')) return;
+    updateBtn.className = 'checking';
+    updateBtn.textContent = 'Checking…';
 
-    window.garmin.onSetupLog(({ msg, type }) => {
-      const el = document.createElement('div');
-      el.style.color = type === 'success' ? 'var(--teal)' : type === 'info' ? 'var(--text-bright)' : '';
-      el.textContent = msg;
-      setupLog.appendChild(el);
-      setupLog.scrollTop = setupLog.scrollHeight;
-    });
+    const res = await window.garmin.checkForUpdates();
 
-    const res = await window.garmin.installDeps();
-    window.garmin.removeAllListeners();
-    window.garmin.onProgress(progressHandler);
-    window.garmin.onLog(logHandler);
+    if (!res.ok) {
+      updateBtn.className = '';
+      updateBtn.innerHTML = `v<span id="app-version">${currentVersion}</span>`;
+      appendLog('warn', 'Update check failed: ' + res.error);
+      return;
+    }
 
-    if (res.ok) {
-      hideSetup();
+    const isNewer = res.latest && res.latest !== currentVersion &&
+      res.latest.localeCompare(currentVersion, undefined, { numeric: true, sensitivity: 'version' }) > 0;
+
+    if (isNewer) {
+      updateBtn.className = 'update-available';
+      updateBtn.textContent = `v${res.latest} available`;
+      updateBtn.title = 'Click to open release page';
+      updateBtn.onclick = () => window.garmin.openUrl(res.url);
     } else {
-      setupError.textContent = res.error || 'Install failed.';
-      setupError.style.display = '';
-      setupInstBtn.disabled = false;
-      setupInstBtn.textContent = 'Retry';
+      updateBtn.className = 'up-to-date';
+      updateBtn.innerHTML = `v<span>${currentVersion}</span> ✓`;
+      updateBtn.title = 'Up to date';
+      setTimeout(() => {
+        updateBtn.className = '';
+        updateBtn.innerHTML = `v<span id="app-version">${currentVersion}</span>`;
+        updateBtn.title = 'Check for updates';
+      }, 3000);
     }
   });
 
