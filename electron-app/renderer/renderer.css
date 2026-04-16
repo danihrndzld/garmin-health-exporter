@@ -234,6 +234,19 @@ body {
 #status-dot.connected { background: var(--teal); box-shadow: 0 0 6px var(--teal); }
 #status-dot.error     { background: var(--red-text); box-shadow: 0 0 6px var(--red-text); }
 
+/* Running: intensifying heartbeat — transform + opacity only */
+#status-dot.running {
+  background: var(--red);
+  box-shadow: 0 0 6px var(--red-glow);
+  animation: dotHeartbeat 1.1s cubic-bezier(.4, 0, .6, 1) infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes dotHeartbeat {
+  0%, 100% { transform: scale(1);   opacity: .85; }
+  50%      { transform: scale(1.35); opacity: 1; }
+}
+
 /* ── Main layout ───────────────────────────────────────────────────────── */
 #main {
   display: flex;
@@ -550,10 +563,14 @@ input[type="range"]:focus { outline: 2px solid var(--red-mid); outline-offset: 3
 
 #progress-fill {
   height: 100%;
+  width: 100%;
   background: linear-gradient(90deg, var(--red-mid), var(--red));
   border-radius: 2px;
-  width: 0%;
-  transition: width .3s ease-out;
+  transform: scaleX(0);
+  transform-origin: left center;
+  /* ease-out-expo — decelerates like a physical indicator */
+  transition: transform .38s cubic-bezier(.16, 1, .3, 1);
+  will-change: transform;
 }
 
 /* ── Result banner ─────────────────────────────────────────────────────── */
@@ -570,7 +587,15 @@ input[type="range"]:focus { outline: 2px solid var(--red-mid); outline-offset: 3
   gap: var(--sp-2);
 }
 
-#result-banner.active { display: block; }
+#result-banner.active {
+  display: block;
+  animation: bannerSlideIn .28s cubic-bezier(.16, 1, .3, 1) both;
+}
+
+@keyframes bannerSlideIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 #result-banner.success { background: var(--teal-bg-soft); color: var(--teal-arrival); }
 #result-banner.error   { background: var(--red-bg-soft);  color: var(--red-text); }
 #result-banner:hover   { filter: brightness(1.1); }
@@ -593,7 +618,17 @@ input[type="range"]:focus { outline: 2px solid var(--red-mid); outline-offset: 3
 #log::-webkit-scrollbar-track { background: transparent; }
 #log::-webkit-scrollbar-thumb { background: var(--border-mid); border-radius: 2px; }
 
-.log-entry { display: flex; gap: var(--sp-3); }
+.log-entry {
+  display: flex;
+  gap: var(--sp-3);
+  animation: logEntryIn .22s cubic-bezier(.16, 1, .3, 1) both;
+  will-change: transform, opacity;
+}
+
+@keyframes logEntryIn {
+  from { opacity: 0; transform: translateY(-3px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 .log-ts    { color: var(--text-dim); flex-shrink: 0; min-width: 76px; }
 .log-msg   { color: var(--text); }
 

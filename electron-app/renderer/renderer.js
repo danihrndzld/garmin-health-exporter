@@ -79,7 +79,9 @@
   }
 
   function setConnStatus(state) {
-    statusDot.className   = state || '';
+    // Preserve .running (driven by setRunning) across connection changes.
+    const wasRunning = statusDot.classList.contains('running');
+    statusDot.className   = (state || '') + (wasRunning ? ' running' : '');
     statusLabel.className = state || '';
     statusPill.className  = 'status-pill ' + (state || '');
     statusLabel.textContent = state === 'connected' ? 'ONLINE' : state === 'error' ? 'ERROR' : 'OFFLINE';
@@ -90,8 +92,9 @@
     btnHealth.disabled = val;
     sbStatus.textContent = val ? 'RUNNING' : 'IDLE';
     progressWrap.classList.toggle('active', val);
+    statusDot.classList.toggle('running', val);
     if (!val) {
-      progressFill.style.width = '0%';
+      progressFill.style.transform = 'scaleX(0)';
       progressFill.setAttribute('aria-valuenow', '0');
     }
   }
@@ -229,7 +232,7 @@
   // ── IPC listeners ─────────────────────────────────────────────────────────
   function progressHandler({ current, total, phase }) {
     const pct = Math.round((current / total) * 100);
-    progressFill.style.width = pct + '%';
+    progressFill.style.transform = 'scaleX(' + (pct / 100) + ')';
     progressFill.setAttribute('aria-valuenow', pct);
     progressPct.textContent  = pct + '%';
     const labels = { daily: 'Daily Metrics', activities: 'Activities', csv: 'Building CSVs', 'activity-details': 'Activity Details' };
