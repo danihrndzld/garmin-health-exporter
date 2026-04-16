@@ -12,32 +12,56 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
+  /* ── Surfaces ─────────────────────────────────────────────────── */
   --bg:            #0a0908;           /* warm tinted near-black (not pure black) */
   --bg-panel:      #0e0c0b;
   --bg-input:      #070605;
   --bg-hover:      #151311;
-  --red:           #e8001c;
-  --red-dim:       #2a0007;
-  --red-mid:       #b50016;
+
+  /* ── Text tiers (perceptually spaced for hierarchy, AA on --bg) ─ */
+  --text-bright:   #f2ede6;           /* display / value emphasis */
+  --text:          #d2cdc6;           /* body copy */
+  --text-mid:      #9e9a93;           /* tertiary / de-emphasized value */
+  --text-dim:      #8a857f;           /* label / caption (AA 4.6:1 on --bg) */
+  --text-faint:    #5a5650;           /* decorative only — never copy */
+  --text-idle:     #3d3934;           /* disabled / inert — distinct from faint */
+
+  /* ── Red lineage (primary / active state) ─────────────────────── */
+  --red:           #e8001c;           /* primary action, hot */
+  --red-bright:    #ff1a30;           /* hover */
+  --red-mid:       #b50016;           /* mid — used in progress gradient */
+  --red-2:         #9a2230;           /* subtler secondary — for tier-2 accents */
+  --red-dim:       #2a0007;           /* deep — shadow/inner fills */
+  --red-text:      #ff4656;           /* text red — AA on dark surfaces */
   --red-glow:      rgba(232, 0, 28, 0.18);
   --red-glow2:     rgba(232, 0, 28, 0.07);
-  --red-bright:    #ff1a30;
   --red-bg-soft:   rgba(232, 0, 28, 0.08);
   --red-bg-trace:  rgba(232, 0, 28, 0.03);
-  --teal:          #00d4a0;
-  --teal-dim:      rgba(0, 212, 160, 0.1);
-  --teal-bg-soft:  rgba(0, 212, 160, 0.08);
+
+  /* ── Teal lineage (connected / done) ──────────────────────────── */
+  --teal:          #2dc6a0;           /* steady-state — connected, online */
+  --teal-arrival:  #5ae8c4;           /* success moment — arrival, brighter */
+  --teal-dim:      rgba(45, 198, 160, 0.10);
+  --teal-bg-soft:  rgba(45, 198, 160, 0.08);
+
+  /* ── Caution (single tier, reserved) ──────────────────────────── */
   --orange:        #ff7a1a;
   --orange-dim:    rgba(255, 122, 26, 0.09);
-  --text:          #c8c4c0;           /* raised for AA on bg */
-  --text-bright:   #f0ece6;
-  --text-dim:      #a8a4a0;           /* raised: AA (~4.6:1) on bg — fit for body-adjacent copy */
-  --text-faint:    #7a7774;           /* decorative only, never body copy */
-  --text-mid:      #b8b4b0;
-  --red-text:      #ff2a3c;
+
+  /* ── Borders (etched, not glowed) ─────────────────────────────── */
   --border:        #242020;
   --border-mid:    #342e2e;
   --border-bright: #5a5252;
+
+  /* ── Role aliases (intent layer — prefer these in consumers) ──── */
+  --accent-active: var(--red);
+  --accent-ok:     var(--teal);
+  --accent-done:   var(--teal-arrival);
+  --accent-warn:   var(--orange);
+  --accent-fail:   var(--red-text);
+  --accent-idle:   var(--text-idle);
+
+  /* ── Type families ────────────────────────────────────────────── */
   --font-ui:       'Oxanium', 'Segoe UI', system-ui, sans-serif;
   --font-mono:     'JetBrains Mono', 'Fira Code', monospace;
   --font-head:     'Barlow Condensed', 'Impact', sans-serif;
@@ -513,7 +537,7 @@ input[type="range"]:focus { outline: 2px solid var(--red-mid); outline-offset: 3
 }
 
 #result-banner.active { display: block; }
-#result-banner.success { background: var(--teal-bg-soft); color: var(--teal); }
+#result-banner.success { background: var(--teal-bg-soft); color: var(--teal-arrival); }
 #result-banner.error   { background: var(--red-bg-soft);  color: var(--red-text); }
 #result-banner:hover   { filter: brightness(1.1); }
 
@@ -582,7 +606,7 @@ input[type="range"]:focus { outline: 2px solid var(--red-mid); outline-offset: 3
 .w-sub {
   font-family: var(--font-mono);
   font-size: 11px;
-  color: var(--text-faint);
+  color: var(--text-dim);
   letter-spacing: .1em;
 }
 
