@@ -86,6 +86,15 @@
   --fw-ui:      500;
   --fw-body:    400;
   --fw-dim:     300;
+
+  /* ── Spacing scale (4-based rhythm, subtly fluid) ─────────────── */
+  --sp-1: clamp(3px, 0.2vw + 2px, 4px);
+  --sp-2: clamp(6px, 0.4vw + 4px, 8px);
+  --sp-3: clamp(10px, 0.6vw + 6px, 12px);
+  --sp-4: clamp(14px, 0.8vw + 10px, 16px);
+  --sp-5: clamp(20px, 1.2vw + 14px, 24px);
+  --sp-6: clamp(28px, 1.8vw + 18px, 32px);
+  --sp-7: clamp(40px, 2.6vw + 24px, 48px);
 }
 
 html, body { height: 100%; overflow: hidden; }
@@ -111,8 +120,8 @@ body {
 #titlebar {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 16px;
+  gap: var(--sp-3);
+  padding: 0 var(--sp-4);
   height: 44px;
   flex-shrink: 0;
   -webkit-app-region: drag;
@@ -242,23 +251,27 @@ body {
   overflow-y: auto;
   border-right: 1px solid var(--border);
   background: var(--bg-panel);
-  padding: 16px 0;
+  padding: var(--sp-4) 0;
 }
 
 .section {
-  padding: 14px 18px;
+  padding: var(--sp-3) var(--sp-4);
   border-bottom: 1px solid var(--border);
 }
 
-.section:last-child { border-bottom: none; }
+/* Rhythmic: first section (entry point) gets more vertical breathing */
+.section:first-of-type { padding-top: var(--sp-5); padding-bottom: var(--sp-4); }
+/* Later sections tighten to keep the eye moving toward the action */
+.section + .section { padding-top: var(--sp-3); }
+.section:last-child { border-bottom: none; padding-bottom: var(--sp-4); }
 
 .section-title {
   font-family: var(--font-mono);
   font-size: var(--fs-cap);
-  letter-spacing: .2em;
+  letter-spacing: var(--ls-micro);
   color: var(--text-dim);
   text-transform: uppercase;
-  margin-bottom: 12px;
+  margin-bottom: var(--sp-3);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -273,8 +286,8 @@ body {
 .field {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  margin-bottom: 10px;
+  gap: var(--sp-1);
+  margin-bottom: var(--sp-3);
 }
 
 .field:last-child { margin-bottom: 0; }
@@ -335,8 +348,8 @@ input::placeholder { color: var(--text-dim); }
 .slider-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 4px;
+  gap: var(--sp-2);
+  margin-top: var(--sp-1);
 }
 
 .slider-val {
@@ -449,7 +462,7 @@ input[type="range"]:focus { outline: 2px solid var(--red-mid); outline-offset: 3
 
 /* ── Dir picker ────────────────────────────────────────────────────────── */
 .dir-row {
-  display: flex; gap: 6px; align-items: center;
+  display: flex; gap: var(--sp-2); align-items: center;
 }
 
 .dir-path {
@@ -495,7 +508,7 @@ input[type="range"]:focus { outline: 2px solid var(--red-mid); outline-offset: 3
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 16px;
+  padding: var(--sp-2) var(--sp-4);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   background: var(--bg-panel);
@@ -511,7 +524,7 @@ input[type="range"]:focus { outline: 2px solid var(--red-mid); outline-offset: 3
 
 /* ── Progress ──────────────────────────────────────────────────────────── */
 #progress-wrap {
-  padding: 10px 16px;
+  padding: var(--sp-3) var(--sp-4);
   border-bottom: 1px solid var(--border);
   display: none;
   flex-shrink: 0;
@@ -522,7 +535,7 @@ input[type="range"]:focus { outline: 2px solid var(--red-mid); outline-offset: 3
 #progress-label {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 6px;
+  margin-bottom: var(--sp-2);
   font-family: var(--font-mono);
   font-size: var(--fs-cap);
   color: var(--text-dim);
@@ -546,7 +559,7 @@ input[type="range"]:focus { outline: 2px solid var(--red-mid); outline-offset: 3
 /* ── Result banner ─────────────────────────────────────────────────────── */
 #result-banner {
   display: none;
-  padding: 10px 16px;
+  padding: var(--sp-3) var(--sp-4);
   font-family: var(--font-mono);
   font-size: var(--fs-body);
   border-bottom: 1px solid var(--border);
@@ -554,7 +567,7 @@ input[type="range"]:focus { outline: 2px solid var(--red-mid); outline-offset: 3
   cursor: pointer;
   transition: background .15s;
   align-items: center;
-  gap: 8px;
+  gap: var(--sp-2);
 }
 
 #result-banner.active { display: block; }
@@ -568,7 +581,7 @@ input[type="range"]:focus { outline: 2px solid var(--red-mid); outline-offset: 3
 #log {
   flex: 1;
   overflow-y: auto;
-  padding: 12px 16px;
+  padding: var(--sp-3) var(--sp-4);
   font-family: var(--font-mono);
   font-size: var(--fs-body);
   line-height: 1.65;
@@ -580,7 +593,7 @@ input[type="range"]:focus { outline: 2px solid var(--red-mid); outline-offset: 3
 #log::-webkit-scrollbar-track { background: transparent; }
 #log::-webkit-scrollbar-thumb { background: var(--border-mid); border-radius: 2px; }
 
-.log-entry { display: flex; gap: 10px; }
+.log-entry { display: flex; gap: var(--sp-3); }
 .log-ts    { color: var(--text-dim); flex-shrink: 0; min-width: 76px; }
 .log-msg   { color: var(--text); }
 
@@ -596,8 +609,8 @@ input[type="range"]:focus { outline: 2px solid var(--red-mid); outline-offset: 3
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 40px 20px;
-  gap: 12px;
+  padding: var(--sp-7) var(--sp-5);
+  gap: var(--sp-3);
 }
 
 #welcome.hidden { display: none; }
@@ -635,8 +648,8 @@ input[type="range"]:focus { outline: 2px solid var(--red-mid); outline-offset: 3
 #statusbar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 14px;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-4);
   height: 24px;
   flex-shrink: 0;
   border-top: 1px solid var(--border);
