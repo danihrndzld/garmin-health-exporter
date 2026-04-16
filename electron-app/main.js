@@ -1,69 +1,14 @@
 const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
-const path            = require('path');
-const fs              = require('fs');
-const os              = require('os');
-const { spawn, spawnSync } = require('child_process');
+const path  = require('path');
+const fs    = require('fs');
+const os    = require('os');
+const https = require('https');
+
+const { exportHealth }  = require('./garmin/exporter');
+const { initCache }     = require('./garmin/cache');
 
 let mainWindow;
-
-// ── uv resolution ─────────────────────────────────────────────────────────────
-function resolveUv() {
-  const candidates = [
-    path.join(os.homedir(), '.local', 'bin', 'uv'),
-    path.join(os.homedir(), '.cargo', 'bin', 'uv'),
-    '/opt/homebrew/bin/uv',
-    '/usr/local/bin/uv',
-  ];
-  for (const p of candidates) {
-    try { fs.accessSync(p, fs.constants.X_OK); return p; } catch {}
-  }
-  return 'uv'; // fallback: let spawn try PATH
-}
-
-function uvOk() {
-  const r = spawnSync(resolveUv(), ['--version'], { encoding: 'utf8' });
-  return r.status === 0;
-}
-
-function brewBin() {
-  for (const p of ['/opt/homebrew/bin/brew', '/usr/local/bin/brew']) {
-    try { fs.accessSync(p, fs.constants.X_OK); return p; } catch {}
-  }
-  return 'brew';
-}
-
-function cltInstalled() {
-  const r = spawnSync('xcode-select', ['-p'], { encoding: 'utf8' });
-  return r.status === 0 && r.stdout.trim().length > 0;
-}
-
-function patchPath() {
-  const extra = [
-    path.join(os.homedir(), '.local', 'bin'),
-    path.join(os.homedir(), '.cargo', 'bin'),
-    '/opt/homebrew/bin',
-    '/usr/local/bin',
-  ];
-  const current = (process.env.PATH || '').split(':');
-  const toAdd = extra.filter(p => !current.includes(p));
-  if (toAdd.length) process.env.PATH = toAdd.join(':') + ':' + process.env.PATH;
-}
-
-// Helper: spawn a process and stream stdout/stderr to a callback
-function runStreamed(bin, args, opts, onLine) {
-  return new Promise((resolve, reject) => {
-    const proc = spawn(bin, args, { env: { ...process.env, ...opts.env }, shell: opts.shell });
-    const emit = chunk => {
-      for (const line of chunk.toString().split('\n')) {
-        const l = line.trim(); if (l) onLine(l);
-      }
-    };
-    proc.stdout.on('data', emit);
-    proc.stderr.on('data', emit);
-    proc.on('close', code => resolve(code));
-    proc.on('error', err => reject(err));
-  });
-}
+let exportInProgress = false;
 
 // ── Window ────────────────────────────────────────────────────────────────────
 function createWindow() {
@@ -88,14 +33,6 @@ function createWindow() {
   if (process.argv.includes('--dev')) {
     mainWindow.webContents.openDevTools();
   }
-
-  // Signal renderer if uv is missing
-  mainWindow.webContents.once('did-finish-load', () => {
-    patchPath();
-    if (!uvOk()) {
-      mainWindow.webContents.send('setup-required');
-    }
-  });
 }
 
 app.whenReady().then(createWindow);
@@ -127,211 +64,133 @@ ipcMain.handle('open-folder', async (_, folderPath) => {
   shell.openPath(folderPath);
 });
 
-// ── IPC: check deps ───────────────────────────────────────────────────────────
-ipcMain.handle('check-deps', () => {
-  patchPath();
-  return { uvOk: uvOk() };
-});
-
-// ── IPC: install deps ─────────────────────────────────────────────────────────
-ipcMain.handle('install-deps', async (event) => {
-  const log = (msg, type = 'dim') => {
-    if (!event.sender.isDestroyed())
-      event.sender.send('setup-log', { msg, type });
-  };
-
+// ── IPC: open external URL ────────────────────────────────────────────────────
+ipcMain.handle('open-url', async (_, url) => {
   try {
-    patchPath();
-
-    // ── Try curl installer first (no CLT/brew needed) ──────────────────────
-    log('Installing uv via official installer…', 'info');
-    const curlCode = await runStreamed(
-      '/bin/sh', ['-c', 'curl -LsSf https://astral.sh/uv/install.sh | sh'],
-      { env: { HOME: os.homedir() } },
-      line => log(line)
-    );
-
-    patchPath();
-    if (uvOk()) {
-      log('uv installed successfully.', 'success');
-      return { ok: true };
-    }
-
-    // ── Fallback: brew ─────────────────────────────────────────────────────
-    log('curl installer did not work, trying Homebrew…', 'info');
-
-    const brew = brewBin();
-    const brewAvailable = spawnSync(brew, ['--version'], { encoding: 'utf8' }).status === 0;
-
-    if (!brewAvailable) {
-      // Need CLT before brew
-      if (!cltInstalled()) {
-        log('Installing Xcode Command Line Tools — a dialog will appear, click Install.', 'info');
-        spawn('xcode-select', ['--install']);
-
-        // Poll until CLT is ready (up to 15 min)
-        const deadline = Date.now() + 15 * 60 * 1000;
-        while (!cltInstalled()) {
-          if (Date.now() > deadline) throw new Error('Xcode CLT install timed out (15 min)');
-          log('Waiting for Xcode CLT… check the system dialog.');
-          await new Promise(r => setTimeout(r, 5000));
-        }
-        log('Xcode CLT ready.', 'success');
-      }
-
-      log('Installing Homebrew…', 'info');
-      await runStreamed(
-        '/bin/bash',
-        ['-c', 'curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh | bash'],
-        { env: { NONINTERACTIVE: '1' } },
-        line => log(line)
-      );
-      patchPath();
-    }
-
-    log('Installing uv via Homebrew…', 'info');
-    await runStreamed(brewBin(), ['install', 'uv'], {}, line => log(line));
-    patchPath();
-
-    if (uvOk()) {
-      log('uv installed successfully.', 'success');
-      return { ok: true };
-    }
-
-    throw new Error('uv still not found after install attempts.');
-
-  } catch (err) {
-    return { ok: false, error: err.message };
+    const u = new URL(url);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return;
+    shell.openExternal(url);
+  } catch {
+    // Invalid URL — silently drop
   }
 });
 
-// ── IPC: download health data + convert to CSVs ───────────────────────────────
-ipcMain.handle('download-health', async (event, { email, password, daysBack, outputDir }) => {
-  const send = (type, msg) => {
-    if (!event.sender.isDestroyed())
-      event.sender.send('log', { type, msg, ts: new Date().toLocaleTimeString() });
-  };
-  const sendProgress = (current, total, phase) => {
-    if (!event.sender.isDestroyed())
-      event.sender.send('progress', { current, total, phase });
-  };
+// ── IPC: get app version ──────────────────────────────────────────────────────
+ipcMain.handle('get-version', () => app.getVersion());
+
+// ── IPC: check for updates via GitHub releases ────────────────────────────────
+ipcMain.handle('check-for-updates', () => {
+  return new Promise((resolve) => {
+    const opts = {
+      hostname: 'api.github.com',
+      path: '/repos/danihrndzld/garmin-health-exporter/releases/latest',
+      headers: { 'User-Agent': 'garmin-data-exporter' },
+    };
+    https.get(opts, (res) => {
+      let body = '';
+      res.on('data', chunk => body += chunk);
+      res.on('end', () => {
+        try {
+          const data = JSON.parse(body);
+          const latest = (data.tag_name || '').replace(/^v/, '');
+          resolve({ ok: true, latest, url: data.html_url || '' });
+        } catch {
+          resolve({ ok: false, error: 'Invalid response from GitHub' });
+        }
+      });
+    }).on('error', err => resolve({ ok: false, error: err.message }));
+  });
+});
+
+// ── IPC: download health data ─────────────────────────────────────────────────
+ipcMain.handle('download-health', async (event, { email, password, daysBack, outputDir, refreshWindow }) => {
+  // Guard against concurrent exports
+  if (exportInProgress) {
+    return { ok: false, error: 'An export is already in progress.' };
+  }
+
+  // Validate daysBack
+  const days = parseInt(daysBack, 10);
+  if (!Number.isInteger(days) || days < 1 || days > 90) {
+    return { ok: false, error: 'daysBack must be an integer between 1 and 90.' };
+  }
+
+  // Validate refreshWindow
+  const rw = refreshWindow != null ? parseInt(refreshWindow, 10) : 3;
+  if (!Number.isInteger(rw) || rw < 1 || rw > 7) {
+    return { ok: false, error: 'refreshWindow must be an integer between 1 and 7.' };
+  }
+
+  // Validate outputDir — must be strictly contained within home (path.relative
+  // avoids the prefix-match bypass of startsWith, e.g. `/Users/dani-evil/...`).
+  // Also resolve symlinks so a link inside $HOME pointing outside is rejected.
+  let resolvedOutput = path.resolve(outputDir);
+  const home = os.homedir();
+  try {
+    if (fs.existsSync(resolvedOutput)) {
+      resolvedOutput = fs.realpathSync(resolvedOutput);
+    }
+  } catch (_e) {
+    return { ok: false, error: 'Output directory could not be resolved.' };
+  }
+  const rel = path.relative(home, resolvedOutput);
+  const escapesHome = rel.startsWith('..') || path.isAbsolute(rel);
+  if (escapesHome) {
+    return { ok: false, error: 'Output directory must be within your home directory.' };
+  }
+
+  exportInProgress = true;
 
   try {
-    fs.mkdirSync(outputDir, { recursive: true });
+    const dataDir = app.getPath('userData');
 
-    const exportScript = app.isPackaged
-      ? path.join(process.resourcesPath, 'scripts', 'garmin_health_export.py')
-      : path.join(__dirname, 'scripts', 'garmin_health_export.py');
-
-    const csvScript = app.isPackaged
-      ? path.join(process.resourcesPath, 'scripts', 'json_to_csv.py')
-      : path.join(__dirname, 'scripts', 'json_to_csv.py');
-
-    const detailsScript = app.isPackaged
-      ? path.join(process.resourcesPath, 'scripts', 'download_activity_details.py')
-      : path.join(__dirname, 'scripts', 'download_activity_details.py');
-
-    // ── Step 1: Download via Python ───────────────────────────────────────
-    let jsonFile = null;
-    const uv = resolveUv();
-
-    await new Promise((resolve, reject) => {
-      const py = spawn(uv, [
-        'run', exportScript,
-        '--email',    email,
-        '--password', password,
-        '--days',     String(daysBack),
-        '--output',   outputDir,
-      ]);
-
-      py.stdout.on('data', chunk => {
-        for (const line of chunk.toString().split('\n')) {
-          const l = line.trim();
-          if (!l) continue;
-          if (l.startsWith('PROGRESS:')) {
-            const [, phase, cur, tot] = l.split(':');
-            sendProgress(parseInt(cur), parseInt(tot), phase);
-          } else if (l.startsWith('JSON_PATH:')) {
-            jsonFile = l.slice('JSON_PATH:'.length).trim();
-            send('success', `JSON saved → ${path.basename(jsonFile)}`);
-          } else {
-            send('dim', l);
-          }
+    const result = await exportHealth({
+      email,
+      password,
+      daysBack: days,
+      outputDir: resolvedOutput,
+      refreshWindow: rw,
+      dataDir,
+      onProgress: (data) => {
+        if (!event.sender.isDestroyed()) {
+          event.sender.send('progress', data);
         }
-      });
-
-      py.stderr.on('data', chunk => {
-        const msg = chunk.toString().trim();
-        if (msg) send('warn', msg);
-      });
-
-      py.on('close', code => code === 0 ? resolve() : reject(new Error(`Export script exited ${code}`)));
-      py.on('error', err => reject(new Error(`Could not run uv (${uv}): ${err.message}`)));
-    });
-
-    if (!jsonFile) throw new Error('Export script did not return a JSON path.');
-
-    // ── Step 2: Convert JSON → CSVs ───────────────────────────────────────
-    send('info', 'Converting to CSVs…');
-    sendProgress(1, 2, 'csv');
-
-    const today = new Date().toISOString().split('T')[0];
-    const csvDir = path.join(outputDir, `csv_${today}`);
-
-    await new Promise((resolve, reject) => {
-      const py = spawn('python3', [csvScript, jsonFile, outputDir]);
-      py.stdout.on('data', chunk => {
-        for (const line of chunk.toString().split('\n').filter(l => l.trim()))
-          send('dim', line.trim());
-      });
-      py.stderr.on('data', chunk => {
-        const msg = chunk.toString().trim();
-        if (msg) send('warn', msg);
-      });
-      py.on('close', code => code === 0 ? resolve() : reject(new Error(`CSV script exited ${code}`)));
-      py.on('error', err => reject(new Error(`Could not run python3: ${err.message}`)));
-    });
-
-    sendProgress(2, 2, 'csv');
-    send('success', 'Health CSVs done.');
-
-    // ── Step 3: Activity details (per-type CSVs with detailed metrics) ────
-    send('info', 'Downloading activity details…');
-
-    await new Promise((resolve, reject) => {
-      const py = spawn(uv, [
-        'run', detailsScript,
-        '--email',    email,
-        '--password', password,
-        '--json',     jsonFile,
-        '--output',   outputDir,
-      ]);
-
-      py.stdout.on('data', chunk => {
-        for (const line of chunk.toString().split('\n')) {
-          const l = line.trim();
-          if (!l) continue;
-          if (l.startsWith('PROGRESS:')) {
-            const [, cur, tot] = l.split(':');
-            sendProgress(parseInt(cur), parseInt(tot), 'activity-details');
-          } else {
-            send('dim', l);
-          }
+      },
+      onLog: (data) => {
+        if (!event.sender.isDestroyed()) {
+          event.sender.send('log', {
+            type: data.type,
+            msg: data.message,
+            ts: new Date().toLocaleTimeString(),
+          });
         }
-      });
-
-      py.stderr.on('data', chunk => {
-        const msg = chunk.toString().trim();
-        if (msg) send('warn', msg);
-      });
-
-      py.on('close', code => code === 0 ? resolve() : reject(new Error(`Activity details script exited ${code}`)));
-      py.on('error', err => reject(new Error(`Could not run uv: ${err.message}`)));
+      },
     });
 
-    send('success', `Done. ${daysBack} days | CSVs → csv_${today}/`);
-    return { ok: true, path: csvDir };
+    if (result.ok) {
+      return { ok: true, path: result.csvDir };
+    }
+    return { ok: false, error: result.error };
 
+  } catch (err) {
+    return { ok: false, error: err.message };
+  } finally {
+    exportInProgress = false;
+  }
+});
+
+// ── IPC: clear cache ─────────────────────────────────────────────────────────
+ipcMain.handle('clear-cache', async () => {
+  if (exportInProgress) {
+    return { ok: false, error: 'Cannot clear cache while an export is in progress.' };
+  }
+  try {
+    const dbPath = path.join(app.getPath('userData'), 'garmin_cache.db');
+    const cache = await initCache(dbPath);
+    cache.clearAll();
+    cache.save();
+    cache.close();
+    return { ok: true };
   } catch (err) {
     return { ok: false, error: err.message };
   }
