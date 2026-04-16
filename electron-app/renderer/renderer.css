@@ -37,6 +37,7 @@
   --red-glow2:     rgba(232, 0, 28, 0.07);
   --red-bg-soft:   rgba(232, 0, 28, 0.08);
   --red-bg-trace:  rgba(232, 0, 28, 0.03);
+  --sheen:         rgba(255, 255, 255, 0.06);
 
   /* ── Teal lineage (connected / done) ──────────────────────────── */
   --teal:          #2dc6a0;           /* steady-state — connected, online */
@@ -265,7 +266,13 @@ body {
   border-right: 1px solid var(--border);
   background: var(--bg-panel);
   padding: var(--sp-4) 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-mid) transparent;
 }
+
+#sidebar::-webkit-scrollbar { width: 4px; }
+#sidebar::-webkit-scrollbar-track { background: transparent; }
+#sidebar::-webkit-scrollbar-thumb { background: var(--border-mid); border-radius: 2px; }
 
 .section {
   padding: var(--sp-3) var(--sp-4);
@@ -353,6 +360,7 @@ input::placeholder { color: var(--text-dim); }
 }
 
 .eye-btn:hover { color: var(--text); }
+.eye-btn:focus-visible { outline: 1px solid var(--red-mid); outline-offset: 2px; border-radius: 2px; }
 
 .eye-btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .eye-btn svg[hidden] { display: none; }
@@ -467,7 +475,7 @@ input[type="range"]:focus { outline: 2px solid var(--red-mid); outline-offset: 3
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, transparent 40%, rgba(255,255,255,.06) 100%);
+  background: linear-gradient(135deg, transparent 40%, var(--sheen) 100%);
   pointer-events: none;
 }
 
@@ -600,7 +608,7 @@ input[type="range"]:focus { outline: 2px solid var(--red-mid); outline-offset: 3
 #result-banner.error   { background: var(--red-bg-soft);  color: var(--red-text); }
 #result-banner:hover   { filter: brightness(1.1); }
 
-#result-banner svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+#result-banner svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
 
 /* ── Log ───────────────────────────────────────────────────────────────── */
 #log {
@@ -781,7 +789,8 @@ select option {
   transition: color .15s;
 }
 
-.cache-link:hover { color: var(--text-bright); }
+.cache-link:hover { color: var(--text); }
+.cache-link:focus-visible { outline: 1px dashed var(--red-mid); outline-offset: 3px; border-radius: 2px; }
 .cache-link.armed { color: var(--orange); text-decoration-color: var(--orange); }
 
 @media (prefers-reduced-motion: reduce) {
