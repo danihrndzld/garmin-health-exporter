@@ -123,8 +123,16 @@ ipcMain.handle('download-health', async (event, { email, password, daysBack, out
 
   // Validate outputDir — must be strictly contained within home (path.relative
   // avoids the prefix-match bypass of startsWith, e.g. `/Users/dani-evil/...`).
-  const resolvedOutput = path.resolve(outputDir);
+  // Also resolve symlinks so a link inside $HOME pointing outside is rejected.
+  let resolvedOutput = path.resolve(outputDir);
   const home = os.homedir();
+  try {
+    if (fs.existsSync(resolvedOutput)) {
+      resolvedOutput = fs.realpathSync(resolvedOutput);
+    }
+  } catch (_e) {
+    return { ok: false, error: 'Output directory could not be resolved.' };
+  }
   const rel = path.relative(home, resolvedOutput);
   const escapesHome = rel.startsWith('..') || path.isAbsolute(rel);
   if (escapesHome) {
@@ -173,6 +181,9 @@ ipcMain.handle('download-health', async (event, { email, password, daysBack, out
 
 // ── IPC: clear cache ─────────────────────────────────────────────────────────
 ipcMain.handle('clear-cache', async () => {
+  if (exportInProgress) {
+    return { ok: false, error: 'Cannot clear cache while an export is in progress.' };
+  }
   try {
     const dbPath = path.join(app.getPath('userData'), 'garmin_cache.db');
     const cache = await initCache(dbPath);

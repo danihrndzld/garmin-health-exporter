@@ -24,6 +24,9 @@ bootstrap was removed. Custom renderer code relying on them will error:
 ### Changed
 
 - Output-dir validation now uses `path.relative` containment instead of `startsWith` (prevents `/Users/dani-evil/` matching `/Users/dani`)
+- Output-dir path is resolved through `fs.realpathSync` so symlinks inside `$HOME` pointing outside are rejected
+- `clear-cache` IPC now refuses to run while an export is in progress
+- Cache is now flushed to disk every 10 days and every 10 activities during an export (was end-of-run only), so a crash mid-export no longer loses all prior work
 - `shell.openExternal` only accepts `http:`/`https:` schemes
 - Token file permissions re-enforced to `0o600` on every overwrite
 - Tokens are now cached in memory after first read (was hitting disk on every API call)

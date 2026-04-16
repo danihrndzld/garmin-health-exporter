@@ -684,6 +684,34 @@ async function runTests() {
     assert.strictEqual(calls.length, 1, 'should stop after first chunk when authFailed');
   });
 
+  await test('periodic save: cache.save() fires every 10 activities during export', async () => {
+    const activities = Array.from({ length: 25 }, (_, i) => ({
+      activityId: String(i + 1),
+      activityName: `Act ${i + 1}`,
+    }));
+    const { exporter, calls } = buildExporter({
+      endpointData: {
+        activities_by_date: (params) => {
+          if (params.start === 0) return activities.slice(0, 20);
+          if (params.start === 20) return activities.slice(20);
+          return [];
+        },
+        goals: [],
+      },
+    });
+    mockFs();
+    try {
+      const result = await exporter.exportHealth(defaultOpts({ daysBack: 1 }));
+      assert.strictEqual(result.ok, true);
+      // >=2 saves during activities (at 10 and 20) + 1 final save = at least 3
+      assert.ok(calls.cacheSave.length >= 3,
+        `expected >=3 cache.save() calls, got ${calls.cacheSave.length}`);
+    } finally {
+      restoreFs();
+      restoreModules();
+    }
+  });
+
   await test('happy path: cache init failure does not break export', async () => {
     const { exporter } = buildExporter({
       cacheInitFails: true,

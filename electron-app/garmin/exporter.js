@@ -223,6 +223,11 @@ async function exportHealth(opts) {
     onProgress({ current: i + 1, total: totalDailyWork, phase: 'daily' });
     onLog({ type: 'dim', message: `  ${date}` });
 
+    // Periodic save so a crash or kill doesn't lose the whole daily pull.
+    if (cache && (i + 1) % 10 === 0) {
+      try { cache.save(); } catch (_e) {}
+    }
+
     if (client.authFailed) {
       return { ok: false, error: 'Auth failed mid-export — re-login required' };
     }
@@ -320,6 +325,11 @@ async function exportHealth(opts) {
     }
 
     onProgress({ current: i + 1, total: allActivities.length, phase: 'activities' });
+
+    // Periodic save so a crash mid-activity doesn't lose fetched splits.
+    if (cache && (i + 1) % 10 === 0) {
+      try { cache.save(); } catch (_e) {}
+    }
 
     if (client.authFailed) {
       return { ok: false, error: 'Auth failed mid-export — re-login required' };
