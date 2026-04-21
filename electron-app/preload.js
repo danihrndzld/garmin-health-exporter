@@ -17,4 +17,5 @@ contextBridge.exposeInMainWorld('garmin', {
   getVersion:        () => ipcRenderer.invoke('get-version'),
   checkForUpdates:   () => ipcRenderer.invoke('check-for-updates'),
   openUrl:           (u) => ipcRenderer.invoke('open-url', u),
+  sendBugReport:     (p) => ipcRenderer.invoke('send-bug-report', p),
 });

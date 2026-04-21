@@ -20,6 +20,7 @@
   const clearCacheBtn= $('clear-cache-btn');
   const logEl        = $('log');
   const clearBtn     = $('clear-btn');
+  const bugReportBtn = $('bug-report-btn');
   const progressWrap = $('progress-wrap');
   const progressPhase= $('progress-phase');
   const progressPct  = $('progress-pct');
@@ -297,6 +298,38 @@
 
   btnHealth.addEventListener('click', runHealthDownload);
   if (credsForm) credsForm.addEventListener('submit', runHealthDownload);
+
+  // ── Bug report ───────────────────────────────────────────────────────────
+  if (bugReportBtn) {
+    bugReportBtn.addEventListener('click', async () => {
+      bugReportBtn.disabled = true;
+      const originalLabel = bugReportBtn.textContent;
+      bugReportBtn.textContent = 'Preparing…';
+      try {
+        const appVersion = await window.garmin.getVersion();
+        const payload = {
+          appVersion,
+          lastError,
+          recentLog: logBuffer.slice(),
+        };
+        const res = await window.garmin.sendBugReport(payload);
+        if (res && res.bundlePath) {
+          appendLog('dim', 'Diagnostic bundle: ' + res.bundlePath);
+        }
+        if (res && res.warning) {
+          appendLog('warn', res.warning);
+        }
+        if (res && res.ok === false) {
+          appendLog('warn', res.error || 'Could not open mail client.');
+        }
+      } catch (err) {
+        appendLog('warn', 'Bug report failed: ' + (err && err.message ? err.message : String(err)));
+      } finally {
+        bugReportBtn.textContent = originalLabel;
+        bugReportBtn.disabled = false;
+      }
+    });
+  }
 
   // ── Version + Update check ───────────────────────────────────────────────
   const updateBtn   = $('update-btn');

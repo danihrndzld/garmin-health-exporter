@@ -78,6 +78,143 @@ ipcMain.handle('open-url', async (_, url) => {
 // ── IPC: get app version ──────────────────────────────────────────────────────
 ipcMain.handle('get-version', () => app.getVersion());
 
+// ── IPC: send bug report ──────────────────────────────────────────────────────
+// Always writes a diagnostic bundle file under userData/diagnostics/ and then
+// opens the user's default mail client with a pre-filled message addressed to
+// the maintainer. The `mailto:` body is truncated to stay within cross-client
+// URL length limits; the full log lives in the bundle file whose path is
+// referenced in the body so the user can attach it manually.
+const BUG_REPORT_EMAIL = 'danisnowman@gmail.com';
+const MAILTO_BODY_MAX = 1800;
+
+function redactLogLine(line) {
+  if (!line) return line;
+  return String(line)
+    .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/g, 'Bearer REDACTED')
+    .replace(/([?&])(token|access_token)=[^&\s]*/gi, '$1$2=REDACTED');
+}
+
+function formatDiagnosticBundle(payload) {
+  const lines = [];
+  lines.push('Garmin Data Exporter — diagnostic bundle');
+  lines.push(`Generated: ${new Date().toISOString()}`);
+  lines.push('');
+  lines.push('## Environment');
+  lines.push(`App version: ${payload.appVersion || 'unknown'}`);
+  lines.push(`Platform:    ${payload.platform || process.platform} ${payload.osRelease || os.release()}`);
+  lines.push(`Arch:        ${payload.arch || process.arch}`);
+  lines.push(`Electron:    ${payload.electronVersion || process.versions.electron}`);
+  lines.push(`Chrome:      ${payload.chromeVersion || process.versions.chrome}`);
+  lines.push(`Node:        ${payload.nodeVersion || process.versions.node}`);
+  lines.push('');
+  lines.push('## Last error');
+  if (payload.lastError) {
+    const le = payload.lastError;
+    lines.push(`Time:        ${le.ts || 'unknown'}`);
+    lines.push(`Type:        ${le.type || 'unknown'}`);
+    lines.push(`Code:        ${le.errorCode || '(none)'}`);
+    lines.push(`Message:     ${redactLogLine(le.msg || '')}`);
+    if (le.meta) {
+      try {
+        lines.push('Meta:');
+        lines.push(JSON.stringify(le.meta, null, 2));
+      } catch {
+        lines.push('Meta: (unserializable)');
+      }
+    }
+  } else {
+    lines.push('(no recent errors recorded)');
+  }
+  lines.push('');
+  lines.push('## Recent log');
+  const entries = Array.isArray(payload.recentLog) ? payload.recentLog : [];
+  if (entries.length === 0) {
+    lines.push('(log is empty)');
+  } else {
+    for (const e of entries) {
+      const ts = e.ts || '';
+      const type = e.type || '';
+      lines.push(`${ts} [${type}] ${redactLogLine(e.msg || '')}`);
+    }
+  }
+  return lines.join('\n');
+}
+
+function formatMailSummary(payload, bundlePath) {
+  const parts = [];
+  parts.push('Hi — I hit a bug in Garmin Data Exporter. Details below.');
+  parts.push('');
+  parts.push(`App version:   ${payload.appVersion || 'unknown'}`);
+  parts.push(`Platform:      ${payload.platform || process.platform} ${payload.osRelease || os.release()}`);
+  parts.push(`Electron:      ${payload.electronVersion || process.versions.electron}`);
+  parts.push('');
+  if (payload.lastError) {
+    const le = payload.lastError;
+    parts.push('Last error:');
+    parts.push(`  ${le.ts || ''} [${le.errorCode || le.type || 'error'}]`);
+    parts.push(`  ${redactLogLine(le.msg || '')}`);
+    parts.push('');
+  } else {
+    parts.push('Last error: (no recent errors recorded)');
+    parts.push('');
+  }
+  const entries = Array.isArray(payload.recentLog) ? payload.recentLog : [];
+  const tail = entries.slice(-30);
+  if (tail.length > 0) {
+    parts.push('Recent log (last ' + tail.length + ' lines):');
+    for (const e of tail) {
+      parts.push(`  ${e.ts || ''} [${e.type || ''}] ${redactLogLine(e.msg || '')}`);
+    }
+    parts.push('');
+  }
+  if (bundlePath) {
+    parts.push(`Full diagnostics saved to: ${bundlePath}`);
+    parts.push('(Please attach that file to this email if possible.)');
+  }
+  return parts.join('\n');
+}
+
+function truncateForMailto(body) {
+  if (body.length <= MAILTO_BODY_MAX) return body;
+  return body.slice(0, MAILTO_BODY_MAX - 80) + '\n\n…truncated. See full diagnostics in the bundle file above.';
+}
+
+ipcMain.handle('send-bug-report', async (_, payload = {}) => {
+  const results = { ok: true, bundlePath: null, warning: null, mailOpened: false };
+
+  // 1) Always try to write the diagnostic bundle first.
+  try {
+    const dir = path.join(app.getPath('userData'), 'diagnostics');
+    fs.mkdirSync(dir, { recursive: true });
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    const filePath = path.join(dir, `diagnostic-${stamp}.txt`);
+    fs.writeFileSync(filePath, formatDiagnosticBundle(payload), 'utf8');
+    results.bundlePath = filePath;
+  } catch (err) {
+    results.warning = `Could not write diagnostic bundle: ${err.message}`;
+  }
+
+  // 2) Compose and open the mailto link.
+  try {
+    const code = payload.lastError && payload.lastError.errorCode
+      ? payload.lastError.errorCode
+      : 'general';
+    const version = payload.appVersion || app.getVersion();
+    const subject = `Garmin Data Exporter bug — ${code} — v${version}`;
+    const body = truncateForMailto(formatMailSummary(payload, results.bundlePath));
+    const url = `mailto:${BUG_REPORT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    await shell.openExternal(url);
+    results.mailOpened = true;
+  } catch (err) {
+    results.ok = false;
+    results.error = `Could not open mail client: ${err.message}`;
+  }
+
+  return results;
+});
+
 // ── IPC: check for updates via GitHub releases ────────────────────────────────
 ipcMain.handle('check-for-updates', () => {
   return new Promise((resolve) => {
