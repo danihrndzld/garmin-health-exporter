@@ -73,7 +73,14 @@
     if (meta) entry.meta = meta;
     logBuffer.push(entry);
     if (logBuffer.length > LOG_BUFFER_MAX) logBuffer.shift();
-    if (type === 'error' || type === 'warn' || errorCode || meta) {
+    // Only capture genuine failures. Benign `warn` lines (e.g., per-endpoint
+    // skips) no longer overwrite the root-cause error the user is reporting.
+    const isTerminal = errorCode === 'AUTH'
+      || errorCode === 'HTTP_4XX'
+      || errorCode === 'HTTP_5XX'
+      || errorCode === 'BUILD_URL'
+      || errorCode === 'UNKNOWN_ENDPOINT';
+    if (type === 'error' || isTerminal) {
       lastError = entry;
     }
   }
@@ -319,8 +326,12 @@
         if (res && res.warning) {
           appendLog('warn', res.warning);
         }
+        if (res && res.truncated) {
+          appendLog('dim', 'Mail body was truncated to fit client URL limit — please attach the bundle file.');
+        }
         if (res && res.ok === false) {
-          appendLog('warn', res.error || 'Could not open mail client.');
+          const recipient = res.recipient ? ' Email the bundle to ' + res.recipient + ' manually.' : '';
+          appendLog('warn', (res.error || 'Could not open mail client.') + recipient);
         }
       } catch (err) {
         appendLog('warn', 'Bug report failed: ' + (err && err.message ? err.message : String(err)));
