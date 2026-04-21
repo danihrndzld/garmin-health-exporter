@@ -158,11 +158,14 @@ ipcMain.handle('download-health', async (event, { email, password, daysBack, out
       },
       onLog: (data) => {
         if (!event.sender.isDestroyed()) {
-          event.sender.send('log', {
+          const payload = {
             type: data.type,
             msg: data.message,
             ts: new Date().toLocaleTimeString(),
-          });
+          };
+          if (data.errorCode) payload.errorCode = data.errorCode;
+          if (data.meta) payload.meta = data.meta;
+          event.sender.send('log', payload);
         }
       },
     });

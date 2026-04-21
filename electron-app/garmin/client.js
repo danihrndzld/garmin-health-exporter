@@ -352,12 +352,18 @@ class GarminClient {
     try {
       const result = await this.fetch(endpointName, params);
       if (!result.ok) {
-        this._log(`[skip] ${endpointName}: ${result.error}`);
+        this._log(`[skip] ${endpointName}: ${result.error}`, {
+          errorCode: result.errorCode,
+          meta: result.meta,
+        });
         return null;
       }
       return result.data;
     } catch (err) {
-      this._log(`[skip] ${endpointName}: ${err.message}`);
+      this._log(`[skip] ${endpointName}: ${err.message}`, {
+        errorCode: 'UNCAUGHT',
+        meta: { endpoint: endpointName, errorClass: err.name, errorMessage: err.message },
+      });
       return null;
     }
   }
