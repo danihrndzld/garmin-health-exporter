@@ -7,7 +7,7 @@
  */
 
 const assert = require('assert');
-const { createGarminClient, GarminClient, backoffDelay } = require('../client');
+const { createGarminClient, GarminClient, backoffDelay, redactUrl, trimPreview } = require('../client');
 const {
   getEndpoint,
   getEndpointNames,
@@ -529,6 +529,175 @@ async function runClientTests() {
 }
 
 // ---------------------------------------------------------------------------
+// Structured error-classification tests (Unit 1)
+// ---------------------------------------------------------------------------
+
+async function runErrorClassificationTests() {
+  console.log('\nStructured error classification:');
+
+  await test('EMPTY_BODY: 200 with empty body is classified distinctly', async () => {
+    const { fetch } = mockFetch([{ status: 200, body: '', ok: true }]);
+    const client = createGarminClient(mockAuth(), { fetch, delay: 0, log: () => {} });
+    const result = await client.fetch('stats', { date: '2026-04-15', displayName: 'u' });
+    assert.strictEqual(result.ok, false);
+    assert.strictEqual(result.errorCode, 'EMPTY_BODY');
+    assert.strictEqual(result.meta.status, 200);
+    assert.strictEqual(result.meta.endpoint, 'stats');
+    assert.match(result.error, /Empty response body/);
+  });
+
+  await test('BAD_JSON: 200 with invalid JSON body is classified distinctly', async () => {
+    const { fetch } = mockFetch([{ status: 200, body: '{not json', ok: true }]);
+    const client = createGarminClient(mockAuth(), { fetch, delay: 0, log: () => {} });
+    const result = await client.fetch('stats', { date: '2026-04-15', displayName: 'u' });
+    assert.strictEqual(result.ok, false);
+    assert.strictEqual(result.errorCode, 'BAD_JSON');
+    assert.ok(result.meta.bodyPreview.includes('{not json'), `bodyPreview missing fragment: ${result.meta.bodyPreview}`);
+    assert.strictEqual(result.meta.endpoint, 'stats');
+  });
+
+  await test('HTTP_5XX: 500 response carries status and body preview', async () => {
+    const { fetch } = mockFetch([{ status: 500, body: 'Internal Server Error' }]);
+    const client = createGarminClient(mockAuth(), {
+      fetch, delay: 0, maxRetries: 0, log: () => {},
+    });
+    const result = await client.fetch('stats', { date: '2026-04-15', displayName: 'u' });
+    assert.strictEqual(result.errorCode, 'HTTP_5XX');
+    assert.strictEqual(result.meta.status, 500);
+    assert.ok(result.meta.bodyPreview.includes('Internal Server Error'));
+  });
+
+  await test('HTTP_4XX: 404 response is coded as HTTP_4XX', async () => {
+    const { fetch } = mockFetch([{ status: 404, body: 'not found' }]);
+    const client = createGarminClient(mockAuth(), {
+      fetch, delay: 0, maxRetries: 0, log: () => {},
+    });
+    const result = await client.fetch('stats', { date: '2026-04-15', displayName: 'u' });
+    assert.strictEqual(result.errorCode, 'HTTP_4XX');
+    assert.strictEqual(result.meta.status, 404);
+  });
+
+  await test('NETWORK: fetch throw yields NETWORK errorCode and meta', async () => {
+    const fetch = async () => { throw new TypeError('fetch failed'); };
+    const client = createGarminClient(mockAuth(), {
+      fetch, delay: 0, maxRetries: 0, log: () => {},
+    });
+    const result = await client.fetch('stats', { date: '2026-04-15', displayName: 'u' });
+    assert.strictEqual(result.errorCode, 'NETWORK');
+    assert.strictEqual(result.meta.errorClass, 'TypeError');
+    assert.strictEqual(result.meta.endpoint, 'stats');
+  });
+
+  await test('TIMEOUT: AbortError yields TIMEOUT errorCode with elapsedMs', async () => {
+    const fetch = async () => {
+      const err = new Error('aborted'); err.name = 'AbortError'; throw err;
+    };
+    const client = createGarminClient(mockAuth(), {
+      fetch, delay: 0, maxRetries: 0, log: () => {}, timeoutMs: 5,
+    });
+    const result = await client.fetch('stats', { date: '2026-04-15', displayName: 'u' });
+    assert.strictEqual(result.errorCode, 'TIMEOUT');
+    assert.strictEqual(typeof result.meta.elapsedMs, 'number');
+  });
+
+  await test('AUTH: 401 returns AUTH errorCode with meta', async () => {
+    const { fetch } = mockFetch([{ status: 401, body: 'Unauthorized' }]);
+    const client = createGarminClient(mockAuth(), { fetch, delay: 0, log: () => {} });
+    const result = await client.fetch('stats', { date: '2026-04-15', displayName: 'u' });
+    assert.strictEqual(result.errorCode, 'AUTH');
+    assert.strictEqual(result.meta.status, 401);
+  });
+
+  await test('RATE_LIMIT: 429 exhausted carries RATE_LIMIT code and attempt count', async () => {
+    const responses = Array.from({ length: 7 }, () => ({ status: 429, body: 'Too Many' }));
+    const { fetch } = mockFetch(responses);
+    const client = createGarminClient(mockAuth(), {
+      fetch, delay: 0, maxRetries: 5, log: () => {}, sleep: async () => {},
+    });
+    const result = await client.fetch('stats', { date: '2026-04-15', displayName: 'u' });
+    assert.strictEqual(result.errorCode, 'RATE_LIMIT');
+    assert.strictEqual(result.meta.attempt, 6);
+  });
+
+  await test('meta.endpoint is present on error from fetch() but undefined for raw fetchUrl', async () => {
+    const { fetch } = mockFetch([{ status: 500, body: 'err' }]);
+    const client = createGarminClient(mockAuth(), {
+      fetch, delay: 0, maxRetries: 0, log: () => {},
+    });
+    const rawResult = await client.fetchUrl('https://example.com/raw');
+    assert.strictEqual(rawResult.ok, false);
+    assert.strictEqual(rawResult.meta.endpoint, null);
+  });
+
+  await test('UNKNOWN_ENDPOINT: unknown endpoint name returns errorCode', async () => {
+    const { fetch } = mockFetch([]);
+    const client = createGarminClient(mockAuth(), { fetch, delay: 0, log: () => {} });
+    const result = await client.fetch('nonexistent_xyz', {});
+    assert.strictEqual(result.errorCode, 'UNKNOWN_ENDPOINT');
+    assert.ok(result.error.includes('Unknown endpoint'));
+  });
+
+  await test('redactUrl: scrubs token, access_token, auth, secret, password query params', () => {
+    assert.strictEqual(
+      redactUrl('https://x.test/a?token=abc&date=2026-04-15'),
+      'https://x.test/a?token=REDACTED&date=2026-04-15'
+    );
+    assert.strictEqual(
+      redactUrl('https://x.test/a?access_token=xyz&id=7'),
+      'https://x.test/a?access_token=REDACTED&id=7'
+    );
+    assert.strictEqual(
+      redactUrl('https://x.test/a?authCode=xyz&password=hunter2&x=1'),
+      'https://x.test/a?authCode=REDACTED&password=REDACTED&x=1'
+    );
+    assert.strictEqual(
+      redactUrl('https://x.test/a?date=2026-04-15'),
+      'https://x.test/a?date=2026-04-15'
+    );
+  });
+
+  await test('Authorization header is never logged when requests fail', async () => {
+    const fetch = async () => { throw new Error('boom'); };
+    const logs = [];
+    const client = createGarminClient(mockAuth(), {
+      fetch, delay: 0, maxRetries: 1, log: (m) => logs.push(m), sleep: async () => {},
+    });
+    await client.fetch('stats', { date: '2026-04-15', displayName: 'u' });
+    const joined = logs.join('\n');
+    assert.ok(!joined.includes('Bearer'), `logs must not contain Bearer: ${joined}`);
+    assert.ok(!joined.includes('mock-token-abc123'), `logs must not contain token: ${joined}`);
+  });
+
+  await test('retry log includes endpoint name when available', async () => {
+    const fetch = async () => { throw new Error('transient'); };
+    const logs = [];
+    const client = createGarminClient(mockAuth(), {
+      fetch, delay: 0, maxRetries: 1, log: (m) => logs.push(m), sleep: async () => {},
+    });
+    await client.fetch('stats', { date: '2026-04-15', displayName: 'u' });
+    const joined = logs.join('\n');
+    assert.ok(joined.includes('stats'), `retry log should mention endpoint: ${joined}`);
+  });
+
+  await test('trimPreview collapses whitespace and truncates to 200 chars', () => {
+    const long = 'a'.repeat(300);
+    const out = trimPreview(long);
+    assert.strictEqual(out.length, 201); // 200 + ellipsis
+    assert.strictEqual(trimPreview('a\n\n   b'), 'a b');
+    assert.strictEqual(trimPreview(null), '');
+  });
+
+  await test('happy path: successful fetch does not carry errorCode or meta', async () => {
+    const { fetch } = mockFetch([{ status: 200, body: { ok: 1 } }]);
+    const client = createGarminClient(mockAuth(), { fetch, delay: 0, log: () => {} });
+    const result = await client.fetch('stats', { date: '2026-04-15', displayName: 'u' });
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(result.errorCode, undefined);
+    assert.strictEqual(result.meta, undefined);
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Backoff calculation tests
 // ---------------------------------------------------------------------------
 
@@ -582,6 +751,7 @@ async function main() {
 
   await runEndpointTests();
   await runClientTests();
+  await runErrorClassificationTests();
   await runBackoffTests();
 
   console.log(`\nResults: ${passed} passed, ${failed} failed`);

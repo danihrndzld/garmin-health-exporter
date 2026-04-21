@@ -39,6 +39,56 @@ function backoffDelay(attempt) {
   return Math.min(base + jitter, 60000);
 }
 
+/**
+ * Strip secrets from URLs before logging or bundling.
+ * Redacts any query parameter whose name looks like a token or secret.
+ */
+function redactUrl(url) {
+  if (!url || typeof url !== 'string') return url;
+  return url.replace(/([?&])([^=&]+)=([^&]*)/g, (match, sep, key, value) => {
+    const k = key.toLowerCase();
+    if (k === 'token' || k === 'access_token' || k.includes('auth') || k.includes('secret') || k.includes('password')) {
+      return `${sep}${key}=REDACTED`;
+    }
+    return match;
+  });
+}
+
+function trimPreview(text, max = 200) {
+  if (text == null) return '';
+  const s = String(text).replace(/\s+/g, ' ').trim();
+  return s.length > max ? s.slice(0, max) + '…' : s;
+}
+
+/**
+ * Build a human-readable error message from an errorCode + meta.
+ * Preserves legacy prefixes ("Auth failed", "Rate limited (429) after N attempts",
+ * "HTTP <status>", "Timeout", "Network error") for backwards compatibility with
+ * callers and tests that match on those substrings.
+ */
+function formatErrorMessage(errorCode, meta) {
+  const ep = meta.endpoint ? ` [${meta.endpoint}]` : '';
+  switch (errorCode) {
+    case 'EMPTY_BODY':
+      return `Empty response body${ep} — Garmin returned HTTP ${meta.status} with no content. Often a transient backend hiccup or a deprecated endpoint.`;
+    case 'BAD_JSON':
+      return `Malformed JSON${ep} — HTTP ${meta.status} returned a body that is not valid JSON: ${meta.bodyPreview || '(no preview)'}`;
+    case 'TIMEOUT':
+      return `Timeout after ${meta.elapsedMs}ms${ep}`;
+    case 'NETWORK':
+      return `Network error${ep}: ${meta.errorClass || 'Error'}: ${meta.errorMessage || ''}`.trim();
+    case 'AUTH':
+      return `Auth failed (${meta.status}) — tokens cleared, re-login required`;
+    case 'RATE_LIMIT':
+      return `Rate limited (429) after ${meta.attempt} attempts — try again later`;
+    case 'HTTP_4XX':
+    case 'HTTP_5XX':
+      return `HTTP ${meta.status}${ep}: ${meta.bodyPreview || ''}`.trim();
+    default:
+      return `${errorCode}${ep}`;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // GarminClient
 // ---------------------------------------------------------------------------
@@ -82,12 +132,22 @@ class GarminClient {
    * Make an authenticated GET request to a raw URL.
    * Handles 429 backoff and 401/403 token clearing.
    *
-   * @param {string} url  Full URL to fetch
-   * @returns {Promise<{ok: true, data: any} | {ok: false, error: string}>}
+   * @param {string} url                 Full URL to fetch
+   * @param {string} [endpointName]      Optional endpoint label for diagnostics
+   * @returns {Promise<{ok: true, data: any} | {ok: false, error: string, errorCode: string, meta: object}>}
    */
-  async fetchUrl(url) {
+  async fetchUrl(url, endpointName = null) {
+    const redactedUrl = redactUrl(url);
+    const baseMeta = { endpoint: endpointName, url: redactedUrl };
+
     if (this.authFailed) {
-      return { ok: false, error: 'Auth previously failed — aborting further requests' };
+      const meta = { ...baseMeta };
+      return {
+        ok: false,
+        errorCode: 'AUTH',
+        error: 'Auth previously failed — aborting further requests',
+        meta,
+      };
     }
 
     await this._throttle();
@@ -97,7 +157,13 @@ class GarminClient {
       token = await this.auth.getAccessToken();
     } catch (err) {
       this.authFailed = true;
-      return { ok: false, error: `Auth error: ${err.message}` };
+      const meta = { ...baseMeta, errorClass: err.name, errorMessage: err.message };
+      return {
+        ok: false,
+        errorCode: 'AUTH',
+        error: `Auth error: ${err.message}`,
+        meta,
+      };
     }
 
     const headers = {
@@ -109,17 +175,27 @@ class GarminClient {
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+      const startedAt = Date.now();
       try {
         const resp = await this._fetch(url, { headers, signal: controller.signal });
         clearTimeout(timer);
+        const contentType = resp.headers && typeof resp.headers.get === 'function'
+          ? resp.headers.get('content-type')
+          : null;
 
         // 401/403: clear tokens, fail immediately, block subsequent requests
         if (resp.status === 401 || resp.status === 403) {
           this.auth.clearTokens();
           this.authFailed = true;
+          const meta = {
+            ...baseMeta, status: resp.status, contentType,
+            attempt: attempt + 1, elapsedMs: Date.now() - startedAt,
+          };
           return {
             ok: false,
-            error: `Auth failed (${resp.status}) — tokens cleared, re-login required`,
+            errorCode: 'AUTH',
+            error: formatErrorMessage('AUTH', meta),
+            meta,
           };
         }
 
@@ -127,44 +203,108 @@ class GarminClient {
         if (resp.status === 429) {
           if (attempt < this.maxRetries) {
             const wait = backoffDelay(attempt);
-            this._log(`[client] 429 rate-limited on attempt ${attempt + 1}/${this.maxRetries + 1}, retrying in ${wait}ms`);
+            this._log(`[client] 429 rate-limited${endpointName ? ` on ${endpointName}` : ''} on attempt ${attempt + 1}/${this.maxRetries + 1}, retrying in ${wait}ms`);
             await this._sleep(wait);
             continue;
           }
+          const meta = {
+            ...baseMeta, status: 429, contentType,
+            attempt: this.maxRetries + 1, elapsedMs: Date.now() - startedAt,
+          };
           return {
             ok: false,
-            error: `Rate limited (429) after ${this.maxRetries + 1} attempts — try again later`,
+            errorCode: 'RATE_LIMIT',
+            error: formatErrorMessage('RATE_LIMIT', meta),
+            meta,
           };
         }
 
         // Other non-OK status
         if (!resp.ok) {
           const body = await resp.text().catch(() => '');
+          const errorCode = resp.status >= 500 ? 'HTTP_5XX' : 'HTTP_4XX';
+          const meta = {
+            ...baseMeta, status: resp.status, contentType,
+            bodyPreview: trimPreview(body), attempt: attempt + 1,
+            elapsedMs: Date.now() - startedAt,
+          };
           return {
             ok: false,
+            errorCode,
             error: `HTTP ${resp.status}: ${body.slice(0, 200)}`,
+            meta,
           };
         }
 
-        // Success — parse JSON
-        const data = await resp.json();
+        // Success — text-then-parse so we can distinguish EMPTY_BODY from BAD_JSON
+        const text = await resp.text();
+        if (!text || text.trim() === '') {
+          const meta = {
+            ...baseMeta, status: resp.status, contentType,
+            bodyPreview: '', attempt: attempt + 1,
+            elapsedMs: Date.now() - startedAt,
+          };
+          return {
+            ok: false,
+            errorCode: 'EMPTY_BODY',
+            error: formatErrorMessage('EMPTY_BODY', meta),
+            meta,
+          };
+        }
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch (parseErr) {
+          const meta = {
+            ...baseMeta, status: resp.status, contentType,
+            bodyPreview: trimPreview(text), attempt: attempt + 1,
+            elapsedMs: Date.now() - startedAt,
+            errorClass: parseErr.name, errorMessage: parseErr.message,
+          };
+          return {
+            ok: false,
+            errorCode: 'BAD_JSON',
+            error: formatErrorMessage('BAD_JSON', meta),
+            meta,
+          };
+        }
         return { ok: true, data };
       } catch (err) {
         clearTimeout(timer);
         const isTimeout = err.name === 'AbortError';
-        const label = isTimeout ? `Timeout after ${this.timeoutMs}ms` : `Network error: ${err.message}`;
+        const errorCode = isTimeout ? 'TIMEOUT' : 'NETWORK';
+        const elapsedMs = Date.now() - startedAt;
+        const meta = {
+          ...baseMeta, attempt: attempt + 1, elapsedMs,
+          errorClass: err.name, errorMessage: err.message,
+        };
         // Fail on last attempt
         if (attempt >= this.maxRetries) {
-          return { ok: false, error: label };
+          // Preserve legacy message prefix shape for existing consumers.
+          const legacy = isTimeout
+            ? `Timeout after ${this.timeoutMs}ms`
+            : `Network error: ${err.message}`;
+          return {
+            ok: false,
+            errorCode,
+            error: legacy,
+            meta,
+          };
         }
         const wait = backoffDelay(attempt);
-        this._log(`[client] ${label} on attempt ${attempt + 1}, retrying in ${wait}ms`);
+        const label = isTimeout ? `Timeout after ${this.timeoutMs}ms` : `Network error: ${err.message}`;
+        this._log(`[client] ${label}${endpointName ? ` on ${endpointName}` : ''} on attempt ${attempt + 1}, retrying in ${wait}ms`);
         await this._sleep(wait);
       }
     }
 
     // Should not reach here, but just in case
-    return { ok: false, error: 'Unexpected error — exhausted all retries' };
+    return {
+      ok: false,
+      errorCode: 'NETWORK',
+      error: 'Unexpected error — exhausted all retries',
+      meta: { ...baseMeta },
+    };
   }
 
   /**
@@ -177,17 +317,27 @@ class GarminClient {
   async fetch(endpointName, params = {}) {
     const endpoint = getEndpoint(endpointName);
     if (!endpoint) {
-      return { ok: false, error: `Unknown endpoint: ${endpointName}` };
+      return {
+        ok: false,
+        errorCode: 'UNKNOWN_ENDPOINT',
+        error: `Unknown endpoint: ${endpointName}`,
+        meta: { endpoint: endpointName },
+      };
     }
 
     let url;
     try {
       url = endpoint.buildUrl(params);
     } catch (err) {
-      return { ok: false, error: `Failed to build URL for ${endpointName}: ${err.message}` };
+      return {
+        ok: false,
+        errorCode: 'BUILD_URL',
+        error: `Failed to build URL for ${endpointName}: ${err.message}`,
+        meta: { endpoint: endpointName, errorClass: err.name, errorMessage: err.message },
+      };
     }
 
-    return this.fetchUrl(url);
+    return this.fetchUrl(url, endpointName);
   }
 
   /**
@@ -249,4 +399,7 @@ module.exports = {
   GarminClient,
   // Expose for testing
   backoffDelay,
+  redactUrl,
+  trimPreview,
+  formatErrorMessage,
 };
