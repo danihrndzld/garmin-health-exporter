@@ -61,9 +61,26 @@
   }
   updateSliderGradient(daysSlider);
 
+  // ── Log state (for bug reports) ───────────────────────────────────────────
+  const LOG_BUFFER_MAX = 200;
+  const logBuffer = [];
+  let lastError = null;
+
+  function recordLog(type, msg, ts, errorCode, meta) {
+    const entry = { type, msg: String(msg), ts: ts || new Date().toLocaleTimeString() };
+    if (errorCode) entry.errorCode = errorCode;
+    if (meta) entry.meta = meta;
+    logBuffer.push(entry);
+    if (logBuffer.length > LOG_BUFFER_MAX) logBuffer.shift();
+    if (type === 'error' || type === 'warn' || errorCode || meta) {
+      lastError = entry;
+    }
+  }
+
   // ── Helpers ──────────────────────────────────────────────────────────────
-  function appendLog(type, msg, ts) {
+  function appendLog(type, msg, ts, errorCode, meta) {
     if (welcomeEl) welcomeEl.classList.add('hidden');
+    recordLog(type, msg, ts, errorCode, meta);
     const entry = document.createElement('div');
     entry.className = `log-entry log-${type}`;
     const tsEl = document.createElement('span');
@@ -189,6 +206,9 @@
   clearBtn.addEventListener('click', () => {
     // Remove all log entries; keep welcome node in place.
     Array.from(logEl.querySelectorAll('.log-entry')).forEach(n => n.remove());
+    // Also clear the bug-report buffer so "Clear log" is truthful.
+    logBuffer.length = 0;
+    lastError = null;
     resultBanner.className = '';
     if (welcomeEl) welcomeEl.classList.remove('hidden');
   });
@@ -241,8 +261,8 @@
     progressFill.setAttribute('aria-label', 'Export progress: ' + phaseLabel + ' (' + pct + '%)');
   }
 
-  function logHandler({ type, msg, ts }) {
-    appendLog(type, msg, ts);
+  function logHandler({ type, msg, ts, errorCode, meta }) {
+    appendLog(type, msg, ts, errorCode, meta);
   }
 
   window.garmin.onProgress(progressHandler);

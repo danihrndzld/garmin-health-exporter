@@ -145,7 +145,16 @@ async function exportHealth(opts) {
 
   // -- 2. Client -------------------------------------------------------------
   const client = createGarminClient(auth, {
-    log: (msg) => onLog({ type: 'dim', message: msg }),
+    log: (msg, extras) => {
+      // Log lines that carry structured meta (e.g. skipped endpoints) are
+      // surfaced as warnings so the renderer can tag them for bug reports.
+      const hasMeta = extras && (extras.errorCode || extras.meta);
+      onLog({
+        type: hasMeta ? 'warn' : 'dim',
+        message: msg,
+        ...(hasMeta ? { errorCode: extras.errorCode, meta: extras.meta } : {}),
+      });
+    },
   });
 
   // -- 3. Cache --------------------------------------------------------------
