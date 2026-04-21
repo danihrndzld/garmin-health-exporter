@@ -18,6 +18,7 @@
 
 const { USER_AGENT_MOBILE } = require('./auth');
 const { getEndpoint } = require('./endpoints');
+const { redactUrl, redactString } = require('../util/redact');
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -39,24 +40,10 @@ function backoffDelay(attempt) {
   return Math.min(base + jitter, 60000);
 }
 
-/**
- * Strip secrets from URLs before logging or bundling.
- * Redacts any query parameter whose name looks like a token or secret.
- */
-function redactUrl(url) {
-  if (!url || typeof url !== 'string') return url;
-  return url.replace(/([?&])([^=&]+)=([^&]*)/g, (match, sep, key, value) => {
-    const k = key.toLowerCase();
-    if (k === 'token' || k === 'access_token' || k.includes('auth') || k.includes('secret') || k.includes('password')) {
-      return `${sep}${key}=REDACTED`;
-    }
-    return match;
-  });
-}
-
 function trimPreview(text, max = 200) {
   if (text == null) return '';
-  const s = String(text).replace(/\s+/g, ' ').trim();
+  // Redact first so secrets don't survive the length trim.
+  const s = redactString(String(text)).replace(/\s+/g, ' ').trim();
   return s.length > max ? s.slice(0, max) + '…' : s;
 }
 

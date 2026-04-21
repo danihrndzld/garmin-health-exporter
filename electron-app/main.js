@@ -6,6 +6,7 @@ const https = require('https');
 
 const { exportHealth }  = require('./garmin/exporter');
 const { initCache }     = require('./garmin/cache');
+const { redactString }  = require('./util/redact');
 
 let mainWindow;
 let exportInProgress = false;
@@ -85,13 +86,71 @@ ipcMain.handle('get-version', () => app.getVersion());
 // URL length limits; the full log lives in the bundle file whose path is
 // referenced in the body so the user can attach it manually.
 const BUG_REPORT_EMAIL = 'danisnowman@gmail.com';
-const MAILTO_BODY_MAX = 1800;
+// Cap the ENCODED mailto URL, not the raw body — percent-encoding inflates
+// newlines/brackets, and most mail clients cap the full URL around 2 KB.
+const MAILTO_URL_MAX = 1800;
+// Hard caps to prevent a compromised/buggy renderer from DoS-ing disk or
+// memory via send-bug-report.
+const MAX_LOG_ENTRIES = 500;
+const MAX_MSG_LEN = 4000;
+const MAX_META_BYTES = 16 * 1024;
+// Rate limit: one bug report per N ms per session.
+const BUG_REPORT_MIN_INTERVAL_MS = 2000;
+let lastBugReportAt = 0;
 
 function redactLogLine(line) {
-  if (!line) return line;
-  return String(line)
-    .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/g, 'Bearer REDACTED')
-    .replace(/([?&])(token|access_token)=[^&\s]*/gi, '$1$2=REDACTED');
+  return redactString(line);
+}
+
+function clipStr(s, max) {
+  if (s == null) return '';
+  const str = String(s);
+  return str.length > max ? str.slice(0, max) + '…[clipped]' : str;
+}
+
+function safeSerializeMeta(meta) {
+  if (!meta) return null;
+  let json;
+  try {
+    json = JSON.stringify(meta, null, 2);
+  } catch {
+    return '(unserializable)';
+  }
+  if (json.length > MAX_META_BYTES) json = json.slice(0, MAX_META_BYTES) + '…[clipped]';
+  return redactString(json);
+}
+
+function sanitizePayload(payload) {
+  const p = payload && typeof payload === 'object' ? payload : {};
+  const out = {
+    appVersion: clipStr(p.appVersion, 64),
+    platform: clipStr(p.platform, 64),
+    osRelease: clipStr(p.osRelease, 64),
+    arch: clipStr(p.arch, 32),
+    electronVersion: clipStr(p.electronVersion, 64),
+    chromeVersion: clipStr(p.chromeVersion, 64),
+    nodeVersion: clipStr(p.nodeVersion, 64),
+    lastError: null,
+    recentLog: [],
+  };
+  if (p.lastError && typeof p.lastError === 'object') {
+    const le = p.lastError;
+    out.lastError = {
+      ts: clipStr(le.ts, 64),
+      type: clipStr(le.type, 32),
+      errorCode: clipStr(le.errorCode, 64),
+      msg: clipStr(le.msg, MAX_MSG_LEN),
+      meta: le.meta,
+    };
+  }
+  const log = Array.isArray(p.recentLog) ? p.recentLog.slice(-MAX_LOG_ENTRIES) : [];
+  out.recentLog = log.map((e) => ({
+    ts: clipStr(e && e.ts, 64),
+    type: clipStr(e && e.type, 32),
+    errorCode: clipStr(e && e.errorCode, 64),
+    msg: clipStr(e && e.msg, MAX_MSG_LEN),
+  }));
+  return out;
 }
 
 function formatDiagnosticBundle(payload) {
@@ -110,17 +169,14 @@ function formatDiagnosticBundle(payload) {
   lines.push('## Last error');
   if (payload.lastError) {
     const le = payload.lastError;
-    lines.push(`Time:        ${le.ts || 'unknown'}`);
-    lines.push(`Type:        ${le.type || 'unknown'}`);
-    lines.push(`Code:        ${le.errorCode || '(none)'}`);
-    lines.push(`Message:     ${redactLogLine(le.msg || '')}`);
-    if (le.meta) {
-      try {
-        lines.push('Meta:');
-        lines.push(JSON.stringify(le.meta, null, 2));
-      } catch {
-        lines.push('Meta: (unserializable)');
-      }
+    lines.push(`Time:     ${le.ts || 'unknown'}`);
+    lines.push(`Severity: ${le.type || 'unknown'}`);
+    lines.push(`Code:     ${le.errorCode || '(none)'}`);
+    lines.push(`Message:  ${le.msg || ''}`);
+    const metaStr = safeSerializeMeta(le.meta);
+    if (metaStr) {
+      lines.push('Meta:');
+      lines.push(metaStr);
     }
   } else {
     lines.push('(no recent errors recorded)');
@@ -134,10 +190,12 @@ function formatDiagnosticBundle(payload) {
     for (const e of entries) {
       const ts = e.ts || '';
       const type = e.type || '';
-      lines.push(`${ts} [${type}] ${redactLogLine(e.msg || '')}`);
+      lines.push(`${ts} [${type}] ${e.msg || ''}`);
     }
   }
-  return lines.join('\n');
+  // Final defense-in-depth pass: scrub the whole blob so secrets that slipped
+  // through per-field redaction (e.g., embedded in meta) are caught.
+  return redactString(lines.join('\n'));
 }
 
 function formatMailSummary(payload, bundlePath) {
@@ -152,7 +210,7 @@ function formatMailSummary(payload, bundlePath) {
     const le = payload.lastError;
     parts.push('Last error:');
     parts.push(`  ${le.ts || ''} [${le.errorCode || le.type || 'error'}]`);
-    parts.push(`  ${redactLogLine(le.msg || '')}`);
+    parts.push(`  ${le.msg || ''}`);
     parts.push('');
   } else {
     parts.push('Last error: (no recent errors recorded)');
@@ -163,7 +221,7 @@ function formatMailSummary(payload, bundlePath) {
   if (tail.length > 0) {
     parts.push('Recent log (last ' + tail.length + ' lines):');
     for (const e of tail) {
-      parts.push(`  ${e.ts || ''} [${e.type || ''}] ${redactLogLine(e.msg || '')}`);
+      parts.push(`  ${e.ts || ''} [${e.type || ''}] ${e.msg || ''}`);
     }
     parts.push('');
   }
@@ -171,26 +229,72 @@ function formatMailSummary(payload, bundlePath) {
     parts.push(`Full diagnostics saved to: ${bundlePath}`);
     parts.push('(Please attach that file to this email if possible.)');
   }
-  return parts.join('\n');
+  return redactString(parts.join('\n'));
 }
 
-function truncateForMailto(body) {
-  if (body.length <= MAILTO_BODY_MAX) return body;
-  return body.slice(0, MAILTO_BODY_MAX - 80) + '\n\n…truncated. See full diagnostics in the bundle file above.';
+/**
+ * Build a mailto URL whose total encoded length stays under MAILTO_URL_MAX,
+ * trimming the body from the tail as needed. Newlines in the body are stripped
+ * so they cannot smuggle mail-client header injection through decoders that
+ * unencode CRLF.
+ */
+function buildMailtoUrl(subject, body) {
+  const cleanSubject = String(subject).replace(/[\r\n]+/g, ' ').trim();
+  const cleanBody = String(body).replace(/\r\n/g, '\n');
+  const base = `mailto:${BUG_REPORT_EMAIL}?subject=${encodeURIComponent(cleanSubject)}&body=`;
+  const suffix = '\n\n…truncated. See full diagnostics in the bundle file above.';
+  const budget = MAILTO_URL_MAX - base.length;
+
+  let body2 = cleanBody;
+  if (encodeURIComponent(body2).length <= budget) {
+    return { url: base + encodeURIComponent(body2), truncated: false };
+  }
+  // Binary-trim raw length until the encoded version fits the budget.
+  let lo = 0;
+  let hi = body2.length;
+  while (lo < hi) {
+    const mid = Math.floor((lo + hi + 1) / 2);
+    if (encodeURIComponent(body2.slice(0, mid) + suffix).length <= budget) lo = mid;
+    else hi = mid - 1;
+  }
+  body2 = body2.slice(0, lo) + suffix;
+  return { url: base + encodeURIComponent(body2), truncated: true };
 }
 
 ipcMain.handle('send-bug-report', async (_, payload = {}) => {
-  const results = { ok: true, bundlePath: null, warning: null, mailOpened: false };
+  // Rate-limit to prevent disk DoS / mail-client storm from a runaway renderer.
+  const now = Date.now();
+  if (now - lastBugReportAt < BUG_REPORT_MIN_INTERVAL_MS) {
+    return {
+      ok: false,
+      error: 'Please wait a moment before sending another bug report.',
+      bundlePath: null,
+      mailOpened: false,
+      recipient: BUG_REPORT_EMAIL,
+    };
+  }
+  lastBugReportAt = now;
 
-  // 1) Always try to write the diagnostic bundle first.
+  const safe = sanitizePayload(payload);
+  const results = {
+    ok: true,
+    bundlePath: null,
+    warning: null,
+    mailOpened: false,
+    truncated: false,
+    recipient: BUG_REPORT_EMAIL,
+  };
+
+  // 1) Always try to write the diagnostic bundle first (with unique filename).
   try {
     const dir = path.join(app.getPath('userData'), 'diagnostics');
     fs.mkdirSync(dir, { recursive: true });
-    const now = new Date();
+    const d = new Date();
     const pad = (n) => String(n).padStart(2, '0');
-    const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-    const filePath = path.join(dir, `diagnostic-${stamp}.txt`);
-    fs.writeFileSync(filePath, formatDiagnosticBundle(payload), 'utf8');
+    const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}-${pad(d.getMilliseconds())}`;
+    const rand = Math.random().toString(36).slice(2, 8);
+    const filePath = path.join(dir, `diagnostic-${stamp}-${rand}.txt`);
+    fs.writeFileSync(filePath, formatDiagnosticBundle(safe), { encoding: 'utf8', flag: 'wx' });
     results.bundlePath = filePath;
   } catch (err) {
     results.warning = `Could not write diagnostic bundle: ${err.message}`;
@@ -198,13 +302,14 @@ ipcMain.handle('send-bug-report', async (_, payload = {}) => {
 
   // 2) Compose and open the mailto link.
   try {
-    const code = payload.lastError && payload.lastError.errorCode
-      ? payload.lastError.errorCode
+    const code = (safe.lastError && safe.lastError.errorCode)
+      ? safe.lastError.errorCode.replace(/[^A-Za-z0-9_]/g, '')
       : 'general';
-    const version = payload.appVersion || app.getVersion();
-    const subject = `Garmin Data Exporter bug — ${code} — v${version}`;
-    const body = truncateForMailto(formatMailSummary(payload, results.bundlePath));
-    const url = `mailto:${BUG_REPORT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    const version = safe.appVersion || app.getVersion();
+    const subject = `Garmin Data Exporter bug — ${code || 'general'} — v${version}`;
+    const body = formatMailSummary(safe, results.bundlePath);
+    const { url, truncated } = buildMailtoUrl(subject, body);
+    results.truncated = truncated;
     await shell.openExternal(url);
     results.mailOpened = true;
   } catch (err) {
