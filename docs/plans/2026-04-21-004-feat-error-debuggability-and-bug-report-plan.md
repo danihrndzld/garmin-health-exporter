@@ -1,7 +1,7 @@
 ---
 title: Error debuggability + in-app bug report
 type: feat
-status: active
+status: completed
 date: 2026-04-21
 origin: docs/ideation/2026-04-21-error-debuggability-ideation.md
 ---
@@ -81,7 +81,7 @@ The screenshot shows three retries of `Network error: Unexpected end of JSON inp
 
 ## Implementation Units
 
-- [ ] **Unit 1: Structured error classification in `_request`**
+- [x] **Unit 1: Structured error classification in `_request`**
 
 **Goal:** Replace every failure-path return in `GarminClient._request` with a structured `{ ok, error, errorCode, meta }` shape, and classify empty-body / bad-JSON responses distinctly.
 
@@ -147,7 +147,7 @@ error = {
 
 ---
 
-- [ ] **Unit 2: Propagate structured meta to the renderer log channel**
+- [x] **Unit 2: Propagate structured meta to the renderer log channel**
 
 **Goal:** Carry the structured error `meta` from client/exporter to the renderer so the UI has enough context for the bug-report button, without breaking existing `appendLog(type,msg,ts)` consumers.
 
@@ -182,7 +182,7 @@ error = {
 
 ---
 
-- [ ] **Unit 3: "Send bug report" button in the renderer (mailto composition)**
+- [x] **Unit 3: "Send bug report" button in the renderer (mailto composition)**
 
 **Goal:** Add a button that composes a `mailto:danisnowman@gmail.com` with subject + body pre-filled with app version, environment, last error, and recent log tail.
 
@@ -221,7 +221,7 @@ error = {
 
 ---
 
-- [ ] **Unit 4: Diagnostic bundle file + path in email body**
+- [x] **Unit 4: Diagnostic bundle file + path in email body**
 
 **Goal:** Always write a diagnostic bundle to `userData/diagnostics/` and reference its path in the `mailto:` body so users can attach the full log.
 
