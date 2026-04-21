@@ -543,6 +543,12 @@ input[type="range"]:focus { outline: 2px solid var(--red-mid); outline-offset: 3
   text-transform: uppercase;
 }
 
+.terminal-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
 /* ── Progress ──────────────────────────────────────────────────────────── */
 #progress-wrap {
   padding: var(--sp-3) var(--sp-4);
