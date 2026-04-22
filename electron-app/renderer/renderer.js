@@ -38,6 +38,14 @@
   const sbLastrunVal = $('sb-lastrun-val');
   const welcomeEl    = $('welcome');
   const credsForm    = $('creds-form');
+  const rangeSection = $('range-section');
+  const rangeModeDaysBtn   = $('range-mode-days');
+  const rangeModeCustomBtn = $('range-mode-custom');
+  const rangeFromEl  = $('range-from');
+  const rangeToEl    = $('range-to');
+  const rangeSpanEl  = $('range-span');
+  const rangeErrorEl = $('range-error');
+  const DR = (typeof window !== 'undefined' && window.DateRange) ? window.DateRange : null;
 
   // ── Init saved values ────────────────────────────────────────────────────
   const savedEmail = localStorage.getItem('garmin_email');
@@ -132,6 +140,10 @@
       progressFill.setAttribute('aria-valuenow', '0');
       lastPhase = null;
       progressPhase.classList.remove('phase-settling');
+      // Re-assert range validity: setRunning(false) just cleared btn.disabled.
+      if (rangeMode === 'custom' && lastRangeCheck && lastRangeCheck.ok === false) {
+        btnHealth.disabled = true;
+      }
     }
   }
 
@@ -205,19 +217,85 @@
     }
   });
 
+  // ── Date range: mode toggle + custom range ─────────────────────────────
+  let rangeMode = localStorage.getItem('garmin_date_mode') === 'custom' ? 'custom' : 'daysBack';
+  let customSeeded = false;
+  let lastRangeCheck = { ok: true };
+
+  function applyRangeMode(mode) {
+    rangeMode = mode;
+    rangeSection.setAttribute('data-mode', mode);
+    rangeModeDaysBtn.setAttribute('aria-checked', mode === 'daysBack' ? 'true' : 'false');
+    rangeModeCustomBtn.setAttribute('aria-checked', mode === 'custom' ? 'true' : 'false');
+    localStorage.setItem('garmin_date_mode', mode);
+    if (mode === 'custom') {
+      if (!customSeeded && DR) {
+        const days = parseInt(daysSlider.value, 10) || 7;
+        const seed = DR.defaultCustomRange({ daysBack: days });
+        rangeFromEl.value = seed.startDate;
+        rangeToEl.value   = seed.endDate;
+        customSeeded = true;
+      }
+      updateCustomRangeUI();
+    } else {
+      // Leaving custom mode — clear error so it doesn't gate Export in days mode.
+      rangeErrorEl.hidden = true;
+      rangeErrorEl.textContent = '';
+      rangeSection.classList.remove('range-invalid');
+      lastRangeCheck = { ok: true };
+      btnHealth.disabled = isRunning;
+    }
+  }
+
+  function updateCustomRangeUI() {
+    if (!DR) return;
+    const startDate = rangeFromEl.value;
+    const endDate   = rangeToEl.value;
+    const check = DR.validateRange({ startDate, endDate, maxSpanDays: 90 });
+    lastRangeCheck = check;
+    if (check.ok) {
+      rangeSpanEl.textContent = DR.formatSpan({ startDate, endDate });
+      rangeErrorEl.hidden = true;
+      rangeErrorEl.textContent = '';
+      rangeSection.classList.remove('range-invalid');
+      btnHealth.disabled = isRunning;
+    } else {
+      rangeSpanEl.textContent = '';
+      rangeErrorEl.textContent = check.message;
+      rangeErrorEl.hidden = false;
+      rangeSection.classList.add('range-invalid');
+      btnHealth.disabled = true;
+    }
+  }
+
+  if (rangeModeDaysBtn && rangeModeCustomBtn) {
+    rangeModeDaysBtn.addEventListener('click',   () => applyRangeMode('daysBack'));
+    rangeModeCustomBtn.addEventListener('click', () => applyRangeMode('custom'));
+    applyRangeMode(rangeMode);
+  }
+  if (rangeFromEl) rangeFromEl.addEventListener('input', updateCustomRangeUI);
+  if (rangeToEl)   rangeToEl.addEventListener('input',   updateCustomRangeUI);
+
   function getOpts() {
-    return {
+    const base = {
       email:         emailEl.value.trim(),
       password:      passEl.value,
-      daysBack:      parseInt(daysSlider.value, 10),
       refreshWindow: parseInt(refreshSel.value, 10),
       outputDir:     outputDir || dirDisplay.textContent || '.',
     };
+    if (rangeMode === 'custom') {
+      return { ...base, startDate: rangeFromEl.value, endDate: rangeToEl.value };
+    }
+    return { ...base, daysBack: parseInt(daysSlider.value, 10) };
   }
 
   function validate() {
-    const { email, password } = getOpts();
-    if (!email || !password) { appendLog('error', 'Email and password are required.'); return false; }
+    const opts = getOpts();
+    if (!opts.email || !opts.password) { appendLog('error', 'Email and password are required.'); return false; }
+    if (rangeMode === 'custom' && !lastRangeCheck.ok) {
+      appendLog('error', lastRangeCheck.message || 'Invalid date range.');
+      return false;
+    }
     return true;
   }
 
@@ -340,7 +418,10 @@
     setConnStatus('');
 
     const opts = getOpts();
-    appendLog('info', 'Starting download — ' + opts.daysBack + ' days back…');
+    const startMsg = opts.startDate
+      ? 'Starting download — ' + opts.startDate + ' → ' + opts.endDate + '…'
+      : 'Starting download — ' + opts.daysBack + ' days back…';
+    appendLog('info', startMsg);
 
     const res = await window.garmin.downloadHealth(opts);
     setRunning(false);
@@ -350,7 +431,10 @@
       setOutputPath(res.path, true);
       markLastRun();
       // Delight: terminal-handshake line before the banner.
-      appendLog('complete', 'Export complete · ' + opts.daysBack + ' days captured');
+      const completeMsg = opts.startDate
+        ? 'Export complete · ' + opts.startDate + ' → ' + opts.endDate
+        : 'Export complete · ' + opts.daysBack + ' days captured';
+      appendLog('complete', completeMsg);
       showBanner(true, 'Done — click to open output folder');
     } else {
       setConnStatus('error');
