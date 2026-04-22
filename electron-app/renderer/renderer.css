@@ -335,11 +335,16 @@ input[type="text"] {
 }
 
 input:focus {
+  border-color: var(--border-bright);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.04);
+}
+
+input:focus-visible {
   border-color: var(--red-mid);
   box-shadow: 0 0 0 2px var(--red-glow2);
 }
 
-input::placeholder { color: var(--text-dim); }
+input::placeholder { color: var(--text-faint); }
 
 .eye-wrap {
   position: relative;
@@ -365,31 +370,46 @@ input::placeholder { color: var(--text-dim); }
 .eye-btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .eye-btn svg[hidden] { display: none; }
 
-/* ── Slider ────────────────────────────────────────────────────────────── */
-.slider-row {
+/* ── Range display ─────────────────────────────────────────────────────── */
+.range-display {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: var(--sp-2);
-  margin-top: var(--sp-1);
+  margin-bottom: var(--sp-3);
 }
 
-.slider-val {
-  font-family: var(--font-mono);
-  font-size: var(--fs-body);
+.range-value {
+  font-family: var(--font-head);
+  font-size: clamp(28px, 2.4vw + 18px, 36px);
+  font-weight: var(--fw-display);
+  letter-spacing: var(--ls-display);
   color: var(--text-bright);
-  min-width: 26px;
-  text-align: right;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  transition: color .15s;
 }
 
-.slider-unit {
+.range-unit {
+  font-family: var(--font-mono);
   font-size: var(--fs-cap);
   color: var(--text-dim);
-  letter-spacing: .06em;
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+}
+
+.range-ticks {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-faint);
+  letter-spacing: .1em;
 }
 
 input[type="range"] {
   -webkit-appearance: none;
-  flex: 1;
+  width: 100%;
   height: 3px;
   border-radius: 2px;
   outline: none;
@@ -463,12 +483,18 @@ input[type="range"]:focus { outline: 2px solid var(--red-mid); outline-offset: 3
 /* ── Action button ─────────────────────────────────────────────────────── */
 #btn-health {
   width: 100%;
-  padding: 11px;
+  padding: 13px;
   font-size: var(--fs-ui);
   background: var(--red);
   color: #fff;
   position: relative;
   overflow: hidden;
+  gap: 10px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 1px 0 rgba(0, 0, 0, 0.4),
+    0 0 0 0 var(--red-glow);
+  transition: background .15s, box-shadow .22s, transform .1s;
 }
 
 #btn-health::before {
@@ -479,21 +505,125 @@ input[type="range"]:focus { outline: 2px solid var(--red-mid); outline-offset: 3
   pointer-events: none;
 }
 
-#btn-health:hover:not(:disabled) { background: var(--red-bright); }
-
-/* ── Dir picker ────────────────────────────────────────────────────────── */
-.dir-row {
-  display: flex; gap: var(--sp-2); align-items: center;
+#btn-health:hover:not(:disabled) {
+  background: var(--red-bright);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 1px 0 rgba(0, 0, 0, 0.4),
+    0 0 0 4px var(--red-glow);
 }
+
+#btn-health:active:not(:disabled) { transform: translateY(1px); }
+
+#btn-health:disabled { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06); }
+
+/* Fire-confirm burst: single 180ms glow expansion on trigger. The user just
+   commanded a destructive action — a crisp press-and-release tells them the
+   signal was received before async spins up. */
+#btn-health.firing {
+  animation: btnFire .18s cubic-bezier(.16, 1, .3, 1);
+}
+@keyframes btnFire {
+  0% {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.12),
+      0 1px 0 rgba(0, 0, 0, 0.4),
+      0 0 0 0 var(--red-glow);
+  }
+  40% {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.28),
+      0 1px 0 rgba(0, 0, 0, 0.4),
+      0 0 0 7px var(--red-glow);
+  }
+  100% {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.12),
+      0 1px 0 rgba(0, 0, 0, 0.4),
+      0 0 0 0 var(--red-glow);
+  }
+}
+
+.btn-icon {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+}
+
+#btn-health.running .btn-icon { animation: btnIconPulse 1.2s ease-in-out infinite; }
+
+@keyframes btnIconPulse {
+  0%, 100% { transform: translateY(0); opacity: .9; }
+  50%      { transform: translateY(2px); opacity: 1; }
+}
+
+.btn-label { letter-spacing: .1em; }
+
+/* ── Dir picker (full-row clickable) ──────────────────────────────────── */
+.dir-picker {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border-mid);
+  border-radius: 4px;
+  padding: 9px 10px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-cap);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color .15s, background .15s, color .15s;
+}
+
+.dir-picker:hover {
+  border-color: var(--border-bright);
+  background: var(--bg-hover);
+  color: var(--text-bright);
+}
+
+.dir-picker:hover .dir-chev { transform: translateX(2px); color: var(--text); }
+.dir-picker:focus-visible { outline: 2px solid var(--red-mid); outline-offset: 2px; }
+
+.dir-icon {
+  width: 14px; height: 14px;
+  stroke: var(--text-dim);
+  fill: none;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+}
+
+.dir-picker:hover .dir-icon { stroke: var(--red-text); }
 
 .dir-path {
   font-family: var(--font-mono);
   font-size: var(--fs-cap);
-  color: var(--text-dim);
+  color: inherit;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   flex: 1;
+  direction: rtl;
+  text-align: left;
+}
+
+.dir-chev {
+  width: 12px; height: 12px;
+  stroke: var(--text-faint);
+  fill: none;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+  transition: transform .15s, color .15s;
 }
 
 /* ── Terminal ──────────────────────────────────────────────────────────── */
@@ -566,6 +696,22 @@ input[type="range"]:focus { outline: 2px solid var(--red-mid); outline-offset: 3
   font-family: var(--font-mono);
   font-size: var(--fs-cap);
   color: var(--text-dim);
+}
+
+/* Mechanical readout re-lock: phase text defocuses 1-frame on channel change,
+   snaps back crisp. Not decoration — reinforces that a new stage started. */
+#progress-phase {
+  display: inline-block;
+  transition:
+    filter .14s cubic-bezier(.16, 1, .3, 1),
+    transform .14s cubic-bezier(.16, 1, .3, 1),
+    color .14s linear;
+  will-change: filter, transform;
+}
+#progress-phase.phase-settling {
+  filter: blur(1.4px);
+  transform: translateY(1px);
+  color: var(--text);
 }
 
 #progress-track {
@@ -652,15 +798,30 @@ input[type="range"]:focus { outline: 2px solid var(--red-mid); outline-offset: 3
 .log-dim     .log-msg { color: var(--text-dim); }
 .log-info    .log-msg { color: var(--text-bright); }
 
-/* Delight: terminal-handshake line on successful export */
+/* Delight: terminal-handshake line on successful export.
+   Sealed between two short teal rules — reads as a logged transmission,
+   not a celebratory exclamation. */
 .log-complete {
   animation: logEntryIn .36s cubic-bezier(.16, 1, .3, 1) both;
 }
 .log-complete .log-msg {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   color: var(--teal-arrival);
   text-transform: uppercase;
   letter-spacing: var(--ls-head);
   font-weight: var(--fw-ui-bold);
+}
+.log-complete .log-msg::before,
+.log-complete .log-msg::after {
+  content: '';
+  display: inline-block;
+  width: 22px;
+  height: 1px;
+  background: var(--teal);
+  opacity: .55;
+  flex-shrink: 0;
 }
 
 /* ── Welcome ───────────────────────────────────────────────────────────── */
@@ -669,11 +830,112 @@ input[type="range"]:focus { outline: 2px solid var(--red-mid); outline-offset: 3
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: var(--sp-7) var(--sp-5);
+  padding: var(--sp-6) var(--sp-5);
   gap: var(--sp-3);
+  min-height: 100%;
 }
 
 #welcome.hidden { display: none; }
+
+/* Workflow preview ------------------------------------------------------- */
+.w-flow {
+  list-style: none;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto 1fr;
+  align-items: start;
+  gap: var(--sp-3);
+  margin-top: var(--sp-6);
+  padding: var(--sp-4) var(--sp-5);
+  width: min(100%, 560px);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background:
+    linear-gradient(180deg, var(--red-bg-trace), transparent 60%);
+  position: relative;
+}
+
+.w-flow::before,
+.w-flow::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0;
+  height: 1px;
+}
+.w-flow::before {
+  top: -1px;
+  background: linear-gradient(90deg, transparent, var(--border-mid) 20%, var(--border-mid) 80%, transparent);
+}
+
+.w-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+  opacity: 0;
+  transform: translateY(4px);
+  animation: stepFadeIn .5s cubic-bezier(.16, 1, .3, 1) forwards;
+}
+
+.w-step:nth-child(1) { animation-delay: .3s; }
+.w-step:nth-child(3) { animation-delay: .55s; }
+.w-step:nth-child(5) { animation-delay: .8s; }
+
+@keyframes stepFadeIn {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.w-step-num {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-faint);
+  letter-spacing: var(--ls-micro);
+}
+
+.w-step-icon {
+  width: 22px; height: 22px;
+  stroke: var(--text-mid);
+  fill: none;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.w-step-label {
+  font-family: var(--font-head);
+  font-size: 12px;
+  font-weight: var(--fw-display);
+  letter-spacing: var(--ls-head);
+  color: var(--text);
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+.w-step-sub {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: .06em;
+}
+
+.w-step-sep {
+  align-self: center;
+  margin-top: 22px;
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(90deg, var(--border-mid), var(--border-bright), var(--border-mid));
+  opacity: 0;
+  transform: scaleX(0);
+  transform-origin: left;
+  animation: sepDraw .5s cubic-bezier(.16, 1, .3, 1) forwards;
+}
+
+.w-step-sep:nth-child(2) { animation-delay: .45s; }
+.w-step-sep:nth-child(4) { animation-delay: .7s; }
+
+@keyframes sepDraw {
+  to { opacity: 1; transform: scaleX(1); }
+}
 
 .w-ecg path {
   stroke: var(--red);
@@ -798,6 +1060,120 @@ select option {
 .cache-link:hover { color: var(--text); }
 .cache-link:focus-visible { outline: 1px dashed var(--red-mid); outline-offset: 3px; border-radius: 2px; }
 .cache-link.armed { color: var(--orange); text-decoration-color: var(--orange); }
+
+/* ── Inline field help ────────────────────────────────────────────────── */
+.field-help {
+  display: block;
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--text-dim);
+  letter-spacing: .02em;
+}
+
+/* ── Export section (primary action anchor) ──────────────────────────── */
+.section-action {
+  background:
+    linear-gradient(180deg, transparent, var(--red-bg-trace));
+  border-top: 1px solid var(--border-mid);
+  position: relative;
+}
+
+.section-action::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 0;
+  width: 28px;
+  height: 1px;
+  background: var(--red);
+  box-shadow: 0 0 6px var(--red-glow);
+}
+
+.section-action .section-title { color: var(--text); }
+.section-action .section-num { color: var(--red-text); }
+
+.export-foot {
+  text-align: center;
+  margin-top: var(--sp-3);
+}
+
+/* Power-user shortcut hint — placed under the trigger, never announced.
+   Visible to users who look; invisible to the flow. */
+.kbd-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 10px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-faint);
+  letter-spacing: .08em;
+  user-select: none;
+}
+.kbd-hint kbd {
+  font-family: inherit;
+  font-size: 10px;
+  min-width: 16px;
+  padding: 1px 5px;
+  text-align: center;
+  border: 1px solid var(--border-mid);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  color: var(--text-dim);
+  background: var(--bg-input);
+  letter-spacing: 0;
+  line-height: 1.4;
+}
+.kbd-hint span {
+  margin-left: 4px;
+  text-transform: uppercase;
+  letter-spacing: .16em;
+}
+
+/* ── Icon-only button (terminal actions) ─────────────────────────────── */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  background: transparent;
+  border: 1px solid var(--border-mid);
+  border-radius: 4px;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: color .15s, border-color .15s, background .15s;
+}
+
+.icon-btn:hover:not(:disabled) {
+  color: var(--text-bright);
+  border-color: var(--border-bright);
+  background: var(--bg-hover);
+}
+
+.icon-btn:focus-visible { outline: 2px solid var(--red-mid); outline-offset: 2px; }
+
+.icon-btn:disabled { opacity: .45; cursor: default; }
+
+.icon-btn svg {
+  width: 14px; height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ── Statusbar: last run ─────────────────────────────────────────────── */
+.sb-lastrun { color: var(--text-dim); }
+.sb-lastrun span {
+  color: var(--teal);
+  font-variant-numeric: tabular-nums;
+}
+.sb-sep-run[hidden], .sb-lastrun[hidden] { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

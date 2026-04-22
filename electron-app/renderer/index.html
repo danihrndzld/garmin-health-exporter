@@ -73,36 +73,53 @@
 
         <div class="section">
           <div class="section-title">Date Range <span class="section-num" aria-hidden="true">02</span></div>
-          <div class="slider-row">
-            <input type="range" id="days-slider" min="1" max="90" value="7"
-              aria-label="Days to export" aria-valuenow="7" aria-valuetext="7 days">
-            <span class="slider-val" id="days-val">7</span>
-            <span class="slider-unit">days</span>
+          <div class="range-display">
+            <span class="range-value" id="days-val">7</span>
+            <span class="range-unit">days back</span>
           </div>
-          <div class="field" style="margin-top:10px;">
-            <label for="refresh-window" title="Days to always re-fetch from Garmin (captures retroactive updates)">Refresh window</label>
-            <select id="refresh-window" title="Days to always re-fetch from Garmin (captures retroactive updates)">
+          <input type="range" id="days-slider" min="1" max="90" value="7"
+            aria-label="Days to export" aria-valuenow="7" aria-valuetext="7 days">
+          <div class="range-ticks" aria-hidden="true">
+            <span>1</span><span>30</span><span>60</span><span>90</span>
+          </div>
+          <div class="field" style="margin-top:14px;">
+            <label for="refresh-window">Refresh window</label>
+            <select id="refresh-window">
               <option value="1">1 day</option>
               <option value="2">2 days</option>
               <option value="3" selected>3 days</option>
               <option value="5">5 days</option>
               <option value="7">7 days</option>
             </select>
+            <span class="field-help">Always re-fetches this many recent days to capture retroactive updates from Garmin.</span>
           </div>
         </div>
 
         <div class="section">
           <div class="section-title">Output <span class="section-num" aria-hidden="true">03</span></div>
-          <div class="dir-row">
+          <button type="button" class="dir-picker" id="choose-dir-btn" aria-label="Choose output directory">
+            <svg class="dir-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 6 L10 6 L12 8 L21 8 L21 19 L3 19 Z"/>
+            </svg>
             <span class="dir-path" id="dir-display">~/Documents/GarminExport</span>
-            <button type="button" class="btn btn-secondary btn-sm" id="choose-dir-btn" aria-label="Choose output directory">…</button>
-          </div>
+            <svg class="dir-chev" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 6 L15 12 L9 18"/>
+            </svg>
+          </button>
         </div>
 
-        <div class="section">
+        <div class="section section-action">
           <div class="section-title">Export <span class="section-num" aria-hidden="true">04</span></div>
-          <button type="submit" class="btn btn-primary btn-full" id="btn-health">Download Health Data</button>
-          <div style="text-align:center; margin-top:8px;">
+          <button type="submit" class="btn btn-primary btn-full" id="btn-health">
+            <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 4 L12 15 M7 10 L12 15 L17 10 M5 20 L19 20"/>
+            </svg>
+            <span class="btn-label">Download Health Data</span>
+          </button>
+          <div class="kbd-hint" aria-hidden="true">
+            <kbd id="kbd-hint-mod">⌘</kbd><kbd>↵</kbd><span>to trigger</span>
+          </div>
+          <div class="export-foot">
             <button type="button" class="cache-link" id="clear-cache-btn">Clear cache</button>
           </div>
         </div>
@@ -121,7 +138,11 @@
       <div id="terminal-header">
         <span id="terminal-title">System Output</span>
         <div class="terminal-actions">
-          <button class="btn btn-secondary btn-sm" id="bug-report-btn" title="Send a bug report with logs to the maintainer">Send bug report</button>
+          <button class="icon-btn" id="bug-report-btn" title="Send a bug report with logs to the maintainer" aria-label="Send bug report">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M8 6 C8 4, 10 3, 12 3 C14 3, 16 4, 16 6 M5 10 L19 10 M5 10 L5 18 C5 20, 7 21, 9 21 L15 21 C17 21, 19 20, 19 18 L19 10 M3 13 L5 13 M19 13 L21 13 M3 17 L5 17 M19 17 L21 17"/>
+            </svg>
+          </button>
           <button class="btn btn-secondary btn-sm" id="clear-btn">Clear</button>
         </div>
       </div>
@@ -147,7 +168,37 @@
             <path d="M0 18 L18 18 L26 4 L34 32 L42 12 L48 18 L120 18"/>
           </svg>
           <div class="w-title">Ready</div>
-          <div class="w-sub">Enter credentials and choose an action</div>
+          <div class="w-sub">Enter credentials to begin export</div>
+
+          <ol class="w-flow" aria-label="Export workflow">
+            <li class="w-step">
+              <div class="w-step-num">01</div>
+              <svg class="w-step-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="5" y="11" width="14" height="9" rx="1"/>
+                <path d="M8 11 L8 7 C8 5, 10 3, 12 3 C14 3, 16 5, 16 7 L16 11"/>
+              </svg>
+              <div class="w-step-label">Authenticate</div>
+              <div class="w-step-sub">Garmin Connect</div>
+            </li>
+            <li class="w-step-sep" aria-hidden="true"></li>
+            <li class="w-step">
+              <div class="w-step-num">02</div>
+              <svg class="w-step-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M6 17 C4 17, 3 15, 3 13 C3 11, 5 9, 7 9 C7 6, 10 4, 13 4 C16 4, 19 7, 19 10 C21 10, 22 12, 22 14 C22 16, 20 17, 18 17 M12 12 L12 20 M8 16 L12 20 L16 16"/>
+              </svg>
+              <div class="w-step-label">Fetch data</div>
+              <div class="w-step-sub">Metrics · Activities</div>
+            </li>
+            <li class="w-step-sep" aria-hidden="true"></li>
+            <li class="w-step">
+              <div class="w-step-num">03</div>
+              <svg class="w-step-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M6 3 L14 3 L19 8 L19 21 L6 21 Z M14 3 L14 8 L19 8 M9 13 L15 13 M9 17 L15 17"/>
+              </svg>
+              <div class="w-step-label">Build CSVs</div>
+              <div class="w-step-sub">Ready to open</div>
+            </li>
+          </ol>
         </div>
       </div>
 
@@ -159,6 +210,8 @@
     <div class="sb-item">SYS <span id="sb-status">IDLE</span></div>
     <span class="sb-sep">·</span>
     <div class="sb-item">v<span id="sb-version">…</span></div>
+    <span class="sb-sep sb-sep-run" id="sb-lastrun-sep" hidden>·</span>
+    <div class="sb-item sb-lastrun" id="sb-lastrun" hidden>LAST RUN <span id="sb-lastrun-val">—</span></div>
     <div id="sb-last" title="Click to open" role="button" tabindex="0" aria-label="Open last output folder"></div>
   </div>
 

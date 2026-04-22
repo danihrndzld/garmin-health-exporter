@@ -33,6 +33,9 @@
   const openSection  = $('open-section');
   const openFolderBtn= $('open-folder-btn');
   const sbLast       = $('sb-last');
+  const sbLastrun    = $('sb-lastrun');
+  const sbLastrunSep = $('sb-lastrun-sep');
+  const sbLastrunVal = $('sb-lastrun-val');
   const welcomeEl    = $('welcome');
   const credsForm    = $('creds-form');
 
@@ -112,16 +115,53 @@
     statusLabel.textContent = state === 'connected' ? 'ONLINE' : state === 'error' ? 'ERROR' : 'OFFLINE';
   }
 
+  const lockableInputs = [emailEl, passEl, daysSlider, refreshSel, chooseDirBtn, clearCacheBtn];
+
   function setRunning(val) {
     isRunning = val;
     btnHealth.disabled = val;
+    btnHealth.classList.toggle('running', val);
+    const label = btnHealth.querySelector('.btn-label');
+    if (label) label.textContent = val ? 'Exporting…' : 'Download Health Data';
+    lockableInputs.forEach(el => { if (el) el.disabled = val; });
     sbStatus.textContent = val ? 'RUNNING' : 'IDLE';
     progressWrap.classList.toggle('active', val);
     statusDot.classList.toggle('running', val);
     if (!val) {
       progressFill.style.transform = 'scaleX(0)';
       progressFill.setAttribute('aria-valuenow', '0');
+      lastPhase = null;
+      progressPhase.classList.remove('phase-settling');
     }
+  }
+
+  // ── Last run (statusbar) ─────────────────────────────────────────────────
+  let lastRunAt = null;
+  let lastRunTimer = null;
+
+  function formatAgo(ms) {
+    const s = Math.max(0, Math.floor(ms / 1000));
+    if (s < 10) return 'just now';
+    if (s < 60) return s + 's ago';
+    const m = Math.floor(s / 60);
+    if (m < 60) return m + 'm ago';
+    const h = Math.floor(m / 60);
+    if (h < 24) return h + 'h ago';
+    return Math.floor(h / 24) + 'd ago';
+  }
+
+  function renderLastRun() {
+    if (!lastRunAt) return;
+    sbLastrunVal.textContent = formatAgo(Date.now() - lastRunAt);
+  }
+
+  function markLastRun() {
+    lastRunAt = Date.now();
+    sbLastrun.hidden = false;
+    sbLastrunSep.hidden = false;
+    renderLastRun();
+    if (lastRunTimer) clearInterval(lastRunTimer);
+    lastRunTimer = setInterval(renderLastRun, 15000);
   }
 
   function setOutputPath(p, isDir) {
@@ -258,6 +298,7 @@
   clearCacheBtn.addEventListener('blur', disarmCache);
 
   // ── IPC listeners ─────────────────────────────────────────────────────────
+  let lastPhase = null;
   function progressHandler({ current, total, phase }) {
     const pct = Math.round((current / total) * 100);
     progressFill.style.transform = 'scaleX(' + (pct / 100) + ')';
@@ -265,7 +306,18 @@
     progressPct.textContent  = pct + '%';
     const labels = { daily: 'Daily Metrics', activities: 'Activities', csv: 'Building CSVs', 'activity-details': 'Activity Details' };
     const phaseLabel = (labels[phase] || phase) + ' — ' + current + '/' + total;
-    progressPhase.textContent = phaseLabel;
+    // Mechanical re-lock on channel change: defocus then snap back crisp.
+    if (phase !== lastPhase && lastPhase !== null) {
+      progressPhase.classList.add('phase-settling');
+      // Text swap happens mid-blur so the eye can't read a half-rendered frame.
+      requestAnimationFrame(() => {
+        progressPhase.textContent = phaseLabel;
+        requestAnimationFrame(() => progressPhase.classList.remove('phase-settling'));
+      });
+    } else {
+      progressPhase.textContent = phaseLabel;
+    }
+    lastPhase = phase;
     progressFill.setAttribute('aria-label', 'Export progress: ' + phaseLabel + ' (' + pct + '%)');
   }
 
@@ -280,6 +332,9 @@
   async function runHealthDownload(ev) {
     if (ev) ev.preventDefault();
     if (isRunning || !validate()) return;
+    // Fire-confirm burst — 180ms of glow before the button locks into running.
+    btnHealth.classList.add('firing');
+    setTimeout(() => btnHealth.classList.remove('firing'), 200);
     resultBanner.className = '';
     setRunning(true);
     setConnStatus('');
@@ -293,6 +348,7 @@
     if (res.ok) {
       setConnStatus('connected');
       setOutputPath(res.path, true);
+      markLastRun();
       // Delight: terminal-handshake line before the banner.
       appendLog('complete', 'Export complete · ' + opts.daysBack + ' days captured');
       showBanner(true, 'Done — click to open output folder');
@@ -305,6 +361,19 @@
 
   btnHealth.addEventListener('click', runHealthDownload);
   if (credsForm) credsForm.addEventListener('submit', runHealthDownload);
+
+  // ── Delight: platform-aware shortcut hint + global ⌘/Ctrl+Enter ─────────
+  const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
+  const kbdMod = document.getElementById('kbd-hint-mod');
+  if (kbdMod) kbdMod.textContent = isMac ? '⌘' : 'Ctrl';
+
+  document.addEventListener('keydown', (e) => {
+    const mod = isMac ? e.metaKey : e.ctrlKey;
+    if (mod && e.key === 'Enter' && !isRunning) {
+      e.preventDefault();
+      runHealthDownload();
+    }
+  });
 
   // ── Bug report ───────────────────────────────────────────────────────────
   if (bugReportBtn) {
@@ -402,5 +471,20 @@
   });
 
   updateBtn.addEventListener('click', handleUpdateClick);
+
+  // ── Delight: console signature for anyone who opens DevTools ────────────
+  try {
+    const redLine = 'color:#ff1a30; font-family:JetBrains Mono, monospace; line-height:1.1;';
+    const tag     = 'color:#f2ede6; font-weight:600; letter-spacing:.18em; font-family:JetBrains Mono, monospace;';
+    const dim     = 'color:#8a857f; font-family:JetBrains Mono, monospace; letter-spacing:.04em;';
+    console.log(
+      '%c──────────┐  ┌──────────────────\n' +
+      '          │  │\n' +
+      '          └──┘',
+      redLine
+    );
+    console.log('%cGARMIN  ·  HEALTH SYNC TERMINAL', tag);
+    console.log('%cvitals nominal  ·  signals clean', dim);
+  } catch (_) { /* no-op */ }
 
 })();
