@@ -1,2 +1,16 @@
 .env
 output/
+.tmp/
+credentials.json
+token.json
+
+# macOS junk
+.DS_Store
+**/.DS_Store
+
+# Local agent-tool caches (oh-my-claudecode, claude settings, side-car state)
+.agents/
+.claude/
+.omc/
+electron-app/.omc/
+skills-lock.json
