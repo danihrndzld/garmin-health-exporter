@@ -7,6 +7,7 @@ const https = require('https');
 const { exportHealth }  = require('./garmin/exporter');
 const { initCache }     = require('./garmin/cache');
 const { redactString }  = require('./util/redact');
+const { validateRange } = require('./renderer/date-range');
 
 let mainWindow;
 let exportInProgress = false;
@@ -345,16 +346,38 @@ ipcMain.handle('check-for-updates', () => {
 });
 
 // ── IPC: download health data ─────────────────────────────────────────────────
-ipcMain.handle('download-health', async (event, { email, password, daysBack, outputDir, refreshWindow }) => {
+ipcMain.handle('download-health', async (event, opts) => {
+  const { email, password, daysBack, startDate, endDate, outputDir, refreshWindow } = opts || {};
+
   // Guard against concurrent exports
   if (exportInProgress) {
     return { ok: false, error: 'An export is already in progress.' };
   }
 
-  // Validate daysBack
-  const days = parseInt(daysBack, 10);
-  if (!Number.isInteger(days) || days < 1 || days > 90) {
-    return { ok: false, error: 'daysBack must be an integer between 1 and 90.' };
+  // Resolve which mode the renderer is asking for. Explicit range wins when both
+  // shapes are present; fall back to the legacy slider contract otherwise.
+  const hasExplicitRange = startDate != null && endDate != null;
+  let rangeMode;
+  let days = null;
+  let rangeStart = null;
+  let rangeEnd = null;
+
+  if (hasExplicitRange) {
+    const check = validateRange({ startDate, endDate, maxSpanDays: 90 });
+    if (!check.ok) {
+      return { ok: false, error: check.message, errorCode: check.errorCode, meta: check.meta };
+    }
+    rangeMode = 'custom';
+    rangeStart = check.startDate;
+    rangeEnd = check.endDate;
+    days = check.spanDays;
+  } else {
+    const parsed = parseInt(daysBack, 10);
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 90) {
+      return { ok: false, error: 'daysBack must be an integer between 1 and 90.' };
+    }
+    rangeMode = 'daysBack';
+    days = parsed;
   }
 
   // Validate refreshWindow
@@ -386,10 +409,19 @@ ipcMain.handle('download-health', async (event, { email, password, daysBack, out
   try {
     const dataDir = app.getPath('userData');
 
+    if (!event.sender.isDestroyed()) {
+      const modeMsg = rangeMode === 'custom'
+        ? `Range mode: custom (${rangeStart} → ${rangeEnd}, ${days} days)`
+        : `Range mode: last ${days} days`;
+      event.sender.send('log', { type: 'dim', msg: modeMsg, ts: new Date().toLocaleTimeString() });
+    }
+
     const result = await exportHealth({
       email,
       password,
-      daysBack: days,
+      ...(rangeMode === 'custom'
+        ? { startDate: rangeStart, endDate: rangeEnd }
+        : { daysBack: days }),
       outputDir: resolvedOutput,
       refreshWindow: rw,
       dataDir,

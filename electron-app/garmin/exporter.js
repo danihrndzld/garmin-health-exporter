@@ -106,7 +106,9 @@ function generateDateRange(startDate, endDate) {
  * @param {object} opts
  * @param {string} opts.email
  * @param {string} opts.password
- * @param {number} opts.daysBack
+ * @param {number} [opts.daysBack]         Used when startDate/endDate are not provided.
+ * @param {string} [opts.startDate]        Explicit inclusive range start (`YYYY-MM-DD`). Wins over daysBack.
+ * @param {string} [opts.endDate]          Explicit inclusive range end (`YYYY-MM-DD`). Wins over daysBack.
  * @param {string} opts.outputDir
  * @param {number} [opts.refreshWindow=3]  Days within which cached daily data is re-fetched
  * @param {string} opts.dataDir            Directory for tokens + cache DB
@@ -119,6 +121,8 @@ async function exportHealth(opts) {
     email,
     password,
     daysBack,
+    startDate: startDateOpt,
+    endDate: endDateOpt,
     outputDir,
     refreshWindow = 3,
     dataDir,
@@ -178,17 +182,30 @@ async function exportHealth(opts) {
   }
 
   // -- Date range ------------------------------------------------------------
+  // Two payload shapes:
+  //   - Explicit range: opts.startDate + opts.endDate (from the custom-range UI).
+  //   - Legacy: opts.daysBack, derived relative to today (from the slider).
+  // When both are present, the explicit range wins.
+  // `now` is also used later for export-file timestamps, so it stays function-scoped.
   const now = new Date();
   if (isNaN(now.getTime())) {
     return { ok: false, error: 'System clock returned an invalid date' };
   }
-  const endDate = formatDate(now);
-  const startDateObj = new Date(now);
-  startDateObj.setDate(startDateObj.getDate() - (daysBack - 1));
-  const startDate = formatDate(startDateObj);
+  let startDate;
+  let endDate;
+  if (startDateOpt && endDateOpt) {
+    startDate = startDateOpt;
+    endDate = endDateOpt;
+  } else {
+    endDate = formatDate(now);
+    const startDateObj = new Date(now);
+    startDateObj.setDate(startDateObj.getDate() - (daysBack - 1));
+    startDate = formatDate(startDateObj);
+  }
   const dates = generateDateRange(startDate, endDate);
+  const spanDays = dates.length;
 
-  onLog({ type: 'info', message: `Pulling ${daysBack} days: ${startDate} -> ${endDate}` });
+  onLog({ type: 'info', message: `Pulling ${spanDays} days: ${startDate} -> ${endDate}` });
 
   // -- 5. Daily endpoints ----------------------------------------------------
   const dailyEps = getEndpointsByType('daily');

@@ -407,6 +407,102 @@ input::placeholder { color: var(--text-faint); }
   letter-spacing: .1em;
 }
 
+/* ── Date range: mode toggle & custom range ─────────────────────────────── */
+
+.range-mode-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  margin-bottom: 14px;
+  border: 1px solid var(--border-mid);
+  border-radius: 2px;
+  overflow: hidden;
+  background: var(--red-bg-trace);
+}
+
+.range-mode-btn {
+  all: unset;
+  cursor: pointer;
+  padding: 8px 0;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: .18em;
+  color: var(--text-dim);
+  background: transparent;
+  transition: color .12s, background .12s;
+}
+
+.range-mode-btn:hover { color: var(--text); }
+
+.range-mode-btn + .range-mode-btn { border-left: 1px solid var(--border-mid); }
+
+.range-mode-btn[aria-checked="true"] {
+  color: var(--text-bright);
+  background: var(--red-bg-soft);
+  box-shadow: inset 0 -2px 0 0 var(--red);
+}
+
+.range-mode-btn:focus-visible {
+  outline: 2px solid var(--red);
+  outline-offset: -2px;
+}
+
+#range-section[data-mode="daysBack"] .range-panel-custom { display: none; }
+#range-section[data-mode="custom"]   .range-panel-days   { display: none; }
+
+.custom-range {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.custom-range .field { margin-bottom: 0; }
+
+.custom-range input[type="date"] {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border-mid);
+  color: var(--text-bright);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: .04em;
+  border-radius: 2px;
+  outline: none;
+  color-scheme: dark;
+  transition: border-color .12s;
+}
+
+.custom-range input[type="date"]:hover { border-color: var(--border-bright); }
+.custom-range input[type="date"]:focus { border-color: var(--red); }
+
+.custom-range input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(.7) sepia(.2) saturate(2) hue-rotate(-10deg);
+  cursor: pointer;
+  opacity: .7;
+}
+.custom-range input[type="date"]:hover::-webkit-calendar-picker-indicator { opacity: 1; }
+
+.range-span {
+  margin-top: 10px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: .08em;
+  color: var(--text-dim);
+  min-height: 14px;
+}
+
+#range-section.range-invalid .range-span { color: var(--text-faint); }
+
+.range-error {
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: .04em;
+  color: var(--red-text);
+}
+
 input[type="range"] {
   -webkit-appearance: none;
   width: 100%;

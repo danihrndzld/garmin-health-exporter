@@ -14,6 +14,7 @@
 <!-- Online fallback: only activates when local WOFF2 files are absent -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oxanium:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400&family=Barlow+Condensed:wght@700&display=swap" media="print" onload="this.media='all'">
+<script src="date-range.js" defer></script>
 <script src="renderer.js" defer></script>
 </head>
 <body>
@@ -71,17 +72,41 @@
           </div>
         </div>
 
-        <div class="section">
+        <div class="section" id="range-section" data-mode="daysBack">
           <div class="section-title">Date Range <span class="section-num" aria-hidden="true">02</span></div>
-          <div class="range-display">
-            <span class="range-value" id="days-val">7</span>
-            <span class="range-unit">days back</span>
+
+          <div class="range-mode-toggle" role="radiogroup" aria-label="Date range mode">
+            <button type="button" class="range-mode-btn" id="range-mode-days" role="radio" aria-checked="true" data-mode="daysBack">LAST N DAYS</button>
+            <button type="button" class="range-mode-btn" id="range-mode-custom" role="radio" aria-checked="false" data-mode="custom">CUSTOM RANGE</button>
           </div>
-          <input type="range" id="days-slider" min="1" max="90" value="7"
-            aria-label="Days to export" aria-valuenow="7" aria-valuetext="7 days">
-          <div class="range-ticks" aria-hidden="true">
-            <span>1</span><span>30</span><span>60</span><span>90</span>
+
+          <div class="range-panel range-panel-days">
+            <div class="range-display">
+              <span class="range-value" id="days-val">7</span>
+              <span class="range-unit">days back</span>
+            </div>
+            <input type="range" id="days-slider" min="1" max="90" value="7"
+              aria-label="Days to export" aria-valuenow="7" aria-valuetext="7 days">
+            <div class="range-ticks" aria-hidden="true">
+              <span>1</span><span>30</span><span>60</span><span>90</span>
+            </div>
           </div>
+
+          <div class="range-panel range-panel-custom">
+            <div class="custom-range">
+              <div class="field">
+                <label for="range-from">From</label>
+                <input type="date" id="range-from" autocomplete="off">
+              </div>
+              <div class="field">
+                <label for="range-to">To</label>
+                <input type="date" id="range-to" autocomplete="off">
+              </div>
+            </div>
+            <div class="range-span" id="range-span" aria-live="polite"></div>
+            <div class="range-error" id="range-error" role="alert" hidden></div>
+          </div>
+
           <div class="field" style="margin-top:14px;">
             <label for="refresh-window">Refresh window</label>
             <select id="refresh-window">
