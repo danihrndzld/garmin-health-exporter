@@ -1211,12 +1211,15 @@ dependencies = [
 name = "garmin-export"
 version = "4.2.0"
 dependencies = [
+ "serde",
+ "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-clipboard-manager",
  "tauri-plugin-dialog",
  "tauri-plugin-opener",
  "tauri-plugin-shell",
+ "time",
 ]
 
 [[package]]

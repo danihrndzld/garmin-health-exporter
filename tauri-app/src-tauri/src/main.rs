@@ -1,6 +1,7 @@
-// All Garmin work happens in the `garmin-core` sidecar (the Node core compiled with bun);
-// the webview drives it through tauri-plugin-shell. No custom Rust commands needed.
+// Garmin work happens in the sidecars; Rust only handles the MyFitnessPal sign in window.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+mod mfp;
 
 fn main() {
     tauri::Builder::default()
@@ -8,6 +9,7 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_clipboard_manager::init())
+        .invoke_handler(tauri::generate_handler![mfp::mfp_connect, mfp::mfp_disconnect, mfp::mfp_status])
         .run(tauri::generate_context!())
         .expect("error while running garmin-export");
 }
