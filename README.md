@@ -113,7 +113,7 @@ When an export fails, the Run card shows a red Report it bar with two buttons. G
 <details>
 <summary>I used Garmin Data Exporter 3.x. What changes?</summary>
 
-Version 4 is a new app named Garmin Export built with Tauri instead of Electron. macOS treats it as a new app, so type your email again and sign in once. The CSV file names are the same as in 3.3. You can delete `Garmin Data Exporter.app` after you install version 4.
+Version 4 is a new app named Garmin Export built with Tauri instead of Electron. macOS treats it as a new app, so type your email again and sign in once. The CSV file names are the same as in 3.3. You can delete `Garmin Data Exporter.app` after you install version 4. The update button in 3.x stays on Checking... when a newer version exists, because of a bug in how 3.x compares version numbers, so download version 4 from the releases page by hand.
 
 </details>
 

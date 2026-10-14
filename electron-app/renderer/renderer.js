@@ -539,7 +539,7 @@
       }
 
       const isNewer = res.latest && res.latest !== currentVersion &&
-        res.latest.localeCompare(currentVersion, undefined, { numeric: true, sensitivity: 'version' }) > 0;
+        res.latest.localeCompare(currentVersion, undefined, { numeric: true }) > 0;
 
       if (isNewer) renderUpdateAvailable(res.latest, res.url);
       else         renderUpdateUpToDate();
