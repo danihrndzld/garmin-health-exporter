@@ -91,3 +91,20 @@ test('AC-07 a wrong password ends with a clear error and no CSV files', async ()
   expect(result.error).toMatch(/Wrong email or password/);
   expect(fs.readdirSync(out)).toEqual([]);
 }, 60000);
+
+test('a Garmin export removes MyFitnessPal files left in the csv folder by an earlier run', async () => {
+  const { out, data } = dirs();
+  const req = {
+    cmd: 'export', email: 'e2e@example.invalid', password: 'right-password',
+    startDate: FIXTURE.date_range.start, endDate: FIXTURE.date_range.end,
+    outputDir: out, dataDir: data, refreshWindow: 3,
+  };
+  const first = await sidecar(req);
+  expect(first.result.ok).toBe(true);
+  const stale = ['mfp_food.csv', 'mfp_daily.csv', 'mfp_exercise.csv'].map((f) => path.join(first.result.path, f));
+  for (const f of stale) fs.writeFileSync(f, 'old\n');
+  const second = await sidecar(req);
+  expect(second.result.ok).toBe(true);
+  expect(second.result.path).toBe(first.result.path);
+  for (const f of stale) expect(fs.existsSync(f)).toBe(false);
+}, 120000);
