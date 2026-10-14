@@ -67,7 +67,7 @@ You only do this once for each version. To check for a new version, click the ve
 2. Pick a range at the top of the window. You can choose the last 7, 30, or 90 days, or choose Custom and set a start and end date.
 3. Click the Pull button, or press Command and Return. The Run card shows each step, and you can press Escape to cancel.
 
-After the first sign in, the app keeps the Garmin login tokens in its Application Support folder, so later exports reuse the tokens and don't sign in to Garmin again until the tokens expire. The password field still has to be filled in for each export. Downloaded days are also kept in a local cache, so a second export of the same range only asks Garmin for the newest days.
+After the first sign in, the app keeps the Garmin login tokens in its Application Support folder, so later exports reuse the tokens and don't sign in to Garmin again. The app renews the tokens 15 minutes before they expire, so a long export doesn't stop halfway. The password field still has to be filled in for each export. Downloaded days are also kept in a local cache, so a second export of the same range only asks Garmin for the newest days.
 
 <div align="center">
 <img src="docs/images/export-done.png" alt="The main Garmin Export window, with progress rings on the left, the setup and run cards in the middle, and step and sleep charts on the right" width="900">
@@ -94,9 +94,9 @@ The refresh window is the number of recent days that the app downloads again on 
 </details>
 
 <details>
-<summary>What does a line that starts with [skip] mean?</summary>
+<summary>What do the [no data] and [skip] lines mean?</summary>
 
-A `[skip]` line means that Garmin returned no data for one kind of data, and the export kept going without it. For example, `endurance_score: Empty response body` means that Garmin answered with HTTP 204, which is an empty answer. In tests on a Fenix 8, every 204 came from a day that the watch hadn't synced yet, and the next export downloads that day again because it's inside the refresh window. A 204 on every day usually means that your watch doesn't record that metric. The skipped data is listed under missing data in `CONTEXT.en.md` when you build the LLM pack.
+A line that starts with `[no data]` means that Garmin answered with HTTP 204, which is an empty answer, e.g., `[no data] endurance_score (HTTP 204)`. In tests on a Fenix 8, every 204 came from a day that the watch hadn't synced yet. The app downloads that day again on the next export, and it keeps doing so until the day is a week old, because Garmin can fill in a day late. A 204 on every day usually means that your watch doesn't record that metric. A `[skip]` line means a real error, e.g., HTTP 403, and the export goes on without that data. The skipped data is listed under missing data in `CONTEXT.en.md` when you build the LLM pack.
 
 </details>
 
@@ -111,6 +111,18 @@ When an export fails, the Run card shows a red Report it bar with two buttons. G
 <summary>I used Garmin Data Exporter 3.x. What changes?</summary>
 
 Version 4 is a new app named Garmin Export built with Tauri instead of Electron. macOS treats it as a new app, so type your email again and sign in once. The CSV file names are the same as in 3.3. You can delete `Garmin Data Exporter.app` after you install version 4. The update button in 3.x stays on Checking... when a newer version exists, because of a bug in how 3.x compares version numbers, so download version 4 from the releases page by hand.
+
+</details>
+
+<details>
+<summary>Why can't I sign in?</summary>
+
+Since version 4.2, the app signs in the same way as Garmin's own phone app, through a sign in service that Garmin introduced in 2026. When Garmin blocks that service, e.g., from some VPNs or office networks, the app tries the older sign in once. The message in the Run card says which case you hit.
+
+- Wrong email or password: check them on connect.garmin.com.
+- Two-step verification: Garmin Export can't sign in to accounts with two-step verification yet.
+- Rate limited (HTTP 429): Garmin limits how often one account can sign in. The app waits 15 minutes before it tries again, and it never retries on its own. Saved tokens keep working during that time, so this only affects a first sign in.
+- Blocked (HTTP 403): try again later or from another network.
 
 </details>
 
@@ -141,12 +153,14 @@ bun run dev
 
 `bun run build` makes an app and a DMG for your own Mac. `bun run release` makes a universal app and DMG, and it needs the `aarch64-apple-darwin` and `x86_64-apple-darwin` Rust targets, which you can add with `rustup target add`.
 
-To run the tests, use the commands below. The first command tests the Garmin client and cache, and the second tests the LLM pack and the error report.
+To run the tests, use the commands below. Most tests run the real sign in, client, cache and CSV code against a local server that imitates Garmin, so they never contact Garmin. The CSV output is compared byte by byte with the files in `electron-app/garmin/__tests__/golden`, and `tauri-app/sidecar/e2e.test.js` runs the sidecar the way the app does.
 
 ```sh
-(cd electron-app && for f in garmin/__tests__/*.test.js; do node "$f"; done)
+(cd electron-app && npm test)
 (cd tauri-app && bun test sidecar)
 ```
+
+When a change to the CSV files is intended, rebuild the golden files with `UPDATE_GOLDEN=1 node --test garmin/__tests__/regression.test.js` and check the diff. The test fixture comes from a real export through `npm run fixture -- <garmin_health_*.json> <out.json>`, which removes ids, names and GPS, moves the dates by a random amount and changes every number by a random amount up to 30 percent.
 
 </details>
 
