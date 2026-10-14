@@ -37,7 +37,7 @@ const UNITS = [
   [/Milliseconds$|InMilliseconds$/i, 'ms'], [/Seconds$|InSeconds$|^duration$|Duration$/, 's'],
   [/Meters$|^distance$|Distance$/, 'm'], [/Kilocalories$|^calories$|Calories$/, 'kcal'],
   [/Hrv$|HRV|hrv/, 'ms'], [/HeartRate$|Hr$|^hr|Bpm$/i, 'bpm'], [/Ml$|InML$/i, 'ml'],
-  [/^lastNight|^baseline(Low|Balanced)/, 'ms'], [/Percent$|Pct$|SpO2/i, '%'], [/C$/, '°C'], [/Speed$/, 'm/s'], [/[Ww]eight$/, 'g'],
+  [/^lastNight|^baseline(Low|Balanced)/, 'ms'], [/^vo2max$/i, 'ml/kg/min'], [/Percent$|Pct$|SpO2/i, '%'], [/C$/, '°C'], [/Speed$/, 'm/s'], [/[Ww]eight$/, 'g'],
 ];
 const unitOf = (col) => (UNITS.find(([re]) => re.test(col)) || [])[1];
 

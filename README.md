@@ -96,7 +96,7 @@ The refresh window is the number of recent days that the app downloads again on 
 <details>
 <summary>What does a line that starts with [skip] mean?</summary>
 
-A `[skip]` line means that Garmin returned no data for one kind of data, and the export kept going without it. For example, `endurance_score: Empty response body` means that Garmin answered with HTTP 204, which is an empty answer, usually because your watch doesn't record that score. The skipped data is listed under missing data in `CONTEXT.en.md` when you build the LLM pack.
+A `[skip]` line means that Garmin returned no data for one kind of data, and the export kept going without it. For example, `endurance_score: Empty response body` means that Garmin answered with HTTP 204, which is an empty answer. In tests on a Fenix 8, every 204 came from a day that the watch hadn't synced yet, and the next export downloads that day again because it's inside the refresh window. A 204 on every day usually means that your watch doesn't record that metric. The skipped data is listed under missing data in `CONTEXT.en.md` when you build the LLM pack.
 
 </details>
 

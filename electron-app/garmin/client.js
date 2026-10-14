@@ -57,7 +57,7 @@ function formatErrorMessage(errorCode, meta) {
   const ep = meta.endpoint ? ` [${meta.endpoint}]` : '';
   switch (errorCode) {
     case 'EMPTY_BODY':
-      return `Empty response body${ep} — Garmin returned HTTP ${meta.status} with no content. Often a transient backend hiccup or a deprecated endpoint.`;
+      return `Empty response body${ep} — Garmin returned HTTP ${meta.status} with no content. Usually no data for that day yet (the watch has not synced) or a metric this device does not record.`;
     case 'BAD_JSON':
       return `Malformed JSON${ep} — HTTP ${meta.status} returned a body that is not valid JSON: ${meta.bodyPreview || '(no preview)'}`;
     case 'TIMEOUT':

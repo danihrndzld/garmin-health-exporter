@@ -44,13 +44,13 @@
         if (req.cmd === 'report') return { ok: true, issueUrl: 'https://github.com/x/issues/new', mailtoUrl: 'mailto:x' };
         if (req.cmd !== 'export') return { ok: true };
         if (req.email === 'fail@x.com') {
-          onEvent({ kind: 'log', type: 'warn', msg: '[skip] endurance_score: Empty response body [endurance_score] — Garmin returned HTTP 204 with no content. Often a transient backend hiccup or a deprecated endpoint.', ts: ts() });
+          onEvent({ kind: 'log', type: 'warn', msg: '[skip] endurance_score: Empty response body [endurance_score] — Garmin returned HTTP 204 with no content. Usually no data for that day yet (the watch has not synced) or a metric this device does not record.', ts: ts() });
           await sleep(300);
           return { ok: false, error: 'Auth failed: Account locked — unlock at connect.garmin.com' };
         }
         onEvent({ kind: 'log', type: 'dim', msg: 'Loaded saved tokens', ts: ts() });
         await sleep(300);
-        onEvent({ kind: 'log', type: 'warn', msg: '[skip] endurance_score: Empty response body [endurance_score] — Garmin returned HTTP 204 with no content. Often a transient backend hiccup or a deprecated endpoint.', ts: ts() });
+        onEvent({ kind: 'log', type: 'warn', msg: '[skip] endurance_score: Empty response body [endurance_score] — Garmin returned HTTP 204 with no content. Usually no data for that day yet (the watch has not synced) or a metric this device does not record.', ts: ts() });
         await sleep(300);
         const plan = [['daily', 22], ['aggregated', 12], ['activities', 41], ['csv', 1]];
         for (const [phase, total] of plan) {

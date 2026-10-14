@@ -304,10 +304,10 @@ test('generateCsvs: writes expected CSV files from sample data', () => {
     export_date: '2024-01-15',
     daily: {
       '2024-01-15': {
-        stats: { totalSteps: 8000, totalKilocalories: 2200 },
+        stats: { totalSteps: 8000, totalKilocalories: 2200, dailyStepGoal: 10000 },
         heart_rates: { maxHeartRate: 165, restingHeartRate: 55 },
         stress: { maxStressLevel: 80, avgStressLevel: 35 },
-        intensity_minutes: { moderateIntensityMinutes: 30, vigorousIntensityMinutes: 15 },
+        intensity_minutes: { moderateMinutes: 30, vigorousMinutes: 15 }, // real keys of wellness/daily/im
         steps: { dailyStepGoal: 10000, totalSteps: 8000 },
         hydration: { goalInML: 2500, valueInML: 1800 },
         sleep: {
@@ -324,14 +324,19 @@ test('generateCsvs: writes expected CSV files from sample data', () => {
         training_readiness: { level: 'PRIME' },
         morning_training_readiness: {},
         training_status: {
-          mostRecentVO2Max: { vo2MaxPreciseValue: 48.5 },
+          mostRecentVO2Max: { generic: { vo2MaxPreciseValue: 48.5, vo2MaxValue: 49 } },
+          mostRecentTrainingStatus: { latestTrainingStatusData: { 111: { primaryTrainingDevice: true, trainingStatusFeedbackPhrase: 'RECOVERY_1',
+            acuteTrainingLoadDTO: { dailyTrainingLoadAcute: 118, dailyTrainingLoadChronic: 176, dailyAcuteChronicWorkloadRatio: 0.6, acwrStatus: 'LOW' } } } },
+          mostRecentTrainingLoadBalance: { metricsTrainingLoadBalanceDTOMap: { 111: { primaryTrainingDevice: true, monthlyLoadAerobicLow: 323.4, trainingBalanceFeedbackPhrase: 'AEROBIC_HIGH_SHORTAGE' } } },
         },
         spo2: { averageSpO2: 96 },
         respiration: { avgWakingRespirationValue: 16 },
-        endurance_score: { overallScore: 72 },
+        endurance_score: { overallScore: 72, classification: 1 },
+        running_tolerance: [{ acuteImpactLoad: 4910, acuteDistance: 3770, acuteTolerance: 18048, runningToleranceFeedBackPhrase: 'LOW_LOAD_14DAYS' }],
       },
     },
     aggregated: {
+      lactate_threshold: [{ speed: 0.30277693, hearRate: null }, { speed: null, hearRate: 182 }],
       daily_steps: [
         { calendarDate: '2024-01-15', totalSteps: 8000, stepGoal: 10000 },
       ],
@@ -378,6 +383,21 @@ test('generateCsvs: writes expected CSV files from sample data', () => {
   const hrvCol = (name) => hrvRow.split(',')[hrvHead.split(',').indexOf(name)];
   assert.strictEqual(hrvCol('lastNightAvg'), '42');
   assert.strictEqual(hrvCol('baselineBalancedLow'), '40');
+
+  // Fields Garmin nests per device / under .generic (these columns used to be empty)
+  const col = (file, name) => {
+    const [h, r] = fs.readFileSync(path.join(result.csvDir, file), 'utf8').split('\n');
+    return r.split(',')[h.split(',').indexOf(name)];
+  };
+  assert.strictEqual(col('daily_summary.csv', 'stepGoal'), '10000');
+  assert.strictEqual(col('daily_summary.csv', 'moderateIntensityMinutes'), '30');
+  assert.strictEqual(col('training.csv', 'vo2max'), '48.5');
+  assert.strictEqual(col('training.csv', 'trainingStatus'), 'RECOVERY_1');
+  assert.strictEqual(col('training.csv', 'trainingLoad_acute'), '118');
+  assert.strictEqual(col('training.csv', 'loadBalance_feedback'), 'AEROBIC_HIGH_SHORTAGE');
+  assert.strictEqual(col('running_tolerance.csv', 'acuteImpactLoad'), '4910');
+  assert.strictEqual(col('misc_metrics.csv', 'lactateThresholdHeartRate'), '182');
+  assert.strictEqual(col('misc_metrics.csv', 'lactateThresholdSpeed'), '0.30277693');
 
   // Verify activities content
   const actCsv = fs.readFileSync(path.join(result.csvDir, 'activities.csv'), 'utf8');

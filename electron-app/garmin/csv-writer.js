@@ -112,10 +112,11 @@ function extractDailySummary(daily) {
       'totalKilocalories', 'activeKilocalories', 'bmrKilocalories',
       'totalSteps', 'totalDistanceMeters', 'wellnessKilocalories',
       'remainingKilocalories', 'floorsAscended', 'floorsDescended',
-      'durationInMilliseconds', 'stepGoal',
+      'durationInMilliseconds',
     ]) {
       row[key] = stats[key] !== undefined ? stats[key] : null;
     }
+    row.stepGoal = stats.dailyStepGoal ?? null; // Garmin's key is dailyStepGoal
     const hr = d.heart_rates || {};
     row.maxHeartRate = hr.maxHeartRate !== undefined ? hr.maxHeartRate : null;
     row.minHeartRate = hr.minHeartRate !== undefined ? hr.minHeartRate : null;
@@ -125,8 +126,9 @@ function extractDailySummary(daily) {
     row.maxStressLevel = stress.maxStressLevel !== undefined ? stress.maxStressLevel : null;
     row.avgStressLevel = stress.avgStressLevel !== undefined ? stress.avgStressLevel : null;
     const im = d.intensity_minutes || {};
-    row.moderateIntensityMinutes = im.moderateIntensityMinutes !== undefined ? im.moderateIntensityMinutes : null;
-    row.vigorousIntensityMinutes = im.vigorousIntensityMinutes !== undefined ? im.vigorousIntensityMinutes : null;
+    // the daily /im endpoint says moderateMinutes; usersummary says moderateIntensityMinutes
+    row.moderateIntensityMinutes = im.moderateMinutes ?? stats.moderateIntensityMinutes ?? null;
+    row.vigorousIntensityMinutes = im.vigorousMinutes ?? stats.vigorousIntensityMinutes ?? null;
     const steps = d.steps || {};
     if (typeof steps === 'object' && !Array.isArray(steps)) {
       row.stepsGoal = steps.dailyStepGoal !== undefined ? steps.dailyStepGoal : null;
@@ -136,7 +138,6 @@ function extractDailySummary(daily) {
     row.hydrationGoalMl = hyd.goalInML !== undefined ? hyd.goalInML : null;
     row.hydrationValueMl = hyd.valueInML !== undefined ? hyd.valueInML : null;
     row.hydrationSweatLossMl = hyd.sweatLossInML !== undefined ? hyd.sweatLossInML : null;
-    row.hydrationDailyAverageMl = hyd.dailyAverageinML !== undefined ? hyd.dailyAverageinML : null;
     row.hydrationActivityIntakeMl = hyd.activityIntakeInML !== undefined ? hyd.activityIntakeInML : null;
     rows.push(row);
   }
@@ -213,6 +214,12 @@ function extractBodyBattery(daily) {
   return rows;
 }
 
+/** Pick the primary device's entry from Garmin's { <deviceId>: {...} } maps. */
+function primaryDevice(map) {
+  const entries = Object.values(map || {});
+  return entries.find((e) => e && e.primaryTrainingDevice) || entries[0] || {};
+}
+
 function extractTraining(daily) {
   const rows = [];
   for (const [date, d] of Object.entries(daily)) {
@@ -233,19 +240,26 @@ function extractTraining(daily) {
     row.morning_readiness_recoveryTime = mr.recoveryTime !== undefined ? mr.recoveryTime : null;
     row.morning_readiness_sleepScoreFactor = mr.sleepScoreFactorPercent !== undefined ? mr.sleepScoreFactorPercent : null;
     row.morning_readiness_recoveryTimeFactor = mr.recoveryTimeFactorPercent !== undefined ? mr.recoveryTimeFactorPercent : null;
-    // training status
+    // training status: Garmin nests VO2 under .generic and the rest per device id
     const ts = d.training_status || {};
-    const vo2 = ts.mostRecentVO2Max || {};
-    row.vo2max = vo2.vo2MaxPreciseValue || vo2.vo2MaxValue || null;
-    const tlb = ts.mostRecentTrainingLoadBalance || {};
-    row.trainingLoad_7day = tlb.sevenDayTrainingLoad !== undefined ? tlb.sevenDayTrainingLoad : null;
-    row.trainingLoad_28day = tlb.twentyEightDayTrainingLoad !== undefined ? tlb.twentyEightDayTrainingLoad : null;
-    const mts = ts.mostRecentTrainingStatus || {};
-    row.trainingStatus = mts.trainingStatusPhrase || mts.trainingStatus || null;
+    const vo2 = (ts.mostRecentVO2Max || {}).generic || {};
+    row.vo2max = vo2.vo2MaxPreciseValue ?? vo2.vo2MaxValue ?? null;
+    const status = primaryDevice((ts.mostRecentTrainingStatus || {}).latestTrainingStatusData);
+    const acute = status.acuteTrainingLoadDTO || {};
+    row.trainingStatus = status.trainingStatusFeedbackPhrase ?? status.trainingStatus ?? null;
+    row.trainingLoad_acute = acute.dailyTrainingLoadAcute ?? null;
+    row.trainingLoad_chronic = acute.dailyTrainingLoadChronic ?? null;
+    row.trainingLoad_ratio = acute.dailyAcuteChronicWorkloadRatio ?? null;
+    row.trainingLoad_ratioStatus = acute.acwrStatus ?? null;
+    const balance = primaryDevice((ts.mostRecentTrainingLoadBalance || {}).metricsTrainingLoadBalanceDTOMap);
+    row.monthlyLoad_aerobicLow = balance.monthlyLoadAerobicLow ?? null;
+    row.monthlyLoad_aerobicHigh = balance.monthlyLoadAerobicHigh ?? null;
+    row.monthlyLoad_anaerobic = balance.monthlyLoadAnaerobic ?? null;
+    row.loadBalance_feedback = balance.trainingBalanceFeedbackPhrase ?? null;
     // endurance
     const end = d.endurance_score || {};
     row.enduranceScore = end.overallScore !== undefined ? end.overallScore : null;
-    row.enduranceScore_label = end.overallScoreLabel !== undefined ? end.overallScoreLabel : null;
+    row.enduranceScore_classification = end.classification ?? null;
     rows.push(row);
   }
   return rows;
@@ -318,7 +332,11 @@ function extractAggregatedMisc(aggregated) {
                       'fitness_age', 'hill_score']) {
     const val = aggregated[key];
     if (val === undefined || val === null) continue;
-    if (typeof val === 'object' && !Array.isArray(val)) {
+    if (key === 'lactate_threshold' && Array.isArray(val)) {
+      // Garmin returns one entry for speed and one for heart rate ("hearRate" is Garmin's spelling)
+      row.lactateThresholdSpeed = val.map((e) => e.speed).find((v) => v != null) ?? null;
+      row.lactateThresholdHeartRate = val.map((e) => e.hearRate).find((v) => v != null) ?? null;
+    } else if (typeof val === 'object' && !Array.isArray(val)) {
       for (const [k, v] of Object.entries(flatten(val))) {
         row[`${key}_${k}`] = v;
       }
@@ -334,8 +352,7 @@ function extractRunningTolerance(daily) {
   for (const [date, d] of Object.entries(daily)) {
     for (const entry of (d.running_tolerance || [])) {
       const row = { date };
-      for (const key of ['totalImpactLoad', 'totalDistance', 'tolerance',
-                          'startOfWeek', 'endOfWeek', 'weekIndex']) {
+      for (const key of ['acuteImpactLoad', 'acuteDistance', 'acuteTolerance', 'runningToleranceFeedBackPhrase']) {
         row[key] = entry[key] !== undefined ? entry[key] : null;
       }
       rows.push(row);
