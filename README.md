@@ -67,7 +67,7 @@ You only do this once for each version. To check for a new version, click the ve
 2. Pick a range at the top of the window. You can choose the last 7, 30, or 90 days, or choose Custom and set a start and end date.
 3. Click the Pull button, or press Command and Return. The Run card shows each step, and you can press Escape to cancel.
 
-After the first sign in, the app keeps the Garmin login tokens in its Application Support folder, so later exports skip the password step until the tokens expire. Downloaded days are also kept in a local cache, so a second export of the same range only asks Garmin for the newest days.
+After the first sign in, the app keeps the Garmin login tokens in its Application Support folder, so later exports reuse the tokens and don't sign in to Garmin again until the tokens expire. The password field still has to be filled in for each export. Downloaded days are also kept in a local cache, so a second export of the same range only asks Garmin for the newest days.
 
 <div align="center">
 <img src="docs/images/export-done.png" alt="The main Garmin Export window, with progress rings on the left, the setup and run cards in the middle, and step and sleep charts on the right" width="900">
