@@ -325,3 +325,7 @@ li[data-st="run"] .st::after { content: ""; position: absolute; width: 5px; heig
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+.mfp-row { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 0 12px; border-radius: 11px; background: var(--soft); }
+.switch { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--mute); }
+.switch input:disabled + span { opacity: .5; }

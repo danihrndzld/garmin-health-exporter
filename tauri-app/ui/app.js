@@ -25,11 +25,14 @@
     openUrl: (u) => T.opener.openUrl(u),
     reveal: (p) => T.opener.revealItemInDir(p),
     copyText: (t) => T.clipboardManager.writeText(t),
-    run(req, onEvent) {
+    invoke: (cmd, args) => T.core.invoke(cmd, args),
+    listen: (ev, cb) => T.event.listen(ev, (e) => cb(e.payload)),
+    onFocus: (cb) => T.window.getCurrentWindow().onFocusChanged(({ payload }) => payload && cb()),
+    run(req, onEvent, bin = 'binaries/garmin-core') {
       let child = null;
       let killed = false;
       const done = new Promise((resolve) => {
-        const cmd = T.shell.Command.sidecar('binaries/garmin-core');
+        const cmd = T.shell.Command.sidecar(bin);
         let result = null;
         cmd.stdout.on('data', (line) => {
           let o;
@@ -64,7 +67,7 @@
   // ── State ───────────────────────────────────────────────────────────────
   const PHASES = ['daily', 'aggregated', 'activities', 'csv'];
   const WEIGHT = { daily: 0.45, aggregated: 0.15, activities: 0.35, csv: 0.05 };
-  const VERB = { auth: 'signing in', daily: 'daily metrics', aggregated: 'aggregates', activities: 'activities', csv: 'building CSVs' };
+  const VERB = { auth: 'signing in', daily: 'daily metrics', aggregated: 'aggregates', activities: 'activities', csv: 'building CSVs', mfp: 'MyFitnessPal' };
   const isMac = /Mac/.test(navigator.platform || navigator.userAgent);
   let paths = { outputDir: null, dataDir: null };
   let days = store.get('days', '30');
@@ -308,7 +311,8 @@
 
   // ── Export ──────────────────────────────────────────────────────────────
   function lock(on) {
-    [emailEl, passEl, eye, outBtn, clearCacheBtn, fromEl, toEl].forEach((el) => { el.disabled = on; });
+    [emailEl, passEl, eye, outBtn, clearCacheBtn, fromEl, toEl, mfpBtn, mfpOn].forEach((el) => { el.disabled = on; });
+    if (!on) mfpOn.disabled = !mfp.connected;
     rangeSeg.querySelectorAll('button').forEach((b) => { b.disabled = on; });
     refreshSeg.querySelectorAll('button').forEach((b) => { b.disabled = on; });
   }
@@ -379,6 +383,7 @@
       openOut.hidden = false;
       if (res.summary) renderSummary(res.summary);
       pack = res.pack || null;
+      await runMfp(res.path, { startDate: res.summary?.range?.start, endDate: res.summary?.range?.end });
       store.set('last_warnings', JSON.stringify(pack?.warnings || []));
       toast('Done. CSVs are in ' + tilde(res.path));
     } else {
@@ -628,6 +633,49 @@
   $('report-gh').addEventListener('click', () => reportLinks && platform.openUrl(reportLinks.issueUrl));
   $('report-mail').addEventListener('click', () => reportLinks && platform.openUrl(reportLinks.mailtoUrl));
 
+  // ── MyFitnessPal ────────────────────────────────────────────────────────
+  // Rust owns the sign in window and the session file; the Go core reads it.
+  const mfpState = $('mfp-state'), mfpBtn = $('mfp-btn'), mfpOn = $('mfp-on');
+  let mfp = { connected: false, expired: false };
+  function renderMfp() {
+    mfpState.textContent = mfp.expired ? 'Session expired' : mfp.connected ? 'Connected' : 'Not connected';
+    mfpBtn.textContent = mfp.expired ? 'reconnect' : mfp.connected ? 'disconnect' : 'connect';
+    mfpOn.disabled = !!running || !mfp.connected;
+    mfpOn.checked = mfp.connected && store.get('mfp_on', '1') === '1';
+    row('mfp').hidden = !mfpOn.checked;
+  }
+  async function refreshMfp() {
+    try { mfp = { ...(await platform.invoke('mfp_status')), expired: false }; } catch { mfp = { connected: false }; }
+    renderMfp();
+  }
+  mfpBtn.addEventListener('click', async () => {
+    if (mfp.connected && !mfp.expired) { await platform.invoke('mfp_disconnect'); await refreshMfp(); toast('MyFitnessPal disconnected.'); return; }
+    toast('Sign in to MyFitnessPal in the new window.');
+    await platform.invoke('mfp_connect');
+  });
+  mfpOn.addEventListener('change', () => { store.set('mfp_on', mfpOn.checked ? '1' : '0'); renderMfp(); });
+  platform.listen('mfp-connected', (s) => { mfp = { ...s, expired: false }; renderMfp(); toast('MyFitnessPal connected.'); });
+
+  // Runs after a successful Garmin export; a failure here never changes the Garmin result.
+  async function runMfp(csvDir, range) {
+    if (!mfpOn.checked) return;
+    enterPhase('mfp');
+    // onProgress only knows the four Garmin rings, so MFP progress goes to its own row.
+    const res = await platform.run({ cmd: 'mfp-export', ...range, dataDir: paths.dataDir, csvDir },
+      (e) => (e.kind === 'progress' ? setRow('mfp', undefined, `${e.current} of ${e.total} days`) : e.kind === 'log' && onLog(e)),
+      'binaries/garmin-export-core').done;
+    if (res.ok) {
+      finishPhase('mfp');
+      setRow('mfp', 'ok', `Food logged on ${res.loggedDays} of ${res.days} days`);
+      const s = await platform.run({ cmd: 'summary', jsonPath: store.get('last_json'), csvDir, warnings: pack?.warnings || [] }, () => {}).done;
+      if (s.ok) pack = s.pack || pack;
+    } else {
+      setRow('mfp', 'warn', 'Skipped: ' + res.error);
+      log('warn', 'MyFitnessPal skipped: ' + res.error);
+      if (res.errorCode === 'MFP_SESSION') { mfp.expired = mfp.connected; renderMfp(); }
+    }
+  }
+
   // ── Version + update check ──────────────────────────────────────────────
   const verEl = $('ver');
   let version = '';
@@ -669,5 +717,7 @@
     verEl.textContent = 'v' + version;
     if (lastOutDir) openOut.hidden = false;
     loadLastSummary();
+    refreshMfp();
+    platform.onFocus(refreshMfp);
   })();
 })();

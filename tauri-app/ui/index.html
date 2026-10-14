@@ -89,6 +89,10 @@
         </div></div>
       <div class="field wide"><span>Output</span>
         <button type="button" class="path mono" id="out"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h7l2 2h9v11H3z"/></svg><span id="out-path">~/Documents/GarminExport</span><em>change</em></button></div>
+      <div class="field wide"><span>MyFitnessPal <i class="hint" title="Adds your food diary to each export. You sign in on MyFitnessPal's own page; the app never sees your password.">?</i></span>
+        <div class="mfp-row"><span class="mono" id="mfp-state">Not connected</span><span class="grow"></span>
+          <label class="switch"><input type="checkbox" id="mfp-on"><span>Include</span></label>
+          <button type="button" class="link mono" id="mfp-btn">connect</button></div></div>
     </div>
   </form>
 
@@ -103,6 +107,7 @@
       <li data-phase="aggregated"><span class="st"></span><div><b>Aggregated</b><span class="sub">Weekly steps, VO₂ max, race predictions</span></div><em class="mono t">—</em></li>
       <li data-phase="activities"><span class="st"></span><div><b>Activities</b><span class="sub">Every workout + splits</span></div><em class="mono t">—</em></li>
       <li data-phase="csv"><span class="st"></span><div><b>Build CSVs</b><span class="sub">One file per metric</span></div><em class="mono t">—</em></li>
+      <li data-phase="mfp" hidden><span class="st"></span><div><b>MyFitnessPal</b><span class="sub">Food diary, one request per second</span></div><em class="mono t">—</em></li>
     </ol>
     <div class="report" id="report" role="alert" hidden><b>Report it</b>
       <button type="button" id="report-gh">GitHub issue ↗</button><button type="button" id="report-mail">email</button></div>
