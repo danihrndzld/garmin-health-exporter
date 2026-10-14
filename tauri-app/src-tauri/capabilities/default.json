@@ -1,0 +1,53 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "dialog:allow-open",
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [
+        {
+          "name": "binaries/garmin-core",
+          "sidecar": true
+        }
+      ]
+    },
+    "shell:allow-stdin-write",
+    "shell:allow-kill",
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [
+        {
+          "path": "$HOME/**"
+        }
+      ]
+    },
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        {
+          "url": "https://github.com/*"
+        },
+        {
+          "url": "https://claude.ai/*"
+        },
+        {
+          "url": "https://chatgpt.com/*"
+        },
+        {
+          "url": "https://gemini.google.com/*"
+        },
+        {
+          "url": "mailto:*"
+        }
+      ]
+    },
+    "opener:allow-reveal-item-in-dir",
+    "clipboard-manager:allow-write-text"
+  ]
+}

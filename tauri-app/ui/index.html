@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Garmin Export</title>
+<link rel="stylesheet" href="app.css">
+<script src="date-range.js" defer></script>
+<script src="dev-mock.js" defer></script>
+<script src="app.js" defer></script>
+</head>
+<body>
+<header class="bar" data-tauri-drag-region>
+  <div class="mark" aria-hidden="true"><i></i></div>
+  <span class="brand" data-tauri-drag-region>Garmin Export</span>
+  <span class="ver mono" id="ver" role="button" tabindex="0" title="Check for updates">v…</span>
+  <span class="grow" data-tauri-drag-region></span>
+  <div class="seg" role="radiogroup" aria-label="Date range" id="range-seg">
+    <button role="radio" data-days="7">7D</button>
+    <button role="radio" data-days="30">30D</button>
+    <button role="radio" data-days="90">90D</button>
+    <button role="radio" data-days="custom">Custom</button>
+  </div>
+  <div class="swatches" role="radiogroup" aria-label="Accent color" id="swatches">
+    <button role="radio" data-accent="volt" aria-label="Volt"></button>
+    <button role="radio" data-accent="ocean" aria-label="Ocean"></button>
+    <button role="radio" data-accent="coral" aria-label="Coral"></button>
+    <button role="radio" data-accent="violet" aria-label="Violet"></button>
+  </div>
+</header>
+
+<main>
+  <!-- Hero: the run itself -->
+  <section class="hero" id="hero" data-state="idle" aria-label="Export run">
+    <div class="aurora" aria-hidden="true"><b></b><b></b><b></b></div>
+    <div class="hero-top">
+      <span class="lbl">Export run</span>
+      <span class="badge" id="badge">Ready</span>
+    </div>
+    <h1 class="headline"><span id="h1">30 days</span><span class="dim" id="h2">ready to pull.</span></h1>
+
+    <div class="rings" aria-hidden="true">
+      <svg viewBox="0 0 220 220">
+        <g class="ring" data-phase="daily"><circle r="100"/><circle r="100" class="v"/></g>
+        <g class="ring" data-phase="aggregated"><circle r="84"/><circle r="84" class="v"/></g>
+        <g class="ring" data-phase="activities"><circle r="68"/><circle r="68" class="v"/></g>
+        <g class="ring" data-phase="csv"><circle r="52"/><circle r="52" class="v"/></g>
+      </svg>
+      <div class="ring-c"><b id="ring-n" class="num">—</b><span id="ring-l">standby</span></div>
+    </div>
+
+    <ul class="legend">
+      <li data-phase="daily"><i></i>Daily<em class="mono" id="lg-daily">—</em></li>
+      <li data-phase="aggregated"><i></i>Aggregated<em class="mono" id="lg-aggregated">—</em></li>
+      <li data-phase="activities"><i></i>Activities<em class="mono" id="lg-activities">—</em></li>
+      <li data-phase="csv"><i></i>CSV<em class="mono" id="lg-csv">—</em></li>
+    </ul>
+
+    <div class="progress-sr" role="progressbar" id="progressbar" aria-label="Export progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
+
+    <div class="cta-row">
+      <button class="cta" id="cta" type="submit" form="setup">
+        <span id="cta-label">Pull 30 days</span><kbd class="mono" id="cta-kbd">⌘ ↵</kbd>
+      </button>
+      <button class="cta ghost" id="llm-btn" type="button" hidden aria-haspopup="dialog">LLM pack ✦<kbd class="mono">L</kbd></button>
+    </div>
+  </section>
+
+  <!-- Setup -->
+  <form class="card setup" id="setup" novalidate aria-label="Setup">
+    <div class="card-h"><span class="num-lbl mono">01</span>Setup<span class="grow"></span>
+      <button type="button" class="link mono" id="clear-cache">clear cache</button></div>
+    <div class="grid">
+      <label class="field"><span>Email</span>
+        <input type="email" id="email" autocomplete="username" spellcheck="false" placeholder="you@example.com"></label>
+      <label class="field"><span>Password</span>
+        <span class="pw"><input type="password" id="password" autocomplete="current-password" placeholder="••••••••">
+        <button type="button" class="eye" id="eye" aria-label="Show password">show</button></span></label>
+      <div class="field" id="range-field"><span>Range</span>
+        <div class="range-read mono" id="range-read">—</div>
+        <div class="range-custom">
+          <input type="date" id="from" aria-label="From"><span class="arrow">→</span><input type="date" id="to" aria-label="To">
+        </div>
+        <div class="err" id="range-err" role="alert" hidden></div>
+      </div>
+      <div class="field"><span>Refresh window <i class="hint" title="Always re-fetches this many recent days to catch late Garmin updates.">?</i></span>
+        <div class="seg seg-sm" role="radiogroup" aria-label="Refresh window" id="refresh-seg">
+          <button type="button" role="radio" data-v="1">1d</button><button type="button" role="radio" data-v="2">2d</button><button type="button" role="radio" data-v="3">3d</button><button type="button" role="radio" data-v="5">5d</button><button type="button" role="radio" data-v="7">7d</button>
+        </div></div>
+      <div class="field wide"><span>Output</span>
+        <button type="button" class="path mono" id="out"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h7l2 2h9v11H3z"/></svg><span id="out-path">~/Documents/GarminExport</span><em>change</em></button></div>
+    </div>
+  </form>
+
+  <!-- Run tasks -->
+  <section class="card tasks" aria-label="Run steps">
+    <div class="card-h"><span class="num-lbl mono">02</span>Run<span class="grow"></span>
+      <span class="mono dim" id="elapsed">00:00</span>
+      <button type="button" class="link mono" id="open-out" hidden>open folder ↗</button></div>
+    <ol class="rows" id="rows">
+      <li data-phase="auth"><span class="st"></span><div><b>Authenticate</b><span class="sub">Garmin Connect SSO</span></div><em class="mono t">—</em></li>
+      <li data-phase="daily"><span class="st"></span><div><b>Daily metrics</b><span class="sub">Sleep, HRV, stress, body battery + 18</span></div><em class="mono t">—</em></li>
+      <li data-phase="aggregated"><span class="st"></span><div><b>Aggregated</b><span class="sub">Weekly steps, VO₂ max, race predictions</span></div><em class="mono t">—</em></li>
+      <li data-phase="activities"><span class="st"></span><div><b>Activities</b><span class="sub">Every workout + splits</span></div><em class="mono t">—</em></li>
+      <li data-phase="csv"><span class="st"></span><div><b>Build CSVs</b><span class="sub">One file per metric</span></div><em class="mono t">—</em></li>
+    </ol>
+    <div class="report" id="report" role="alert" hidden><b>Report it</b>
+      <button type="button" id="report-gh">GitHub issue ↗</button><button type="button" id="report-mail">email</button></div>
+    <details class="log"><summary class="mono">log <span id="log-n">0</span></summary>
+      <div id="log" class="mono" aria-live="polite" aria-relevant="additions"></div></details>
+  </section>
+
+  <!-- Preview from the last export -->
+  <section class="card preview steps" aria-label="Steps preview">
+    <div class="card-h"><span class="num-lbl mono">03</span>Steps<span class="grow"></span><span class="mono dim" id="steps-range">last 14 d</span></div>
+    <div class="big"><b class="num" id="steps-total">—</b><small>avg / day</small></div>
+    <div class="bars" id="steps-bars"></div>
+    <div class="empty">Your last export shows up here.</div>
+  </section>
+
+  <section class="card preview sleep" aria-label="Sleep preview">
+    <div class="card-h"><span class="num-lbl mono">04</span>Recovery</div>
+    <div class="donut" id="sleep-donut" style="--p:0"><b class="num" id="sleep-score">—</b><span>sleep score</span></div>
+    <ul class="stats mono">
+      <li><i style="background:var(--c3)"></i>Sleep<em id="st-sleep">—</em></li>
+      <li><i style="background:var(--c4)"></i>Resting HR<em id="st-rhr">—</em></li>
+      <li><i style="background:var(--c2)"></i>HRV<em id="st-hrv">—</em></li>
+    </ul>
+    <div class="empty">No data yet.</div>
+  </section>
+
+  <!-- LLM pack: hand the export to Claude / ChatGPT / Gemini -->
+  <section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sh-h1" hidden>
+    <div class="aurora" aria-hidden="true"><b></b><b></b><b></b></div>
+    <div class="sh-top"><span class="num-lbl mono">05</span><span class="t">LLM pack</span><span class="grow"></span>
+      <div class="seg" role="radiogroup" aria-label="Language" id="lang-seg">
+        <button type="button" role="radio" data-lang="es">ES</button><button type="button" role="radio" data-lang="en">EN</button>
+      </div>
+      <button type="button" class="x" id="sheet-x" aria-label="Close">×</button></div>
+    <h2 class="sh-head"><span id="sh-h1">Pásaselo a un LLM.</span><span class="dim" id="sh-h2">—</span></h2>
+    <div class="sh-empty" id="sh-empty" hidden></div>
+    <div class="ctx-meter" id="ctx-meter"><div class="ctx-bar"><i id="ctx-fill"></i></div>
+      <div class="ctx-lbl mono"><span><b id="ctx-tokens">—</b> · <span id="ctx-kb">—</span></span><span id="ctx-fit">—</span></div></div>
+    <div class="sh-body" id="sh-body">
+      <div class="ctx"><div class="ctx-h mono"><span class="chip" id="ctx-name">CONTEXT.es.md</span><span class="grow"></span><span id="ctx-note"></span></div>
+        <pre id="ctx-pre" tabindex="0"></pre></div>
+      <div class="files" id="files"></div>
+    </div>
+    <div class="sh-actions" id="sh-actions">
+      <button type="button" class="cta" id="copy-ctx"><span class="stack"><span id="copy-ctx-l">Copiar contexto + ver archivos</span><small id="copy-ctx-s">pega el texto, arrastra los CSV</small></span><kbd class="mono">⌘ C</kbd></button>
+      <button type="button" class="cta ghost" id="copy-one"><span class="stack"><span id="copy-one-l">Copiar como un archivo</span><small class="mono" id="copy-one-s">—</small></span></button>
+    </div>
+    <div class="sh-links mono"><span id="open-l">abrir</span>
+      <button type="button" data-url="https://claude.ai/new">claude.ai ↗</button>
+      <button type="button" data-url="https://chatgpt.com/">chatgpt.com ↗</button>
+      <button type="button" data-url="https://gemini.google.com/app">gemini ↗</button>
+      <span class="grow"></span><button type="button" id="reveal-one">mostrar en Finder</button></div>
+  </section>
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

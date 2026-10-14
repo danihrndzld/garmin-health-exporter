@@ -14,3 +14,4 @@ token.json
 .omc/
 electron-app/.omc/
 skills-lock.json
+.playwright-mcp/

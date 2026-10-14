@@ -1,0 +1,644 @@
+(function () {
+  'use strict';
+
+  const T = window.__TAURI__;
+  const DR = window.DateRange;
+  const $ = (id) => document.getElementById(id);
+  const store = {
+    get: (k, d = null) => { try { return localStorage.getItem('ge_' + k) ?? d; } catch { return d; } },
+    set: (k, v) => { try { localStorage.setItem('ge_' + k, v); } catch { /* private mode */ } },
+  };
+
+  // ── Platform bridge ─────────────────────────────────────────────────────
+  // Every Garmin call goes to the bundled `garmin-core` sidecar; in a plain
+  // browser (design preview) dev-mock.js stands in for it.
+  const platform = T ? {
+    async defaults() {
+      return {
+        outputDir: await T.path.join(await T.path.documentDir(), 'GarminExport'),
+        dataDir: await T.path.appDataDir(),
+      };
+    },
+    version: () => T.app.getVersion(),
+    chooseDir: (defaultPath) => T.dialog.open({ directory: true, defaultPath }),
+    openPath: (p) => T.opener.openPath(p),
+    openUrl: (u) => T.opener.openUrl(u),
+    reveal: (p) => T.opener.revealItemInDir(p),
+    copyText: (t) => T.clipboardManager.writeText(t),
+    run(req, onEvent) {
+      let child = null;
+      let killed = false;
+      const done = new Promise((resolve) => {
+        const cmd = T.shell.Command.sidecar('binaries/garmin-core');
+        let result = null;
+        cmd.stdout.on('data', (line) => {
+          let o;
+          try { o = JSON.parse(String(line).trim()); } catch { return; }
+          if (o.kind === 'result') result = o; else onEvent(o);
+        });
+        cmd.stderr.on('data', (line) => onEvent({ kind: 'log', type: 'dim', msg: String(line).trim() }));
+        cmd.on('error', (e) => resolve({ ok: false, error: String(e) }));
+        cmd.on('close', ({ code }) => resolve(result || {
+          ok: false, cancelled: killed, error: killed ? 'Cancelled.' : `Core exited with code ${code}.`,
+        }));
+        cmd.spawn().then((c) => { child = c; return c.write(JSON.stringify(req) + '\n'); })
+          .catch((e) => resolve({ ok: false, error: String(e) }));
+      });
+      return { done, cancel: () => { killed = true; if (child) child.kill(); } };
+    },
+  } : window.devMock;
+
+  // ── DOM ─────────────────────────────────────────────────────────────────
+  const hero = $('hero'), h1 = $('h1'), h2 = $('h2'), headline = h1.parentElement;
+  const badge = $('badge'), ringN = $('ring-n'), ringL = $('ring-l'), bar = $('progressbar');
+  const cta = $('cta'), ctaLabel = $('cta-label'), ctaKbd = $('cta-kbd');
+  const emailEl = $('email'), passEl = $('password'), eye = $('eye');
+  const rangeSeg = $('range-seg'), rangeField = $('range-field'), rangeRead = $('range-read');
+  const fromEl = $('from'), toEl = $('to'), rangeErr = $('range-err');
+  const refreshSeg = $('refresh-seg'), outBtn = $('out'), outPath = $('out-path');
+  const clearCacheBtn = $('clear-cache'), openOut = $('open-out');
+  const rowsEl = $('rows'), elapsedEl = $('elapsed'), logEl = $('log'), logN = $('log-n');
+  const toastEl = $('toast'), llmBtn = $('llm-btn'), sheet = $('sheet');
+  document.querySelectorAll('.ring .v').forEach((c) => c.setAttribute('pathLength', '100'));
+
+  // ── State ───────────────────────────────────────────────────────────────
+  const PHASES = ['daily', 'aggregated', 'activities', 'csv'];
+  const WEIGHT = { daily: 0.45, aggregated: 0.15, activities: 0.35, csv: 0.05 };
+  const VERB = { auth: 'signing in', daily: 'daily metrics', aggregated: 'aggregates', activities: 'activities', csv: 'building CSVs' };
+  const isMac = /Mac/.test(navigator.platform || navigator.userAgent);
+  let paths = { outputDir: null, dataDir: null };
+  let days = store.get('days', '30');
+  let refresh = store.get('refresh', '3');
+  let running = null;   // { cancel, phase, phases: {}, t0 }
+  let rangeCheck = { ok: true };
+  let lastOutDir = store.get('last_out');
+  let pack = null;
+  let lang = store.get('llm_lang', 'es');
+
+  // ── Helpers ─────────────────────────────────────────────────────────────
+  function toast(msg, ms = 3200) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('on');
+    clearTimeout(toast.t);
+    toast.t = setTimeout(() => toastEl.classList.remove('on'), ms);
+  }
+
+  function setHeadline(a, b) {
+    if (h1.textContent === a && h2.textContent === b) return;
+    headline.classList.add('swap');
+    setTimeout(() => { h1.textContent = a; h2.textContent = b; headline.classList.remove('swap'); }, 160);
+  }
+
+  function countTo(el, to, fmt = (n) => String(Math.round(n))) {
+    const from = parseFloat(el.dataset.v || '0') || 0;
+    el.dataset.v = to;
+    const t0 = performance.now();
+    cancelAnimationFrame(el._raf);
+    const step = (t) => {
+      const k = Math.min(1, (t - t0) / 600);
+      el.textContent = fmt(from + (to - from) * (1 - Math.pow(1 - k, 3)));
+      if (k < 1) el._raf = requestAnimationFrame(step);
+    };
+    el._raf = requestAnimationFrame(step);
+  }
+
+  const clock = (ms) => {
+    const s = Math.floor(ms / 1000);
+    return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+  };
+  const short = (ms) => (ms < 60000 ? (ms / 1000).toFixed(1) + 's' : clock(ms));
+  const tilde = (p) => (p || '').replace(/^\/Users\/[^/]+/, '~');
+  const mean = (xs) => { const v = xs.filter((x) => typeof x === 'number'); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+
+  function selectRadio(group, attr, value) {
+    group.querySelectorAll('[role="radio"]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset[attr] === value)));
+  }
+
+  // ── Range ───────────────────────────────────────────────────────────────
+  function spanDays() {
+    return days === 'custom' ? (rangeCheck.ok ? rangeCheck.spanDays : null) : parseInt(days, 10);
+  }
+
+  function renderRange() {
+    selectRadio(rangeSeg, 'days', days);
+    const custom = days === 'custom';
+    rangeField.toggleAttribute('data-custom', custom);
+    if (custom) {
+      if (!fromEl.value) {
+        const seed = DR.defaultCustomRange({ daysBack: 30 });
+        fromEl.value = store.get('from', seed.startDate);
+        toEl.value = store.get('to', seed.endDate);
+      }
+      rangeCheck = DR.validateRange({ startDate: fromEl.value, endDate: toEl.value, maxSpanDays: 90 });
+      rangeErr.hidden = rangeCheck.ok;
+      rangeErr.textContent = rangeCheck.ok ? '' : rangeCheck.message;
+    } else {
+      rangeCheck = { ok: true };
+      rangeErr.hidden = true;
+      const r = DR.defaultCustomRange({ daysBack: parseInt(days, 10) });
+      rangeRead.textContent = `${r.startDate} → ${r.endDate}`;
+    }
+    renderIdle();
+  }
+
+  function renderIdle() {
+    if (running) return;
+    const n = spanDays();
+    ctaLabel.textContent = n ? `Pull ${n} day${n === 1 ? '' : 's'}` : 'Fix the range';
+    ctaKbd.textContent = isMac ? '⌘ ↵' : 'Ctrl ↵';
+    cta.disabled = !rangeCheck.ok;
+    if (hero.dataset.state === 'idle') setHeadline(n ? `${n} days` : 'Hmm.', n ? 'ready to pull.' : 'check the dates.');
+  }
+
+  rangeSeg.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-days]');
+    if (!b || running) return;
+    days = b.dataset.days;
+    store.set('days', days);
+    if (hero.dataset.state !== 'running') hero.dataset.state = 'idle';
+    renderRange();
+  });
+  [fromEl, toEl].forEach((el) => el.addEventListener('input', () => {
+    store.set('from', fromEl.value);
+    store.set('to', toEl.value);
+    renderRange();
+  }));
+
+  refreshSeg.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-v]');
+    if (!b || running) return;
+    refresh = b.dataset.v;
+    store.set('refresh', refresh);
+    selectRadio(refreshSeg, 'v', refresh);
+  });
+
+  // ── Accent swatches ─────────────────────────────────────────────────────
+  function setAccent(a) {
+    document.documentElement.dataset.accent = a;
+    selectRadio($('swatches'), 'accent', a);
+    store.set('accent', a);
+  }
+  $('swatches').addEventListener('click', (e) => { const b = e.target.closest('[data-accent]'); if (b) setAccent(b.dataset.accent); });
+
+  // ── Setup fields ────────────────────────────────────────────────────────
+  emailEl.value = store.get('email', '');
+  emailEl.addEventListener('change', () => store.set('email', emailEl.value.trim()));
+  eye.addEventListener('click', () => {
+    const show = passEl.type === 'password';
+    passEl.type = show ? 'text' : 'password';
+    eye.textContent = show ? 'hide' : 'show';
+    eye.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+  });
+
+  outBtn.addEventListener('click', async () => {
+    const dir = await platform.chooseDir(paths.outputDir);
+    if (typeof dir === 'string' && dir) {
+      paths.outputDir = dir;
+      outPath.textContent = tilde(dir);
+      store.set('dir', dir);
+    }
+  });
+
+  let armTimer = null;
+  clearCacheBtn.addEventListener('click', async () => {
+    if (!clearCacheBtn.classList.contains('armed')) {
+      clearCacheBtn.classList.add('armed');
+      clearCacheBtn.textContent = 'confirm?';
+      armTimer = setTimeout(disarm, 3000);
+      return;
+    }
+    disarm();
+    const res = await platform.run({ cmd: 'clear-cache', dataDir: paths.dataDir }, () => {}).done;
+    toast(res.ok ? 'Cache cleared.' : res.error);
+  });
+  function disarm() { clearTimeout(armTimer); clearCacheBtn.classList.remove('armed'); clearCacheBtn.textContent = 'clear cache'; }
+  clearCacheBtn.addEventListener('blur', disarm);
+
+  // ── Log ─────────────────────────────────────────────────────────────────
+  const LOG_MAX = 500;
+  const logLines = [];
+  function log(type, msg, ts) {
+    logLines.push({ type, msg: String(msg), ts: ts || new Date().toLocaleTimeString() });
+    if (logLines.length > LOG_MAX) logLines.shift();
+    const d = document.createElement('div');
+    d.className = type || '';
+    const t = document.createElement('time');
+    t.textContent = ts || new Date().toLocaleTimeString();
+    d.append(t, String(msg));
+    logEl.append(d);
+    while (logEl.childElementCount > LOG_MAX) logEl.firstElementChild.remove();
+    logN.textContent = logEl.childElementCount;
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  // ── Run rows + rings ────────────────────────────────────────────────────
+  const row = (p) => rowsEl.querySelector(`[data-phase="${p}"]`);
+  const defaultSubs = {};
+  rowsEl.querySelectorAll('li').forEach((li) => { defaultSubs[li.dataset.phase] = li.querySelector('.sub').textContent; });
+
+  function setRow(p, st, sub, time) {
+    const li = row(p);
+    if (st !== undefined) {
+      if (st) li.dataset.st = st; else delete li.dataset.st;
+    }
+    if (sub !== undefined) { const el = li.querySelector('.sub'); el.textContent = sub; el.title = sub; }
+    if (time !== undefined) li.querySelector('.t').textContent = time;
+  }
+
+  function setRing(p, frac) {
+    hero.querySelector(`.ring[data-phase="${p}"] .v`).style.strokeDashoffset = String(100 - Math.max(0, Math.min(1, frac)) * 100);
+  }
+
+  function resetRun() {
+    rowsEl.querySelectorAll('li').forEach((li) => setRow(li.dataset.phase, null, defaultSubs[li.dataset.phase], '—'));
+    PHASES.forEach((p) => { setRing(p, 0); $('lg-' + p).textContent = '—'; });
+    ringN.dataset.v = 0;
+    ringN.textContent = '—';
+    ringL.textContent = 'standby';
+    elapsedEl.textContent = '00:00';
+    bar.setAttribute('aria-valuenow', '0');
+  }
+
+  function finishPhase(p) {
+    const s = running.phases[p];
+    if (!s || s.end) return;
+    s.end = performance.now();
+    setRow(p, s.warn ? 'warn' : 'ok', undefined, short(s.end - s.start));
+  }
+
+  function enterPhase(p) {
+    const r = running;
+    if (r.phase === p) return;
+    if (r.phase) finishPhase(r.phase);
+    r.phase = p;
+    r.phases[p] = r.phases[p] || { start: performance.now(), frac: 0 };
+    setRow(p, 'run');
+  }
+
+  function overall() {
+    return PHASES.reduce((sum, p) => sum + WEIGHT[p] * (running.phases[p]?.frac || 0), 0);
+  }
+
+  function onProgress({ current, total, phase }) {
+    if (!PHASES.includes(phase) || !total) return;
+    enterPhase(phase);
+    const frac = current / total;
+    running.phases[phase].frac = frac;
+    setRing(phase, frac);
+    $('lg-' + phase).textContent = `${current}/${total}`;
+    const pct = Math.round(overall() * 100);
+    if (phase !== 'csv') { countTo(ringN, current); ringL.textContent = phase; }
+    bar.setAttribute('aria-valuenow', String(pct));
+    setHeadline(`${pct}%`, `pulling ${VERB[phase]}.`);
+  }
+
+  function onLog({ type, msg, ts }) {
+    log(type, msg, ts);
+    if (running?.phase === 'auth' && /^(Loaded saved tokens|Login successful|\[skip\])/.test(msg)) {
+      const skip = msg.startsWith('[skip]');
+      if (!skip) setRow('auth', undefined, msg);
+      enterPhase('daily');
+      if (!skip) return;
+    }
+    const p = running?.phase;
+    if (!p) return;
+    if (type === 'warn') running.phases[p].warn = true;
+    if (type !== 'dim') setRow(p, undefined, msg);
+  }
+
+  // ── Export ──────────────────────────────────────────────────────────────
+  function lock(on) {
+    [emailEl, passEl, eye, outBtn, clearCacheBtn, fromEl, toEl].forEach((el) => { el.disabled = on; });
+    rangeSeg.querySelectorAll('button').forEach((b) => { b.disabled = on; });
+    refreshSeg.querySelectorAll('button').forEach((b) => { b.disabled = on; });
+  }
+
+  async function startExport() {
+    if (running) return;
+    const email = emailEl.value.trim();
+    const password = passEl.value;
+    if (!email || !password) {
+      (email ? passEl : emailEl).focus();
+      toast('Email and password are required.');
+      return;
+    }
+    if (!rangeCheck.ok) { toast(rangeCheck.message); return; }
+
+    const req = {
+      cmd: 'export', email, password, refreshWindow: parseInt(refresh, 10),
+      outputDir: paths.outputDir, dataDir: paths.dataDir,
+      ...(days === 'custom' ? { startDate: fromEl.value, endDate: toEl.value } : { daysBack: parseInt(days, 10) }),
+    };
+    const n = spanDays();
+
+    resetRun();
+    logEl.textContent = '';
+    logLines.length = 0;
+    $('report').hidden = true;
+    log('info', days === 'custom' ? `Range ${fromEl.value} → ${toEl.value}` : `Last ${n} days`);
+    hero.dataset.state = 'running';
+    badge.textContent = 'Running';
+    ctaLabel.textContent = 'Cancel';
+    ctaKbd.textContent = 'esc';
+    openOut.hidden = true;
+    closeSheet();
+    llmBtn.hidden = true;
+    cta.classList.remove('ghost');
+    lock(true);
+    setHeadline('0%', 'signing in.');
+
+    running = { phase: null, phases: {}, t0: performance.now() };
+    enterPhase('auth');
+    const tick = setInterval(() => {
+      const now = performance.now();
+      elapsedEl.textContent = clock(now - running.t0);
+      const s = running.phases[running.phase];
+      if (s && !s.end) row(running.phase).querySelector('.t').textContent = short(now - s.start);
+    }, 250);
+
+    const job = platform.run(req, (e) => (e.kind === 'progress' ? onProgress(e) : e.kind === 'log' && onLog(e)));
+    running.cancel = job.cancel;
+    const res = await job.done;
+    clearInterval(tick);
+    const took = performance.now() - running.t0;
+
+    if (res.ok) {
+      finishPhase(running.phase);
+      PHASES.forEach((p) => {
+        if (!running.phases[p]) setRow(p, 'ok', undefined, '—');
+        setRing(p, 1);
+      });
+      bar.setAttribute('aria-valuenow', '100');
+      hero.dataset.state = 'done';
+      badge.textContent = 'Done';
+      setHeadline(`${n} days`, `done in ${short(took)}.`);
+      log('complete', 'Export complete → ' + res.path);
+      lastOutDir = res.path;
+      store.set('last_out', res.path);
+      if (res.jsonPath) store.set('last_json', res.jsonPath);
+      openOut.hidden = false;
+      if (res.summary) renderSummary(res.summary);
+      pack = res.pack || null;
+      toast('Done. CSVs are in ' + tilde(res.path));
+    } else {
+      if (running.phase) setRow(running.phase, res.cancelled ? 'warn' : 'err', res.error);
+      hero.dataset.state = 'error';
+      badge.textContent = res.cancelled ? 'Cancelled' : 'Failed';
+      setHeadline(res.cancelled ? 'Cancelled.' : 'Stopped.', res.cancelled ? 'cache kept.' : 'see the log.');
+      log('error', res.error || 'Unknown error');
+      if (!res.cancelled) { toast(res.error || 'Export failed.', 6000); showReport(res.error); }
+    }
+    running = null;
+    lock(false);
+    ctaLabel.textContent = 'Pull again';
+    ctaKbd.textContent = isMac ? '⌘ ↵' : 'Ctrl ↵';
+    arrangeCtas(res.ok);
+  }
+
+  function cancelExport() {
+    if (running && running.cancel) running.cancel();
+  }
+
+  $('setup').addEventListener('submit', (e) => { e.preventDefault(); running ? cancelExport() : startExport(); });
+  document.addEventListener('keydown', (e) => {
+    const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName);
+    if (!sheet.hidden) {
+      if (e.key === 'Escape') { e.preventDefault(); closeSheet(); }
+      if ((isMac ? e.metaKey : e.ctrlKey) && e.key === 'c' && !String(getSelection())) { e.preventDefault(); copyContext(); }
+      return;
+    }
+    if ((isMac ? e.metaKey : e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); startExport(); }
+    if (e.key === 'Escape' && running) cancelExport();
+    if (e.key.toLowerCase() === 'l' && !typing && !e.metaKey && !e.ctrlKey && !llmBtn.hidden) { e.preventDefault(); openSheet(); }
+  });
+  openOut.addEventListener('click', () => lastOutDir && platform.openPath(lastOutDir));
+
+  // ── Preview ─────────────────────────────────────────────────────────────
+  function renderSummary(s) {
+    const recent = s.days.slice(-14);
+    const steps = recent.map((d) => d.steps);
+    const max = Math.max(1, ...steps.filter((x) => typeof x === 'number'));
+    const bars = $('steps-bars');
+    bars.textContent = '';
+    recent.forEach((d, i) => {
+      const cell = document.createElement('div');
+      cell.title = `${d.date} · ${d.steps ?? '—'} steps`;
+      const fill = document.createElement('i');
+      fill.style.height = ((d.steps || 0) / max) * 100 + '%';
+      fill.style.animationDelay = i * 30 + 'ms';
+      cell.append(fill);
+      bars.append(cell);
+    });
+    const avg = mean(steps);
+    countTo($('steps-total'), avg || 0, (n) => Math.round(n).toLocaleString());
+    $('steps-range').textContent = recent.length ? `${recent[0].date.slice(5)} → ${recent.at(-1).date.slice(5)}` : '';
+
+    const week = s.days.slice(-7);
+    const score = mean(week.map((d) => d.sleepScore));
+    $('sleep-donut').style.setProperty('--p', score || 0);
+    countTo($('sleep-score'), score || 0);
+    const sec = mean(week.map((d) => d.sleepSec));
+    $('st-sleep').textContent = sec ? `${Math.floor(sec / 3600)}h ${String(Math.round((sec % 3600) / 60)).padStart(2, '0')}m` : '—';
+    const rhr = mean(week.map((d) => d.rhr));
+    $('st-rhr').textContent = rhr ? Math.round(rhr) + ' bpm' : '—';
+    const hrv = mean(week.map((d) => d.hrv));
+    $('st-hrv').textContent = hrv ? Math.round(hrv) + ' ms' : '—';
+
+    document.querySelectorAll('.preview').forEach((el) => el.removeAttribute('data-empty'));
+  }
+
+  async function loadLastSummary() {
+    document.querySelectorAll('.preview').forEach((el) => el.setAttribute('data-empty', ''));
+    const jsonPath = store.get('last_json');
+    if (!jsonPath) return;
+    const res = await platform.run({ cmd: 'summary', jsonPath, csvDir: lastOutDir }, () => {}).done;
+    if (res.ok && res.summary) renderSummary(res.summary);
+    pack = (res.ok && res.pack) || null;
+    arrangeCtas(false);
+  }
+
+  // ── LLM pack ────────────────────────────────────────────────────────────
+  // The sidecar writes CONTEXT.<lang>.md + garmin_<range>.<lang>.md after every
+  // export; this sheet only copies / reveals them.
+  const STR = {
+    es: {
+      h1: 'Pásaselo a un LLM.', sub: (p) => `${p.days} días · ${p.files.length} archivos.`,
+      fits: 'cabe en Claude · 200k', over: 'excede 200k · usa los CSV sueltos', note: 'solo contexto, sin pedido',
+      ctx: 'Copiar contexto + ver archivos', ctxS: 'pega el texto, arrastra los CSV', one: 'Copiar como un archivo',
+      open: 'abrir', reveal: 'mostrar en Finder', copied: 'Copiado ✓', files: 'Archivos en la carpeta',
+      tCtx: 'Contexto copiado. Pégalo en el chat y arrastra los CSV.', tOne: 'Archivo copiado. Pégalo en el chat: entra como adjunto.',
+      emptyH: 'aún no hay paquete.', empty: 'Este export es anterior al LLM pack. Haz "Pull again" para generarlo.',
+    },
+    en: {
+      h1: 'Hand it to an LLM.', sub: (p) => `${p.days} days · ${p.files.length} files.`,
+      fits: 'fits Claude · 200k', over: 'over 200k · use the loose CSVs', note: 'context only, no ask',
+      ctx: 'Copy context + show files', ctxS: 'paste the text, drag the CSVs', one: 'Copy as one file',
+      open: 'open', reveal: 'show in Finder', copied: 'Copied ✓', files: 'Files in the folder',
+      tCtx: 'Context copied. Paste it in the chat and drag the CSVs.', tOne: 'File copied. Paste it in the chat; it lands as an attachment.',
+      emptyH: 'no pack yet.', empty: 'This export predates the LLM pack. Hit "Pull again" to build one.',
+    },
+  };
+  const CONTEXT_WINDOW = 200000;
+  const others = () => document.querySelectorAll('.setup, .tasks, .preview');
+
+  function arrangeCtas(justFinished) {
+    llmBtn.hidden = !lastOutDir;
+    const llmFirst = justFinished && !!pack;
+    llmBtn.classList.toggle('ghost', !llmFirst);
+    cta.classList.toggle('ghost', llmFirst);
+  }
+
+  function renderSheet() {
+    const t = STR[lang];
+    selectRadio($('lang-seg'), 'lang', lang);
+    $('sh-h1').textContent = t.h1;
+    sheet.toggleAttribute('data-empty', !pack);
+    const empty = $('sh-empty');
+    empty.hidden = !!pack;
+    if (!pack) { $('sh-h2').textContent = t.emptyH; empty.textContent = t.empty; return; }
+    const L = pack.langs[lang] || pack.langs.es;
+    $('sh-h2').textContent = t.sub(pack);
+    const over = pack.tokens > CONTEXT_WINDOW;
+    $('ctx-meter').classList.toggle('over', over);
+    requestAnimationFrame(() => { $('ctx-fill').style.width = Math.min(100, (pack.tokens / CONTEXT_WINDOW) * 100) + '%'; });
+    $('ctx-tokens').textContent = `≈ ${Math.round(pack.tokens / 1000)}k tokens`;
+    $('ctx-kb').textContent = `${Math.round(pack.bytes / 1024)} KB`;
+    $('ctx-fit').textContent = over ? t.over : t.fits;
+    $('ctx-name').textContent = L.contextPath.split('/').pop();
+    $('ctx-note').textContent = t.note;
+    const pre = $('ctx-pre');
+    pre.textContent = '';
+    for (const line of L.context.split('\n')) {
+      const el = document.createElement(line.startsWith('#') ? 'b' : 'span');
+      el.textContent = line + '\n';
+      pre.append(el);
+    }
+    const files = $('files');
+    files.textContent = '';
+    const lbl = document.createElement('span');
+    lbl.className = 'lbl2';
+    lbl.textContent = t.files;
+    files.append(lbl);
+    for (const f of pack.files) {
+      const chip = document.createElement('span');
+      const n = document.createElement('em');
+      n.textContent = f.rows;
+      chip.append(f.name.replace(/\.csv$/, ''), n);
+      files.append(chip);
+    }
+    $('copy-ctx-l').textContent = t.ctx;
+    $('copy-ctx-s').textContent = t.ctxS;
+    $('copy-one-l').textContent = t.one;
+    $('copy-one-s').textContent = L.singlePath.split('/').pop();
+    $('open-l').textContent = t.open;
+    $('reveal-one').textContent = t.reveal;
+  }
+
+  function openSheet() {
+    if (running || !lastOutDir) return;
+    renderSheet();
+    sheet.hidden = false;
+    others().forEach((el) => { el.inert = true; });
+    (pack ? $('copy-ctx') : $('sheet-x')).focus();
+  }
+
+  function closeSheet() {
+    if (sheet.hidden) return;
+    sheet.hidden = true;
+    others().forEach((el) => { el.inert = false; });
+    $('ctx-fill').style.width = '0';
+    llmBtn.focus();
+  }
+
+  async function copyFlow(btn, text, after, msg) {
+    try {
+      await platform.copyText(text);
+      after();
+      const label = btn.querySelector('.stack > span');
+      const prev = label.textContent;
+      label.textContent = STR[lang].copied;
+      btn.classList.add('ok');
+      setTimeout(() => { label.textContent = prev; btn.classList.remove('ok'); }, 1500);
+      toast(msg);
+    } catch (err) {
+      toast('Copy failed: ' + (err?.message || err));
+    }
+  }
+
+  const L = () => pack.langs[lang] || pack.langs.es;
+  function copyContext() {
+    if (!pack) return;
+    copyFlow($('copy-ctx'), L().context, () => platform.openPath(pack.csvDir), STR[lang].tCtx);
+  }
+  $('copy-ctx').addEventListener('click', copyContext);
+  $('copy-one').addEventListener('click', () => pack && copyFlow($('copy-one'), L().single, () => platform.reveal(L().singlePath), STR[lang].tOne));
+  $('reveal-one').addEventListener('click', () => pack && platform.reveal(L().singlePath));
+  sheet.querySelectorAll('[data-url]').forEach((b) => b.addEventListener('click', () => platform.openUrl(b.dataset.url)));
+  $('lang-seg').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-lang]');
+    if (!b) return;
+    lang = b.dataset.lang;
+    store.set('llm_lang', lang);
+    renderSheet();
+  });
+  llmBtn.addEventListener('click', openSheet);
+  $('sheet-x').addEventListener('click', closeSheet);
+
+  // ── Bug report ──────────────────────────────────────────────────────────
+  // The sidecar scrubs secrets / emails / home paths and builds both links.
+  let reportLinks = null;
+  async function showReport(error) {
+    const res = await platform.run({
+      cmd: 'report', error, log: logLines, version,
+      os: navigator.userAgent.match(/Mac OS X [\d_]+/)?.[0]?.replace(/_/g, '.') || navigator.platform,
+    }, () => {}).done;
+    if (!res.ok) return;
+    reportLinks = res;
+    $('report').hidden = false;
+  }
+  $('report-gh').addEventListener('click', () => reportLinks && platform.openUrl(reportLinks.issueUrl));
+  $('report-mail').addEventListener('click', () => reportLinks && platform.openUrl(reportLinks.mailtoUrl));
+
+  // ── Version + update check ──────────────────────────────────────────────
+  const verEl = $('ver');
+  let version = '';
+  async function checkUpdate() {
+    if (verEl.dataset.url) return platform.openUrl(verEl.dataset.url);
+    verEl.textContent = 'checking…';
+    try {
+      const r = await fetch('https://api.github.com/repos/danihrndzld/garmin-health-exporter/releases/latest', { signal: AbortSignal.timeout(8000) });
+      if (!r.ok) throw new Error('GitHub ' + r.status);
+      const data = await r.json();
+      const latest = String(data.tag_name || '').replace(/^v/, '');
+      if (latest && latest.localeCompare(version, undefined, { numeric: true }) > 0) {
+        verEl.textContent = `v${latest} ↗`;
+        verEl.classList.add('new');
+        verEl.dataset.url = data.html_url;
+      } else {
+        verEl.textContent = `v${version} ✓`;
+        setTimeout(() => { verEl.textContent = 'v' + version; }, 2500);
+      }
+    } catch (err) {
+      verEl.textContent = 'v' + version;
+      toast('Update check failed: ' + err.message);
+    }
+  }
+  verEl.addEventListener('click', checkUpdate);
+  verEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); checkUpdate(); } });
+
+  // ── Boot ────────────────────────────────────────────────────────────────
+  (async function boot() {
+    setAccent(store.get('accent', 'volt'));
+    selectRadio(refreshSeg, 'v', refresh);
+    resetRun();
+    renderRange();
+    paths = await platform.defaults();
+    const savedDir = store.get('dir');
+    if (savedDir) paths.outputDir = savedDir;
+    outPath.textContent = tilde(paths.outputDir);
+    version = await platform.version();
+    verEl.textContent = 'v' + version;
+    if (lastOutDir) openOut.hidden = false;
+    loadLastSummary();
+  })();
+})();

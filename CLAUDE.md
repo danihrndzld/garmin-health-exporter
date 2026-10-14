@@ -38,6 +38,8 @@ Legacy Python scripts at the repo root (`garmin_health_export.py`, `download_act
 
 ## Project Context (non-WAT)
 
+- `tauri-app/` is the Tauri 2 rewrite (v4.0.0, not yet released). Vanilla HTML/CSS/JS in `tauri-app/ui/` (no bundler); the Garmin core stays in `electron-app/garmin/` and ships as the `garmin-core` sidecar (`bun build --compile tauri-app/sidecar/cli.js`). Sidecar protocol: one JSON request line on stdin (password never in argv), JSON lines out (`log` / `progress` / `result`). The sidecar is the trust boundary: range, refresh window and `$HOME` containment are validated there. Dev: `(cd electron-app && npm install) && cd tauri-app && bun install && bun run dev` (the sidecar build reads `electron-app/node_modules/sql.js` and `electron-app/renderer/date-range.js`); build: `bun run build`. Preview the UI in a plain browser via `ui/dev-mock.js` (`python3 -m http.server -d tauri-app/ui`). `ci_pipeline.py` / `release.py` still target `electron-app/` only.
+- LLM pack (`tauri-app/sidecar/llm-pack.js`, test: `bun test sidecar`): after every export the sidecar writes `CONTEXT.{es,en}.md` (data description only, no analysis ask) and `garmin_<start>_<end>.{es,en}.md` (context + all CSVs inline) into the `csv_*` folder. Units are inferred from column-name suffixes in `UNITS`; check new columns there. The raw JSON is never packed (a 60-day export is ~38 MB, over Claude's 30 MB upload cap).
 - `electron-app/` is the current shipped product (Electron, Node 18+, electron-builder).
 - Tests use Node's built-in `node:test` in `electron-app/**/__tests__/*.test.js`. No Jest / Mocha.
 - Build output: `electron-app/dist/*.dmg` and `electron-app/dist/mac*/*.app`.

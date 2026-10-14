@@ -159,8 +159,10 @@ function readSchemaVersion(db) {
 async function initCache(dbPath) {
   const initSqlJs = require('sql.js');
 
+  // GARMIN_SQL_WASM lets a compiled sidecar (bun --compile) point at its embedded copy.
   const wasmBinary = fs.readFileSync(
-    path.join(path.dirname(require.resolve('sql.js')), 'sql-wasm.wasm')
+    process.env.GARMIN_SQL_WASM ||
+      path.join(path.dirname(require.resolve('sql.js')), 'sql-wasm.wasm')
   );
 
   const SQL = await initSqlJs({ wasmBinary });
