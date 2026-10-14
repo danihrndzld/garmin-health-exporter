@@ -12,7 +12,7 @@
 
 **[Download the latest version](https://github.com/danihrndzld/garmin-health-exporter/releases/latest)**
 
-[What it exports](#what-it-exports) | [Install](#install) | [First export](#first-export) | [Give the data to an LLM](#give-the-data-to-an-llm) | [Questions](#questions) | [Build it yourself](#build-it-yourself)
+[What it exports](#what-it-exports) | [Install](#install) | [First export](#first-export) | [Give the data to an LLM](#give-the-data-to-an-llm) | [MyFitnessPal](#add-your-myfitnesspal-food-diary) | [Questions](#questions) | [Build it yourself](#build-it-yourself)
 
 <br>
 
@@ -84,6 +84,20 @@ Each folder holds the data once, so you can drag the whole folder without sendin
 
 The raw JSON is never part of the pack, because a 60 day export is about 38 MB, and Claude accepts files up to 30 MB. The CSV files for a 90 day export are about 350 KB, which is about 120,000 tokens.
 
+## Add your MyFitnessPal food diary
+
+After each Garmin export, the app can also download your food diary from MyFitnessPal and write it next to the Garmin files, so that an LLM can relate what you ate to your sleep, HRV, training, and weight. In the Setup card, click Connect on the MyFitnessPal row, and sign in on MyFitnessPal's own page in a window of the app. The app never sees your MyFitnessPal password, and it only keeps the session that MyFitnessPal gives the window, in a file that only your user can read. Signing in with Google or Apple may not work in that window, but email and password should. The Include switch turns the download on or off for each export, and Disconnect deletes the saved session.
+
+The export adds three files to the `csv_*` folder, and every file uses the date as `YYYY-MM-DD`, the same as the Garmin files, so an LLM can join them by date.
+
+- `mfp_food.csv` has one row for each food you logged, with the meal, the time, the serving, and the nutrients.
+- `mfp_daily.csv` has one row for every day in the range, with the totals, your goals, and the exercise calories that you logged in MyFitnessPal.
+- `mfp_exercise.csv` has one row for each exercise you logged in MyFitnessPal, and it can repeat exercise that Garmin already recorded.
+
+A day without any food logged has `logged=no` and empty totals, which means that you didn't log, and it doesn't mean that you didn't eat. The LLM pack describes the three files and counts the days with a food log.
+
+MyFitnessPal has no public API and doesn't accept new API partners. The app uses the same private API as MyFitnessPal's website, and MyFitnessPal's terms don't allow automated access, so you use this at your own risk and only with your own account. The app only reads your diary, it makes one request per second, and it stops at the first rate limit answer. It can stop working when MyFitnessPal changes its site or its bot detection. When that happens, the Run card shows "MFP skipped" with the reason, and the Garmin export is not affected. When your session expires, the row changes to Reconnect.
+
 ## Questions
 
 <details>
@@ -140,7 +154,7 @@ Clear cache deletes the local copy of downloaded days, so the next export downlo
 <details>
 <summary>Requirements, build, and tests</summary>
 
-You need Node.js 18 or later, Bun, Rust, and the Xcode command line tools. The Garmin code lives in `electron-app/garmin`, so install its packages first, and then run the app from `tauri-app`.
+You need Node.js 18 or later, Bun, Rust, Go 1.24 or later, and the Xcode command line tools. The Garmin code lives in `electron-app/garmin`, so install its packages first, and then run the app from `tauri-app`.
 
 ```sh
 git clone https://github.com/danihrndzld/garmin-health-exporter.git
@@ -153,11 +167,12 @@ bun run dev
 
 `bun run build` makes an app and a DMG for your own Mac. `bun run release` makes a universal app and DMG, and it needs the `aarch64-apple-darwin` and `x86_64-apple-darwin` Rust targets, which you can add with `rustup target add`.
 
-To run the tests, use the commands below. Most tests run the real sign in, client, cache and CSV code against a local server that imitates Garmin, so they never contact Garmin. The CSV output is compared byte by byte with the files in `electron-app/garmin/__tests__/golden`, and `tauri-app/sidecar/e2e.test.js` runs the sidecar the way the app does.
+To run the tests, use the commands below. Most tests run the real sign in, client, cache and CSV code against a local server that imitates Garmin, so they never contact Garmin. The CSV output is compared byte by byte with the files in `electron-app/garmin/__tests__/golden`, and `tauri-app/sidecar/e2e.test.js` runs the sidecar the way the app does. The Go tests in `tauri-app/core` run against a local server that imitates MyFitnessPal.
 
 ```sh
 (cd electron-app && npm test)
 (cd tauri-app && bun test sidecar)
+(cd tauri-app && bun run test:core)
 ```
 
 When a change to the CSV files is intended, rebuild the golden files with `UPDATE_GOLDEN=1 node --test garmin/__tests__/regression.test.js` and check the diff. The test fixture comes from a real export through `npm run fixture -- <garmin_health_*.json> <out.json>`, which removes ids, names and GPS, moves the dates by a random amount and changes every number by a random amount up to 30 percent.
@@ -169,6 +184,7 @@ When a change to the CSV files is intended, rebuild the golden files with `UPDAT
 
 - `tauri-app/ui` holds the window, written in plain HTML, CSS, and JavaScript with no build step. `ui/dev-mock.js` lets you open `index.html` in a browser with fake data.
 - `tauri-app/sidecar` holds `garmin-core`, a small program compiled with `bun build --compile`. The window starts it for each export and sends one JSON request on its standard input, so your password never appears in the process list. `garmin-core` checks the range, the refresh window, and the output folder before it does anything.
+- `tauri-app/core` holds `garmin-export-core`, a Go program that the window starts after the Garmin export to download the MyFitnessPal diary. It uses the session file that the window saved, and it never opens the Garmin cache.
 - `electron-app/garmin` holds the Garmin sign in, the API client, the SQLite cache, and the CSV writer. The 3.x Electron app in `electron-app` still uses the same code.
 - `garmin_health_export.py`, `json_to_csv.py`, and `download_activity_details.py` are the original Python scripts, which you can run with `uv run`. The app doesn't use them.
 
