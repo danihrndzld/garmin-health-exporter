@@ -56,6 +56,9 @@ func NewClient(s *Session, opts Options) *Client {
 	if opts.HTTP == nil {
 		opts.HTTP = &http.Client{Timeout: 30 * time.Second}
 	}
+	if opts.Gap == 0 && opts.Base == "" && FakeServer() == "" {
+		opts.Gap = time.Second // the real MFP: at least 1 s between requests
+	}
 	return &Client{sess: s, opts: opts}
 }
 
@@ -89,7 +92,8 @@ func (c *Client) do(ctx context.Context, u string, api bool) (*http.Response, []
 			return nil, nil, ctx.Err()
 		}
 	}
-	c.lastCall = time.Now()
+	// The pause counts from the end of the previous request, once its body is read.
+	defer func() { c.lastCall = time.Now() }()
 	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
 	if err != nil {
 		return nil, nil, err
@@ -195,7 +199,10 @@ func (c *Client) Goals(ctx context.Context, date string) (Goals, error) {
 			} `json:"default_goal"`
 		} `json:"items"`
 	}
-	if json.Unmarshal(body, &out) != nil || len(out.Items) == 0 {
+	if err := json.Unmarshal(body, &out); err != nil {
+		return Goals{}, fmt.Errorf("goals for %s are not valid JSON", date)
+	}
+	if len(out.Items) == 0 {
 		return Goals{}, nil
 	}
 	d := out.Items[0].Default

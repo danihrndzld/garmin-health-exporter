@@ -59,6 +59,10 @@ func (s *Session) Save(path string) error {
 func (s *Session) Merge(set []*http.Cookie) bool {
 	changed := false
 	for _, nc := range set {
+		// An empty value or a deletion (MaxAge < 0) never blanks a stored cookie.
+		if nc.Value == "" || nc.MaxAge < 0 {
+			continue
+		}
 		found := false
 		for i := range s.Cookies {
 			if s.Cookies[i].Name == nc.Name {
@@ -72,8 +76,15 @@ func (s *Session) Merge(set []*http.Cookie) bool {
 				}
 			}
 		}
-		if !found && nc.Value != "" {
-			s.Cookies = append(s.Cookies, Cookie{Name: nc.Name, Value: nc.Value, Domain: ".myfitnesspal.com", Path: "/", Expires: nc.Expires.Unix()})
+		if !found {
+			var exp int64 // 0 means a session cookie
+			switch {
+			case nc.MaxAge > 0:
+				exp = time.Now().Add(time.Duration(nc.MaxAge) * time.Second).Unix()
+			case !nc.Expires.IsZero():
+				exp = nc.Expires.Unix()
+			}
+			s.Cookies = append(s.Cookies, Cookie{Name: nc.Name, Value: nc.Value, Domain: ".myfitnesspal.com", Path: "/", Expires: exp})
 			changed = true
 		}
 		if nc.Name == sessionCookie && !nc.Expires.IsZero() {

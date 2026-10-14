@@ -19,6 +19,7 @@ type Server struct {
 	Diary401Once bool   // answer the next diary request with 401
 	SetCookie    string // Set-Cookie header sent with auth_token, to test rotation
 	mu           sync.Mutex
+	userAgents   []string
 	srv          *httptest.Server
 }
 
@@ -96,6 +97,14 @@ func (s *Server) record(r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.Calls = append(s.Calls, r.URL.Path+"?"+r.URL.RawQuery)
+	s.userAgents = append(s.userAgents, r.UserAgent())
+}
+
+// Agents returns the User-Agent of every request, in order.
+func (s *Server) Agents() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.userAgents...)
 }
 
 func (s *Server) Close() { s.srv.Close() }
