@@ -4,11 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "sidecar": "cp ../electron-app/renderer/date-range.js ui/ && bun build --compile sidecar/cli.js --outfile src-tauri/binaries/garmin-core-$(rustc -vV | awk '/host/{print $2}')",
+    "core": "cd core && CGO_ENABLED=0 go build -trimpath -ldflags '-s -w' -o ../src-tauri/binaries/garmin-export-core-$(rustc -vV | awk '/host/{print $2}') ./cmd/garmin-export-core",
+    "core:universal": "cd core && for a in arm64:aarch64 amd64:x86_64; do CGO_ENABLED=0 GOOS=darwin GOARCH=${a%%:*} go build -trimpath -ldflags '-s -w' -o ../src-tauri/binaries/garmin-export-core-${a##*:}-apple-darwin ./cmd/garmin-export-core || exit 1; done && lipo -create -output ../src-tauri/binaries/garmin-export-core-universal-apple-darwin ../src-tauri/binaries/garmin-export-core-aarch64-apple-darwin ../src-tauri/binaries/garmin-export-core-x86_64-apple-darwin",
+    "test:core": "cd core && go vet ./... && go test ./...",
+    "sidecar": "cp ../electron-app/renderer/date-range.js ui/ && bun build --compile sidecar/cli.js --outfile src-tauri/binaries/garmin-core-$(rustc -vV | awk '/host/{print $2}') && bun run core",
     "dev": "tauri dev",
     "build": "tauri build",
     "tauri": "tauri",
-    "sidecar:universal": "cp ../electron-app/renderer/date-range.js ui/ && for a in arm64:aarch64 x64-baseline:x86_64; do bun build --compile --target=bun-darwin-${a%%:*} sidecar/cli.js --outfile src-tauri/binaries/garmin-core-${a##*:}-apple-darwin || exit 1; done && lipo -create -output src-tauri/binaries/garmin-core-universal-apple-darwin src-tauri/binaries/garmin-core-aarch64-apple-darwin src-tauri/binaries/garmin-core-x86_64-apple-darwin",
+    "sidecar:universal": "cp ../electron-app/renderer/date-range.js ui/ && for a in arm64:aarch64 x64-baseline:x86_64; do bun build --compile --target=bun-darwin-${a%%:*} sidecar/cli.js --outfile src-tauri/binaries/garmin-core-${a##*:}-apple-darwin || exit 1; done && lipo -create -output src-tauri/binaries/garmin-core-universal-apple-darwin src-tauri/binaries/garmin-core-aarch64-apple-darwin src-tauri/binaries/garmin-core-x86_64-apple-darwin && bun run core:universal",
     "release": "bun run sidecar:universal && tauri build --target universal-apple-darwin --config '{\"build\":{\"beforeBuildCommand\":\"\"}}'"
   },
   "devDependencies": {

@@ -127,6 +127,8 @@ async function clearCache(req) {
   cache.clearAll();
   cache.save();
   cache.close();
+  // The Go core keeps MyFitnessPal days as JSON files next to the Garmin cache.
+  fs.rmSync(path.join(resolveDataDir(req.dataDir), 'mfp-cache'), { recursive: true, force: true });
   return { ok: true };
 }
 
