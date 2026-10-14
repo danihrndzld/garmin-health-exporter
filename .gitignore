@@ -16,3 +16,5 @@ electron-app/.omc/
 skills-lock.json
 .playwright-mcp/
 reportes-pruebas/
+.worktrees/
+.superpowers/
