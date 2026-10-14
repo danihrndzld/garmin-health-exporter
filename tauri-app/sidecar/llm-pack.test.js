@@ -46,3 +46,15 @@ test('buildPack writes one language per subfolder with no duplicated data', () =
   expect(fs.existsSync(path.join(a.dir, 'stale.txt'))).toBe(false);
   expect(() => buildPack({ ...opts(dir), lang: 'fr', mode: 'files' })).toThrow();
 });
+
+test('MyFitnessPal files get descriptions, units and the logged days line', () => {
+  const dir = exportDir();
+  fs.writeFileSync(path.join(dir, 'mfp_daily.csv'), 'date,logged,meals_logged,foods_logged,energy_kcal,protein_g\n2026-05-11,yes,2,4,1800,120\n2026-05-12,no,0,0,,\n2026-05-13,yes,3,6,2100,140\n');
+  fs.writeFileSync(path.join(dir, 'mfp_food.csv'), 'date,meal,description,grams,energy_kcal,sodium_mg,calcium_pct_dv\n2026-05-11,Breakfast,Oats,40,150,2,2\n');
+  const p = previewPack(opts(dir));
+  const en = p.langs.en.context, es = p.langs.es.context;
+  expect(en).toContain('MyFitnessPal: food logged on 2 of 3 days. Days with logged=no have no data, which does not mean that the person did not eat. Join with the Garmin files by date.');
+  expect(es).toContain('MyFitnessPal: comida registrada en 2 de 3 días.');
+  for (const c of ['energy_kcal (kcal)', 'protein_g (g)', 'sodium_mg (mg)', 'grams (g)', 'calcium_pct_dv (% DV)']) expect(en).toContain(c);
+  expect(en).toContain('Food diary from MyFitnessPal, one row per food');
+});

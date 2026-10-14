@@ -30,9 +30,13 @@ const DESCRIBE = {
   caminar_laps: ['Vueltas (laps) de cada caminata', 'Laps of each walk'],
   correr_laps: ['Vueltas (laps) de cada carrera', 'Laps of each run'],
   gym_laps: ['Series / vueltas de cada sesión de gimnasio', 'Sets / laps of each gym session'],
+  mfp_food: ['Diario de comida de MyFitnessPal, una fila por alimento: comida del día, hora, porción y nutrientes', 'Food diary from MyFitnessPal, one row per food: meal, time, serving and nutrients'],
+  mfp_daily: ['MyFitnessPal por día: si hay registro, totales, metas y calorías de ejercicio registradas en MFP', 'MyFitnessPal per day: whether food was logged, totals, goals and exercise calories logged in MFP'],
+  mfp_exercise: ['Ejercicio registrado en MyFitnessPal; puede repetir ejercicio que Garmin ya tiene', 'Exercise logged in MyFitnessPal; it can repeat exercise that Garmin already has'],
 };
 
 const UNITS = [
+  [/_kcal(_mfp)?$/, 'kcal'], [/_g$|^grams$/, 'g'], [/_mg$/, 'mg'], [/_min$/, 'min'], [/_pct_dv$/, '% DV'],
   [/TimeInZone/, 's'], [/SpO2HR/i, 'bpm'],
   [/Milliseconds$|InMilliseconds$/i, 'ms'], [/Seconds$|InSeconds$|^duration$|Duration$/, 's'],
   [/Meters$|^distance$|Distance$/, 'm'], [/Kilocalories$|^calories$|Calories$/, 'kcal'],
@@ -46,11 +50,13 @@ const T = {
     title: '# Datos de Garmin Connect', range: 'Rango', days: 'días', exported: 'Exportado',
     note: 'Cada archivo es un CSV con encabezado. Fechas locales en formato YYYY-MM-DD. Nombres de columnas tal como los entrega Garmin; la unidad va entre paréntesis.',
     files: '## Archivos', rows: 'filas', cols: 'Columnas', missing: '## Faltantes y avisos', none: '- Ninguno.',
+    mfp: (n, total) => `MyFitnessPal: comida registrada en ${n} de ${total} días. Los días con logged=no no tienen datos, lo que no significa que la persona no comió. Une con los archivos de Garmin por fecha.`,
   },
   en: {
     title: '# Garmin Connect data', range: 'Range', days: 'days', exported: 'Exported',
     note: 'Each file is a CSV with a header row. Local dates as YYYY-MM-DD. Column names are as Garmin returns them; the unit is in parentheses.',
     files: '## Files', rows: 'rows', cols: 'Columns', missing: '## Missing data and warnings', none: '- None.',
+    mfp: (n, total) => `MyFitnessPal: food logged on ${n} of ${total} days. Days with logged=no have no data, which does not mean that the person did not eat. Join with the Garmin files by date.`,
   },
 };
 
@@ -86,6 +92,12 @@ export function buildContext({ lang, startDate, endDate, exportedAt, tz, files, 
     const span = f.first ? `, ${f.first} → ${f.last}` : '';
     out.push(`- \`${f.name}\`: ${desc}. ${f.rows} ${t.rows}${span}.`);
     out.push(`  ${t.cols}: ${f.header.map((c) => (unitOf(c) ? `${c} (${unitOf(c)})` : c)).join(', ')}`);
+  }
+  const daily = files.find((f) => f.name === 'mfp_daily.csv');
+  if (daily) {
+    const rows = daily.text.split(/\r?\n/).slice(1).filter(Boolean);
+    const logged = rows.filter((r) => r.split(',')[1] === 'yes').length;
+    out.push('', t.mfp(logged, rows.length));
   }
   out.push('', t.missing, ...(warnings.length ? warnings.map((w) => `- ${w}`) : [t.none]));
   return out.join('\n') + '\n';
