@@ -16,7 +16,7 @@
 
 <br>
 
-<img src="docs/images/export-done.png" alt="The Garmin Export window after a 30 day export, with a dark panel of progress rings on the left, the setup and run cards in the middle, and step and sleep charts on the right" width="900">
+<img src="docs/images/garmin-export.png" alt="The Garmin Export window after a 90 day export, with progress rings on the left and the LLM pack panel on the right, showing an English context file, a token meter at 119k tokens, and 18 CSV files" width="900">
 
 </div>
 
@@ -69,6 +69,10 @@ You only do this once for each version. To check for a new version, click the ve
 
 After the first sign in, the app keeps the Garmin login tokens in its Application Support folder, so later exports skip the password step until the tokens expire. Downloaded days are also kept in a local cache, so a second export of the same range only asks Garmin for the newest days.
 
+<div align="center">
+<img src="docs/images/export-done.png" alt="The main Garmin Export window, with progress rings on the left, the setup and run cards in the middle, and step and sleep charts on the right" width="900">
+</div>
+
 ## Give the data to an LLM
 
 After each export, the app writes four Markdown files into the CSV folder, in Spanish and in English.
@@ -82,10 +86,6 @@ Press L, or click LLM pack, to open the pack panel. The panel shows an estimate 
 2. Copy as one file copies the single Markdown file, and it selects the file in Finder.
 
 The panel also has links that open claude.ai, chatgpt.com, and gemini.google.com. The raw JSON is never part of the pack, because a 60 day export is about 38 MB, and Claude accepts files up to 30 MB. The CSV files for the same 60 days are about 240 KB.
-
-<div align="center">
-<img src="docs/images/llm-pack.png" alt="The LLM pack panel, with a Spanish context preview, a token meter, a list of CSV files, and buttons to copy the context or one combined file" width="900">
-</div>
 
 ## Questions
 
