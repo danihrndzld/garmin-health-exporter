@@ -64,16 +64,23 @@
         await sleep(300);
         onEvent({ kind: 'log', type: 'warn', msg: '[skip] endurance_score: Empty response body [endurance_score] — Garmin returned HTTP 204 with no content. Usually no data for that day yet (the watch has not synced) or a metric this device does not record.', ts: ts() });
         await sleep(300);
-        const plan = [['daily', 22], ['aggregated', 12], ['activities', 41], ['csv', 1]];
-        for (const [phase, total] of plan) {
+        // Same log lines as electron-app/garmin/exporter.js, in the same order around the progress events.
+        // localStorage.mock_acts = '0' reproduces a range with no activities (no activities progress at all).
+        const nDays = req.daysBack || 22, nActs = Number(localStorage.getItem('mock_acts') ?? 41);
+        const say = (type, msg) => onEvent({ kind: 'log', type, msg, ts: ts() });
+        const plan = [['daily', nDays, `Pulling ${nDays} days`], ['aggregated', 12, 'Pulling aggregated metrics...'], ['activities', nActs, 'Pulling activities...'], ['csv', 1, 'JSON saved: /Users/you/Documents/GarminExport/garmin_health.json']];
+        for (const [phase, total, opening] of plan) {
+          say(phase === 'csv' ? 'success' : 'info', opening);
+          if (phase === 'activities') say('info', `Found ${total} activities`);
           for (let i = 1; i <= total; i++) {
             if (cancelled) return { ok: false, cancelled: true, error: 'Cancelled.' };
             onEvent({ kind: 'progress', phase, current: i, total });
-            if (phase === 'aggregated' && i === 9) onEvent({ kind: 'log', type: 'warn', msg: 'hill_score skipped (404)', ts: ts() });
+            if (phase === 'aggregated' && i === 9) say('warn', 'hill_score skipped (404)');
             await sleep(phase === 'activities' ? 70 : 110);
           }
-          onEvent({ kind: 'log', type: 'success', msg: `${phase} · ${total} done`, ts: ts() });
         }
+        say('success', 'CSVs written to /Users/you/Documents/GarminExport/csv_2026-10-13');
+        say('success', `Done. ${nDays} days | ${nActs} activities`);
         return { ok: true, path: '/Users/you/Documents/GarminExport/csv_2026-10-13', jsonPath: '/Users/you/x.json', summary: fakeSummary(), pack: fakePack() };
       })();
       return { done, cancel: () => { cancelled = true; } };

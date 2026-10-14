@@ -262,11 +262,21 @@
     bar.setAttribute('aria-valuenow', '0');
   }
 
+  // What a finished row says; null keeps the last line (auth: "Loaded saved tokens").
+  const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+  const SUMMARY = {
+    daily: (s) => s.total && plural(s.total, 'day'),
+    aggregated: (s) => s.total && plural(s.total, 'metric'),
+    activities: (s) => { const n = s.count ?? s.total ?? 0; return n === 0 ? 'No activities' : n === 1 ? '1 activity' : `${n} activities`; },
+    csv: (s) => s.files && plural(s.files, 'file'),
+  };
+
   function finishPhase(p) {
     const s = running.phases[p];
     if (!s || s.end) return;
     s.end = performance.now();
-    setRow(p, s.warn ? 'warn' : 'ok', undefined, short(s.end - s.start));
+    const sum = SUMMARY[p]?.(s);
+    setRow(p, s.warns ? 'warn' : 'ok', sum ? sum + (s.warns ? ` · ${plural(s.warns, 'warning')}` : '') : undefined, short(s.end - s.start));
   }
 
   function enterPhase(p) {
@@ -287,6 +297,7 @@
     enterPhase(phase);
     const frac = current / total;
     running.phases[phase].frac = frac;
+    running.phases[phase].total = total;
     setRing(phase, frac);
     $('lg-' + phase).textContent = `${current}/${total}`;
     const pct = Math.round(overall() * 100);
@@ -303,11 +314,20 @@
       enterPhase('daily');
       if (!skip) return;
     }
-    const p = running?.phase;
-    if (!p) return;
-    if (type === 'warn') running.phases[p].warn = true;
-    if (type !== 'dim') setRow(p, undefined, msg);
+    if (!running?.phase) return;
+    // The core logs a phase's opening line before that phase's first progress event
+    // (and a phase with nothing to fetch, like 0 activities, sends none at all), so
+    // these lines move the run to the next row; otherwise they land on the previous one.
+    const next = PHASE_START.find(([re]) => re.test(msg))?.[1];
+    if (next) enterPhase(next);
+    const p = running.phase, s = running.phases[p];
+    const found = /^Found (\d+) activities/.exec(msg);
+    if (found && p === 'activities') s.count = Number(found[1]);
+    if (type === 'warn') s.warns = (s.warns || 0) + 1;
+    // Lines with an absolute path ("JSON saved: /Users/…") stay in the log only.
+    if (type !== 'dim' && !/(^|\s)\//.test(msg)) setRow(p, undefined, msg);
   }
+  const PHASE_START = [[/^Pulling aggregated/, 'aggregated'], [/^Pulling activities/, 'activities'], [/^JSON saved/, 'csv']];
 
   // ── Export ──────────────────────────────────────────────────────────────
   function lock(on) {
@@ -363,19 +383,15 @@
     const job = platform.run(req, (e) => (e.kind === 'progress' ? onProgress(e) : e.kind === 'log' && onLog(e)));
     running.cancel = job.cancel;
     const res = await job.done;
-    clearInterval(tick);
-    const took = performance.now() - running.t0;
 
     if (res.ok) {
+      if (running.phases.csv && res.pack?.files) running.phases.csv.files = res.pack.files.length;
       finishPhase(running.phase);
       PHASES.forEach((p) => {
         if (!running.phases[p]) setRow(p, 'ok', undefined, '—');
         setRing(p, 1);
       });
       bar.setAttribute('aria-valuenow', '100');
-      hero.dataset.state = 'done';
-      badge.textContent = 'Done';
-      setHeadline(`${n} days`, `done in ${short(took)}.`);
       log('complete', 'Export complete → ' + res.path);
       lastOutDir = res.path;
       store.set('last_out', res.path);
@@ -383,13 +399,21 @@
       openOut.hidden = false;
       if (res.summary) renderSummary(res.summary);
       pack = res.pack || null;
+      // The hero stays "Running" (and the clock ticks) until MyFitnessPal is done too.
+      if (mfpOn.checked) setHeadline(`${n} days`, 'reading diary.');
       try { await runMfp(res.path, { startDate: res.summary?.range?.start, endDate: res.summary?.range?.end }); } catch (e) {
+        finishPhase('mfp');
         setRow('mfp', 'warn', 'Skipped: ' + (e?.message || e));
         log('warn', 'MyFitnessPal skipped: ' + (e?.message || e));
       }
+      clearInterval(tick);
+      hero.dataset.state = 'done';
+      badge.textContent = 'Done';
+      setHeadline(`${n} days`, `done in ${short(performance.now() - running.t0)}.`);
       store.set('last_warnings', JSON.stringify(pack?.warnings || []));
       toast('Done. CSVs are in ' + tilde(res.path));
     } else {
+      clearInterval(tick);
       if (running.phase) setRow(running.phase, res.cancelled ? 'warn' : 'err', res.error);
       hero.dataset.state = 'error';
       badge.textContent = res.cancelled ? 'Cancelled' : 'Failed';
@@ -646,6 +670,7 @@
     mfpOn.disabled = !!running || !mfp.connected;
     mfpOn.checked = mfp.connected && store.get('mfp_on', '1') === '1';
     row('mfp').hidden = !mfpOn.checked;
+    rowsEl.classList.toggle('six', mfpOn.checked);
   }
   async function refreshMfp() {
     let s;

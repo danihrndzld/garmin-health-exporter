@@ -159,6 +159,7 @@ main {
 .field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 .field > span { font-size: 11.5px; color: var(--mute); display: flex; gap: 5px; align-items: center; }
 .field.wide { grid-column: 2 / 4; }
+.field.full { grid-column: 1 / -1; }
 .hint { font-style: normal; font-size: 10px; width: 14px; height: 14px; border-radius: 50%; display: grid; place-items: center; background: var(--soft); cursor: help; }
 input[type="email"], input[type="password"], input[type="text"], input[type="date"] {
   height: 36px; width: 100%; border: 0; border-radius: 11px; background: var(--soft); padding: 0 12px; outline: none; user-select: text;
@@ -191,6 +192,15 @@ input:disabled, button:disabled { opacity: .55; }
 .rows b { font-weight: 560; }
 .rows li > div { min-width: 0; }
 .rows .sub { font-size: 11.5px; color: var(--mute); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+/* Six rows (MyFitnessPal on) must fit at the 860x620 minimum window: tighter rows, one line subs. */
+.rows.six li { padding: 6px 0; line-height: 1.3; }
+.rows.six .sub { display: block; white-space: nowrap; text-overflow: ellipsis; }
+@media (max-height: 680px) {
+  .rows.six li { padding: 5px 0; }
+  .rows.six li > div { display: flex; align-items: baseline; gap: 8px; }
+  .rows.six b { flex: none; }
+  .rows.six .sub { min-width: 0; }
+}
 .rows .t { font-style: normal; font-size: 11.5px; color: var(--mute); }
 .st { width: 20px; height: 20px; border-radius: 50%; border: 1.5px dashed #0000002a; position: relative; display: grid; place-items: center; }
 @media (prefers-color-scheme: dark) { .st { border-color: #ffffff2a; } }
