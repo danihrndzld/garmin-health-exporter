@@ -31,12 +31,12 @@
     reveal: async () => {},
     copyText: (t) => navigator.clipboard.writeText(t),
     invoke: async (cmd) => {
-      if (cmd === 'mfp_connect') { localStorage.setItem('mock_mfp', '1'); window.dispatchEvent(new CustomEvent('mock-mfp', { detail: { connected: true, saved_at: 0, session_expires: null } })); }
+      if (cmd === 'mfp_connect') { localStorage.setItem('mock_mfp', String(Date.now())); localStorage.removeItem('mock_mfp_expired'); window.dispatchEvent(new CustomEvent('mock-mfp', { detail: { connected: true, saved_at: Number(localStorage.getItem('mock_mfp')), session_expires: null } })); }
       if (cmd === 'mfp_disconnect') localStorage.removeItem('mock_mfp');
-      return { connected: !!localStorage.getItem('mock_mfp'), saved_at: 0, session_expires: null };
+      return { connected: !!localStorage.getItem('mock_mfp'), saved_at: Number(localStorage.getItem('mock_mfp')) || 0, session_expires: null };
     },
     listen: (ev, cb) => window.addEventListener('mock-' + ev.replace('-connected', ''), (e) => cb(e.detail)),
-    onFocus: () => {},
+    onFocus: (cb) => window.addEventListener('focus', cb),
     run(req, onEvent) {
       let cancelled = false;
       const ts = () => new Date().toLocaleTimeString();
@@ -49,7 +49,8 @@
           return { ok: true, dir, file: req.mode === 'single' ? `${dir}/garmin_${req.startDate}_${req.endDate}.${req.lang}.md` : undefined, count: req.mode === 'single' ? 1 : 11 };
         }
         if (req.cmd === 'mfp-export') {
-          for (let i = 1; i <= 3; i++) { await sleep(400 / 3); onEvent({ kind: 'progress', phase: 'mfp', current: i * 10, total: 30 }); }
+          if (localStorage.getItem('mock_mfp_expired')) return { ok: false, errorCode: 'MFP_SESSION', error: 'MyFitnessPal session expired' };
+          for (let i = 1; i <= 3; i++) { if (cancelled) return { ok: false, cancelled: true, error: 'Cancelled.' }; await sleep(1000); onEvent({ kind: 'progress', phase: 'mfp', current: i * 10, total: 30 }); }
           return { ok: true, days: 30, loggedDays: 17, files: ['mfp_food.csv', 'mfp_daily.csv', 'mfp_exercise.csv'] };
         }
         if (req.cmd === 'report') return { ok: true, issueUrl: 'https://github.com/x/issues/new', mailtoUrl: 'mailto:x' };

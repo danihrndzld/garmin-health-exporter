@@ -383,7 +383,10 @@
       openOut.hidden = false;
       if (res.summary) renderSummary(res.summary);
       pack = res.pack || null;
-      await runMfp(res.path, { startDate: res.summary?.range?.start, endDate: res.summary?.range?.end });
+      try { await runMfp(res.path, { startDate: res.summary?.range?.start, endDate: res.summary?.range?.end }); } catch (e) {
+        setRow('mfp', 'warn', 'Skipped: ' + (e?.message || e));
+        log('warn', 'MyFitnessPal skipped: ' + (e?.message || e));
+      }
       store.set('last_warnings', JSON.stringify(pack?.warnings || []));
       toast('Done. CSVs are in ' + tilde(res.path));
     } else {
@@ -637,6 +640,7 @@
   // Rust owns the sign in window and the session file; the Go core reads it.
   const mfpState = $('mfp-state'), mfpBtn = $('mfp-btn'), mfpOn = $('mfp-on');
   let mfp = { connected: false, expired: false };
+  let expiredAt = null;
   function renderMfp() {
     mfpState.textContent = mfp.expired ? 'Session expired' : mfp.connected ? 'Connected' : 'Not connected';
     mfpBtn.textContent = mfp.expired ? 'reconnect' : mfp.connected ? 'disconnect' : 'connect';
@@ -645,34 +649,43 @@
     row('mfp').hidden = !mfpOn.checked;
   }
   async function refreshMfp() {
-    try { mfp = { ...(await platform.invoke('mfp_status')), expired: false }; } catch { mfp = { connected: false }; }
+    let s;
+    try { s = await platform.invoke('mfp_status'); } catch { s = { connected: false }; }
+    // Expired stays until mfp-connected, a disconnect, or a different saved_at.
+    const keep = mfp.expired && s.connected && s.saved_at === expiredAt;
+    if (!keep) expiredAt = null;
+    mfp = { ...s, expired: keep };
     renderMfp();
   }
   mfpBtn.addEventListener('click', async () => {
-    if (mfp.connected && !mfp.expired) { await platform.invoke('mfp_disconnect'); await refreshMfp(); toast('MyFitnessPal disconnected.'); return; }
+    if (mfp.connected && !mfp.expired) { await platform.invoke('mfp_disconnect'); expiredAt = null; await refreshMfp(); toast('MyFitnessPal disconnected.'); return; }
     toast('Sign in to MyFitnessPal in the new window.');
     await platform.invoke('mfp_connect');
   });
   mfpOn.addEventListener('change', () => { store.set('mfp_on', mfpOn.checked ? '1' : '0'); renderMfp(); });
-  platform.listen('mfp-connected', (s) => { mfp = { ...s, expired: false }; renderMfp(); toast('MyFitnessPal connected.'); });
+  platform.listen('mfp-connected', (s) => { expiredAt = null; mfp = { ...s, expired: false }; renderMfp(); toast('MyFitnessPal connected.'); });
 
   // Runs after a successful Garmin export; a failure here never changes the Garmin result.
   async function runMfp(csvDir, range) {
     if (!mfpOn.checked) return;
     enterPhase('mfp');
     // onProgress only knows the four Garmin rings, so MFP progress goes to its own row.
-    const res = await platform.run({ cmd: 'mfp-export', ...range, dataDir: paths.dataDir, csvDir },
+    const job = platform.run({ cmd: 'mfp-export', ...range, dataDir: paths.dataDir, csvDir },
       (e) => (e.kind === 'progress' ? setRow('mfp', undefined, `${e.current} of ${e.total} days`) : e.kind === 'log' && onLog(e)),
-      'binaries/garmin-export-core').done;
+      'binaries/garmin-export-core');
+    running.cancel = job.cancel;
+    const res = await job.done;
     if (res.ok) {
       finishPhase('mfp');
       setRow('mfp', 'ok', `Food logged on ${res.loggedDays} of ${res.days} days`);
       const s = await platform.run({ cmd: 'summary', jsonPath: store.get('last_json'), csvDir, warnings: pack?.warnings || [] }, () => {}).done;
       if (s.ok) pack = s.pack || pack;
     } else {
-      setRow('mfp', 'warn', 'Skipped: ' + res.error);
-      log('warn', 'MyFitnessPal skipped: ' + res.error);
-      if (res.errorCode === 'MFP_SESSION') { mfp.expired = mfp.connected; renderMfp(); }
+      const msg = res.cancelled ? 'Cancelled.' : 'Skipped: ' + (res.error || 'unknown error');
+      finishPhase('mfp');
+      setRow('mfp', 'warn', msg);
+      log('warn', 'MyFitnessPal ' + (res.cancelled ? 'cancelled' : 'skipped: ' + (res.error || 'unknown error')));
+      if (res.errorCode === 'MFP_SESSION') { mfp.expired = mfp.connected; expiredAt = mfp.saved_at; renderMfp(); }
     }
   }
 
