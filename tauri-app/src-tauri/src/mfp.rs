@@ -2,7 +2,17 @@
 //! cookies to mfp_session.json (mode 0600) for the Go core. The password never
 //! reaches Rust or the UI, and the login window has no IPC permissions.
 use serde::Serialize;
-use std::{fs, io::Write, os::unix::fs::OpenOptionsExt, path::PathBuf};
+use std::{
+    fs,
+    io::Write,
+    os::unix::fs::OpenOptionsExt,
+    path::PathBuf,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    time::{SystemTime, UNIX_EPOCH},
+};
 use tauri::{
     webview::{Cookie, PageLoadEvent},
     AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder,
@@ -36,14 +46,16 @@ fn session_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(dir.join("mfp_session.json"))
 }
 
+fn is_mfp_domain(d: &str) -> bool {
+    let d = d.trim_start_matches('.');
+    d == "myfitnesspal.com" || d.ends_with(".myfitnesspal.com")
+}
+
 /// Keep cookies for myfitnesspal.com and its subdomains. Filtering by suffix matters:
 /// cookies_for_url drops cookies set on ".myfitnesspal.com" (cf_clearance).
 fn mfp_cookies(all: Vec<Cookie<'static>>) -> Vec<SavedCookie> {
     all.into_iter()
-        .filter(|c| {
-            let d = c.domain().unwrap_or("").trim_start_matches('.');
-            d == "myfitnesspal.com" || d.ends_with(".myfitnesspal.com")
-        })
+        .filter(|c| is_mfp_domain(c.domain().unwrap_or("")))
         .map(|c| SavedCookie {
             name: c.name().to_string(),
             value: c.value().to_string(),
@@ -55,11 +67,31 @@ fn mfp_cookies(all: Vec<Cookie<'static>>) -> Vec<SavedCookie> {
 }
 
 fn write_private(path: &PathBuf, data: &[u8]) -> std::io::Result<()> {
-    let tmp = path.with_extension("json.tmp");
-    let mut f = fs::OpenOptions::new().write(true).create(true).truncate(true).mode(0o600).open(&tmp)?;
-    f.write_all(data)?;
-    f.sync_all()?;
-    fs::rename(tmp, path)
+    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+    let tmp = path.with_file_name(format!(".mfp_session.{}.{}.tmp", std::process::id(), nanos));
+    let res = (|| {
+        let mut f = fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&tmp)?;
+        f.write_all(data)?;
+        f.sync_all()?;
+        fs::rename(&tmp, path)
+    })();
+    if res.is_err() {
+        let _ = fs::remove_file(&tmp);
+    }
+    res
+}
+
+/// Remove the MFP cookies from the main webview's store (the login window shares it).
+fn clear_mfp_cookies(app: &AppHandle) {
+    if let Some(main) = app.get_webview_window("main") {
+        if let Ok(all) = main.cookies() {
+            for c in all {
+                if is_mfp_domain(c.domain().unwrap_or("")) {
+                    let _ = main.delete_cookie(c);
+                }
+            }
+        }
+    }
 }
 
 fn status_from_file(path: &PathBuf) -> MfpStatus {
@@ -86,20 +118,32 @@ pub async fn mfp_connect(app: AppHandle) -> Result<(), String> {
         return Ok(());
     }
     let path = session_path(&app)?;
+    // Start fresh so a stale token is never re-saved.
+    let _ = fs::remove_file(&path);
+    clear_mfp_cookies(&app);
+    let saved = Arc::new(AtomicBool::new(false));
     WebviewWindowBuilder::new(&app, "mfp-login", WebviewUrl::External(LOGIN_URL.parse().unwrap()))
         .title("Connect MyFitnessPal")
         .inner_size(480.0, 720.0)
         .user_agent(USER_AGENT)
         .on_page_load(move |win, payload| {
-            if payload.event() != PageLoadEvent::Finished || payload.url().path().starts_with("/account/login") {
+            let url = payload.url();
+            if payload.event() != PageLoadEvent::Finished
+                || url.scheme() != "https"
+                || !is_mfp_domain(url.host_str().unwrap_or(""))
+                || url.path().starts_with("/account/login")
+            {
                 return;
             }
-            let (win, path) = (win.clone(), path.clone());
+            let (win, path, saved) = (win.clone(), path.clone(), saved.clone());
             // cookies() pumps the main run loop; never call it from the page load callback itself.
             tauri::async_runtime::spawn(async move {
                 let Ok(all) = win.cookies() else { return };
                 let cookies = mfp_cookies(all);
                 let Some(token) = cookies.iter().find(|c| c.name == SESSION_COOKIE) else { return };
+                if saved.swap(true, Ordering::SeqCst) {
+                    return;
+                }
                 let body = serde_json::json!({
                     "cookies": cookies,
                     "user_agent": USER_AGENT,
@@ -110,6 +154,8 @@ pub async fn mfp_connect(app: AppHandle) -> Result<(), String> {
                     let app = win.app_handle().clone();
                     let _ = app.emit("mfp-connected", status_from_file(&path));
                     let _ = win.close();
+                } else {
+                    saved.store(false, Ordering::SeqCst);
                 }
             });
         })
@@ -122,18 +168,7 @@ pub async fn mfp_connect(app: AppHandle) -> Result<(), String> {
 pub async fn mfp_disconnect(app: AppHandle) -> Result<(), String> {
     let path = session_path(&app)?;
     let _ = fs::remove_file(&path);
-    // The login window shares the main webview's cookie store (macOS 11 has no separate
-    // data stores), so remove the MFP cookies there too.
-    if let Some(main) = app.get_webview_window("main") {
-        if let Ok(all) = main.cookies() {
-            for c in all {
-                let d = c.domain().unwrap_or("").trim_start_matches('.').to_string();
-                if d == "myfitnesspal.com" || d.ends_with(".myfitnesspal.com") {
-                    let _ = main.delete_cookie(c);
-                }
-            }
-        }
-    }
+    clear_mfp_cookies(&app);
     Ok(())
 }
 
@@ -149,8 +184,21 @@ mod tests {
             make("cf_clearance", ".myfitnesspal.com"),
             make("other", "evilmyfitnesspal.com"),
             make("ga", "google.com"),
+            make("root", "myfitnesspal.com"),
+            make("evil2", "myfitnesspal.com.evil.com"),
+            Cookie::build(("nodomain", "v")).build().into_owned(),
         ]);
         let names: Vec<_> = kept.iter().map(|c| c.name.as_str()).collect();
-        assert_eq!(names, vec![SESSION_COOKIE, "cf_clearance"]);
+        assert_eq!(names, vec![SESSION_COOKIE, "cf_clearance", "root"]);
+    }
+
+    #[test]
+    fn is_mfp_domain_cases() {
+        for ok in ["myfitnesspal.com", ".myfitnesspal.com", "www.myfitnesspal.com"] {
+            assert!(is_mfp_domain(ok), "{ok}");
+        }
+        for bad in ["", "myfitnesspal.com.evil.com", "evilmyfitnesspal.com", "google.com"] {
+            assert!(!is_mfp_domain(bad), "{bad}");
+        }
     }
 }
