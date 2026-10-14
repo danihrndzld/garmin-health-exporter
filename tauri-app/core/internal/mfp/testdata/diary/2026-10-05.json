@@ -1,0 +1,20 @@
+{"items": [
+ {"type": "food_entry", "date": "2026-10-05", "meal_name": "Breakfast", "meal_position": 0,
+  "consumed_at": "2026-10-05T07:40:00-06:00", "logged_at": "2026-10-05T08:02:11-06:00",
+  "food": {"description": "Pan \"Bimbo\", integral", "brand_name": "Bimbo", "verified": true},
+  "serving_size": {"value": 1, "unit": "slice", "gram_weight": 28, "nutrition_multiplier": 1},
+  "servings": 2,
+  "nutritional_contents": {"energy": {"unit": "calories", "value": 140}, "protein": 6, "carbohydrates": 24, "fiber": 4,
+   "sugar": 3, "added_sugars": 2, "fat": 2, "saturated_fat": 0.4, "trans_fat": 0, "cholesterol": 0,
+   "sodium": 260, "potassium": 120, "calcium": 4, "iron": 8, "vitamin_d": null}},
+ {"type": "food_entry", "date": "2026-10-05", "meal_name": "Lunch", "meal_position": 1,
+  "consumed_at": "2026-10-05T13:10:00-06:00", "logged_at": "2026-10-05T13:30:00-06:00",
+  "food": {"description": "Arroz con pollo\nde la casa", "brand_name": "", "verified": false},
+  "serving_size": {"value": 1, "unit": "cup", "gram_weight": 240, "nutrition_multiplier": 1},
+  "servings": 1.5,
+  "nutritional_contents": {"energy": {"unit": "calories", "value": 615}, "protein": 42, "carbohydrates": 70, "fiber": 3,
+   "sugar": 2, "added_sugars": null, "fat": 16, "saturated_fat": 4, "trans_fat": null, "cholesterol": 110,
+   "sodium": 980, "potassium": null, "calcium": null, "iron": null, "vitamin_d": null}},
+ {"type": "exercise_entry", "date": "2026-10-05", "exercise": {"description": "Walking, 5 km/h", "type": "cardio"},
+  "duration": 2700, "energy": {"unit": "calories", "value": 180}, "source": "MFP"}
+]}
