@@ -86,7 +86,7 @@ The raw JSON is never part of the pack, because a 60 day export is about 38 MB, 
 
 ## Add your MyFitnessPal food diary
 
-After each Garmin export, the app can also download your food diary from MyFitnessPal and write it next to the Garmin files, so that an LLM can relate what you ate to your sleep, HRV, training, and weight. In the Setup card, click Connect on the MyFitnessPal row, and sign in on MyFitnessPal's own page in a window of the app. The app never sees your MyFitnessPal password, and it only keeps the session that MyFitnessPal gives the window, in a file that only your user can read. Signing in with Google or Apple may not work in that window, but email and password should. The Include switch turns the download on or off for each export, and Disconnect deletes the saved session.
+After each Garmin export, the app can also download your food diary from MyFitnessPal and write it next to the Garmin files, so that an LLM can relate what you ate to your sleep, HRV, training, and weight. In the Setup card, click Connect on the MyFitnessPal row, and sign in on MyFitnessPal's own page in a window of the app. The app never sees your MyFitnessPal password, and it only keeps the session that MyFitnessPal gives the window, in a file that only your user can read. Signing in with Google or Apple may not work inside the app window, so use your MyFitnessPal email and password there. The Include switch turns the download on or off for each export, it is available only after MyFitnessPal is connected, and the MyFitnessPal step appears in the Run card only then too. Disconnect deletes the saved session.
 
 The export adds three files to the `csv_*` folder, and every file uses the date as `YYYY-MM-DD`, the same as the Garmin files, so an LLM can join them by date.
 
@@ -96,7 +96,7 @@ The export adds three files to the `csv_*` folder, and every file uses the date 
 
 A day without any food logged has `logged=no` and empty totals, which means that you didn't log, and it doesn't mean that you didn't eat. The LLM pack describes the three files and counts the days with a food log.
 
-MyFitnessPal has no public API and doesn't accept new API partners. The app uses the same private API as MyFitnessPal's website, and MyFitnessPal's terms don't allow automated access, so you use this at your own risk and only with your own account. The app only reads your diary, it makes one request per second, and it stops at the first rate limit answer. It can stop working when MyFitnessPal changes its site or its bot detection. When that happens, the Run card shows "MFP skipped" with the reason, and the Garmin export is not affected. When your session expires, the row changes to Reconnect.
+MyFitnessPal has no public API. The app uses the same private API as MyFitnessPal's website, and MyFitnessPal's terms don't allow automated access, so you use this at your own risk and only with your own account. The app only reads your diary, it makes one request per second, and it stops at the first rate limit answer. It can stop working when MyFitnessPal changes its site or its bot detection. When that happens, the MyFitnessPal row in the Run card shows "Skipped" with the reason, the log has a line that starts with "MyFitnessPal skipped", and the Garmin export is not affected. When your session expires, the row changes to Reconnect.
 
 ## Questions
 
