@@ -11,11 +11,12 @@ func TestCacheFinalRule(t *testing.T) {
 	exerciseOnly := []DiaryItem{{Type: "exercise_entry"}}
 	at := func(s string) time.Time { v, _ := time.Parse(time.RFC3339, s); return v }
 
-	_ = c.Put("2026-10-01", food, at("2026-10-07T23:59:00Z")) // 6.99 days after
+	mid, _ := time.ParseInLocation("2006-01-02", "2026-10-01", time.Local) // the diary day is local
+	_ = c.Put("2026-10-01", food, mid.Add(7*24*time.Hour-time.Minute))     // 6.99 days after
 	if _, final, ok := c.Get("2026-10-01", at("2026-10-20T00:00:00Z")); !ok || final {
 		t.Fatal("food fetched 6.99 days after must not be final")
 	}
-	_ = c.Put("2026-10-01", food, at("2026-10-08T00:00:00Z")) // 7 days after
+	_ = c.Put("2026-10-01", food, mid.Add(7*24*time.Hour)) // 7 days after
 	if _, final, _ := c.Get("2026-10-01", at("2026-10-20T00:00:00Z")); !final {
 		t.Fatal("food fetched 7 days after must be final")
 	}

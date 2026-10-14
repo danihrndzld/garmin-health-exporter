@@ -130,3 +130,41 @@ func TestExportSurvivesInvalidGoals(t *testing.T) {
 		}
 	}
 }
+
+func TestFailedRunKeepsTheSessionFileAndRemovesStaleCSVs(t *testing.T) {
+	srv := mfptest.NewServer("testdata")
+	defer srv.Close()
+	dataDir, csvDir := homeDirs(t)
+	sessPath := filepath.Join(dataDir, "mfp_session.json")
+	testSession().Save(sessPath)
+	req := map[string]any{"cmd": "mfp-export", "startDate": "2026-10-04", "endDate": "2026-10-07", "dataDir": dataDir, "csvDir": csvDir}
+	stale := []string{"mfp_food.csv", "mfp_daily.csv", "mfp_exercise.csv"}
+	for _, f := range stale {
+		os.WriteFile(filepath.Join(csvDir, f), []byte("old\n"), 0o644)
+	}
+	srv.Diary429 = true
+	if res := run(t, srv, req); res["errorCode"] != "MFP_RATE_LIMITED" {
+		t.Fatalf("429: %v", res)
+	}
+	for _, f := range stale {
+		if _, err := os.Stat(filepath.Join(csvDir, f)); !os.IsNotExist(err) {
+			t.Errorf("stale %s survived a failed run", f)
+		}
+	}
+	srv.Diary429 = false
+
+	before, _ := os.ReadFile(sessPath)
+	srv.AuthHTML, srv.SetCookie = true, "tracking=1; Path=/"
+	if res := run(t, srv, req); res["errorCode"] != "MFP_SESSION" {
+		t.Fatalf("expired: %v", res)
+	}
+	if after, _ := os.ReadFile(sessPath); !bytes.Equal(before, after) {
+		t.Fatalf("session file rewritten on an expired run:\n%s\n%s", before, after)
+	}
+	srv.AuthHTML, srv.SetCookie = false, ""
+
+	srv.AuthStatus = 403
+	if res := run(t, srv, req); res["errorCode"] != "MFP_ERROR" || !strings.Contains(res["error"].(string), "403") {
+		t.Fatalf("403: %v", res)
+	}
+}

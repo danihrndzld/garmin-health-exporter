@@ -4,12 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/guard"
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/protocol"
 )
+
+var csvFiles = []string{"mfp_food.csv", "mfp_daily.csv", "mfp_exercise.csv"}
 
 func fail(code, msg string) map[string]any {
 	return map[string]any{"ok": false, "errorCode": code, "error": msg}
@@ -31,15 +34,24 @@ func Export(ctx context.Context, req map[string]any, out *protocol.Emitter, opts
 		return fail("MFP_INPUT", "csvDir: "+err.Error())
 	}
 
+	// A previous run's files must never survive a failed or MFP-less run into the LLM pack.
+	for _, f := range csvFiles {
+		if err := os.Remove(filepath.Join(csvDir, f)); err != nil && !os.IsNotExist(err) {
+			return fail("MFP_ERROR", "Could not remove the old "+f+": "+err.Error())
+		}
+	}
+
 	sessPath := filepath.Join(dataDir, "mfp_session.json")
 	sess, err := LoadSession(sessPath)
 	if err != nil {
 		return fail("MFP_SESSION", "Connect MyFitnessPal first.")
 	}
 	client := NewClient(sess, opts)
-	// Save rotated cookies even when the run stops early.
+	sessionLost := false
+	// Save rotated cookies even when the run stops early, but never after an expired
+	// session: the page that says so may set cookies and would refresh saved_at.
 	defer func() {
-		if client.SessionChanged() {
+		if client.SessionChanged() && !sessionLost {
 			_ = client.Session().Save(sessPath)
 		}
 	}()
@@ -47,6 +59,7 @@ func Export(ctx context.Context, req map[string]any, out *protocol.Emitter, opts
 	mapErr := func(err error) map[string]any {
 		switch {
 		case errors.Is(err, ErrSession):
+			sessionLost = true
 			return fail("MFP_SESSION", "The MyFitnessPal session expired. Reconnect MyFitnessPal.")
 		case errors.Is(err, ErrRateLimited):
 			return fail("MFP_RATE_LIMITED", "MyFitnessPal is rate limiting requests (HTTP 429). The days downloaded so far are cached; try again later.")
@@ -94,5 +107,5 @@ func Export(ctx context.Context, req map[string]any, out *protocol.Emitter, opts
 	}
 	out.Log("success", fmt.Sprintf("MyFitnessPal: food logged on %d of %d days (%d downloaded, %d from the cache)", logged, len(dates), fetched, len(dates)-fetched))
 	return map[string]any{"ok": true, "days": len(dates), "loggedDays": logged, "csvDir": csvDir,
-		"files": []string{"mfp_food.csv", "mfp_daily.csv", "mfp_exercise.csv"}}
+		"files": csvFiles}
 }

@@ -78,7 +78,11 @@ func (c *Client) host(real string) string {
 
 func (c *Client) cookieHeader() string {
 	parts := make([]string, 0, len(c.sess.Cookies))
+	now := time.Now().Unix()
 	for _, ck := range c.sess.Cookies {
+		if ck.Expires != 0 && ck.Expires < now {
+			continue
+		}
 		parts = append(parts, ck.Name+"="+ck.Value)
 	}
 	return strings.Join(parts, "; ")
@@ -128,17 +132,20 @@ func (c *Client) Auth(ctx context.Context) error {
 	if resp.StatusCode == 429 {
 		return ErrRateLimited
 	}
+	if resp.StatusCode != 200 { // a Cloudflare challenge or a 5xx page is not an expired session
+		return fmt.Errorf("MyFitnessPal answered HTTP %d", resp.StatusCode)
+	}
 	if !strings.HasPrefix(resp.Header.Get("Content-Type"), "application/json") {
 		return ErrSession
 	}
 	var tok struct {
-		AccessToken string `json:"access_token"`
-		UserID      any    `json:"user_id"`
+		AccessToken string          `json:"access_token"`
+		UserID      json.RawMessage `json:"user_id"`
 	}
 	if json.Unmarshal(body, &tok) != nil || tok.AccessToken == "" {
 		return ErrSession
 	}
-	c.token, c.userID = tok.AccessToken, fmt.Sprint(tok.UserID)
+	c.token, c.userID = tok.AccessToken, strings.Trim(string(tok.UserID), `"`)
 	return nil
 }
 

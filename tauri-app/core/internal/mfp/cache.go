@@ -38,7 +38,7 @@ func (c Cache) Get(date string, now time.Time) (items []DiaryItem, final bool, o
 	if json.Unmarshal(b, &d) != nil {
 		return nil, false, false
 	}
-	day, err1 := time.Parse("2006-01-02", date)
+	day, err1 := time.ParseInLocation("2006-01-02", date, time.Local) // the diary day is the user's local day
 	fetched, err2 := time.Parse(time.RFC3339, d.FetchedAt)
 	final = err1 == nil && err2 == nil && HasFood(d.Items) &&
 		fetched.Sub(day) >= FinalAfterDays*24*time.Hour

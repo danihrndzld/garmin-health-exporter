@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -251,5 +252,44 @@ func TestFakeServerEnvAcceptsOnlyLoopback(t *testing.T) {
 		if got := FakeServer(); got != want {
 			t.Errorf("%q -> %q, want %q", v, got, want)
 		}
+	}
+}
+
+func TestAuthNonSessionFailuresAreNotErrSession(t *testing.T) {
+	c, srv := newTestClient(t)
+	srv.AuthStatus = 403
+	err := c.Auth(context.Background())
+	if err == nil || errors.Is(err, ErrSession) || !strings.Contains(err.Error(), "403") {
+		t.Fatalf("403 challenge: err = %v", err)
+	}
+	srv.AuthStatus = 503
+	if err := c.Auth(context.Background()); err == nil || errors.Is(err, ErrSession) || !strings.Contains(err.Error(), "503") {
+		t.Fatalf("503: err = %v", err)
+	}
+}
+
+func TestNumericUserIDIsSentAsIs(t *testing.T) {
+	c, srv := newTestClient(t)
+	srv.UserID = "123456789"
+	ctx := context.Background()
+	if err := c.Auth(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Diary(ctx, "2026-10-05"); err != nil { // the fake answers 401 on a wrong mfp-user-id
+		t.Fatal(err)
+	}
+	if c.userID != "123456789" {
+		t.Fatalf("userID = %q", c.userID)
+	}
+}
+
+func TestCookieHeaderSkipsExpiredCookies(t *testing.T) {
+	c := NewClient(&Session{Cookies: []Cookie{
+		{Name: "old", Value: "1", Expires: time.Now().Unix() - 60},
+		{Name: "live", Value: "2", Expires: time.Now().Unix() + 3600},
+		{Name: "session", Value: "3"},
+	}}, Options{Base: "http://127.0.0.1:1"})
+	if got := c.cookieHeader(); got != "live=2; session=3" {
+		t.Fatalf("cookieHeader = %q", got)
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"sync"
 )
 
@@ -18,6 +19,8 @@ type Server struct {
 	Diary429     bool   // answer every diary request with 429
 	Diary401Once bool   // answer the next diary request with 401
 	SetCookie    string // Set-Cookie header sent with auth_token, to test rotation
+	AuthStatus   int    // when set, answer auth_token with this status and an HTML body (e.g. a 403 challenge)
+	UserID       string // JSON value of user_id in the auth_token answer; default "42" (a string)
 	mu           sync.Mutex
 	userAgents   []string
 	srv          *httptest.Server
@@ -30,6 +33,15 @@ func NewServer(dir string) *Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/user/auth_token", func(w http.ResponseWriter, r *http.Request) {
 		s.record(r)
+		if s.SetCookie != "" && (s.AuthHTML || s.AuthStatus != 0) {
+			w.Header().Add("Set-Cookie", s.SetCookie) // an expired-session page may set cookies too
+		}
+		if s.AuthStatus != 0 {
+			w.Header().Set("Content-Type", "text/html")
+			w.WriteHeader(s.AuthStatus)
+			w.Write([]byte("<html>Just a moment...</html>"))
+			return
+		}
 		if s.AuthHTML || !hasSession(r) {
 			w.Header().Set("Content-Type", "text/html")
 			w.Write([]byte("<html>Log in</html>"))
@@ -39,7 +51,7 @@ func NewServer(dir string) *Server {
 			w.Header().Add("Set-Cookie", s.SetCookie)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"access_token":"test-token","user_id":"42","expires_in":3600}`))
+		w.Write([]byte(`{"access_token":"test-token","user_id":` + s.userID() + `,"expires_in":3600}`))
 	})
 	mux.HandleFunc("/v2/nutrient-goals", func(w http.ResponseWriter, r *http.Request) {
 		s.record(r)
@@ -47,7 +59,7 @@ func NewServer(dir string) *Server {
 	})
 	mux.HandleFunc("/v2/diary", func(w http.ResponseWriter, r *http.Request) {
 		s.record(r)
-		if r.Header.Get("Authorization") != "Bearer test-token" || r.Header.Get("mfp-client-id") != "mfp-main-js" || r.Header.Get("mfp-user-id") != "42" {
+		if r.Header.Get("Authorization") != "Bearer test-token" || r.Header.Get("mfp-client-id") != "mfp-main-js" || r.Header.Get("mfp-user-id") != strings.Trim(s.userID(), `"`) {
 			w.WriteHeader(401)
 			return
 		}
@@ -77,6 +89,13 @@ func NewServer(dir string) *Server {
 	s.srv = httptest.NewServer(mux)
 	s.URL = s.srv.URL
 	return s
+}
+
+func (s *Server) userID() string {
+	if s.UserID == "" {
+		return `"42"`
+	}
+	return s.UserID
 }
 
 func hasSession(r *http.Request) bool {

@@ -640,7 +640,6 @@
   // Rust owns the sign in window and the session file; the Go core reads it.
   const mfpState = $('mfp-state'), mfpBtn = $('mfp-btn'), mfpOn = $('mfp-on');
   let mfp = { connected: false, expired: false };
-  let expiredAt = null;
   function renderMfp() {
     mfpState.textContent = mfp.expired ? 'Session expired' : mfp.connected ? 'Connected' : 'Not connected';
     mfpBtn.textContent = mfp.expired ? 'reconnect' : mfp.connected ? 'disconnect' : 'connect';
@@ -651,19 +650,20 @@
   async function refreshMfp() {
     let s;
     try { s = await platform.invoke('mfp_status'); } catch { s = { connected: false }; }
-    // Expired stays until mfp-connected, a disconnect, or a different saved_at.
-    const keep = mfp.expired && s.connected && s.saved_at === expiredAt;
-    if (!keep) expiredAt = null;
+    // Expired stays until mfp-connected or a disconnect: reconnecting always goes through mfp_connect.
+    const keep = mfp.expired && s.connected;
     mfp = { ...s, expired: keep };
     renderMfp();
   }
   mfpBtn.addEventListener('click', async () => {
-    if (mfp.connected && !mfp.expired) { await platform.invoke('mfp_disconnect'); expiredAt = null; await refreshMfp(); toast('MyFitnessPal disconnected.'); return; }
-    toast('Sign in to MyFitnessPal in the new window.');
-    await platform.invoke('mfp_connect');
+    try {
+      if (mfp.connected && !mfp.expired) { await platform.invoke('mfp_disconnect'); await refreshMfp(); toast('MyFitnessPal disconnected.'); return; }
+      toast('Sign in to MyFitnessPal in the new window.');
+      await platform.invoke('mfp_connect');
+    } catch (err) { toast('MyFitnessPal: ' + (err?.message || err)); }
   });
   mfpOn.addEventListener('change', () => { store.set('mfp_on', mfpOn.checked ? '1' : '0'); renderMfp(); });
-  platform.listen('mfp-connected', (s) => { expiredAt = null; mfp = { ...s, expired: false }; renderMfp(); toast('MyFitnessPal connected.'); });
+  platform.listen('mfp-connected', (s) => { mfp = { ...s, expired: false }; renderMfp(); toast('MyFitnessPal connected.'); });
 
   // Runs after a successful Garmin export; a failure here never changes the Garmin result.
   async function runMfp(csvDir, range) {
@@ -685,7 +685,7 @@
       finishPhase('mfp');
       setRow('mfp', 'warn', msg);
       log('warn', 'MyFitnessPal ' + (res.cancelled ? 'cancelled' : 'skipped: ' + (res.error || 'unknown error')));
-      if (res.errorCode === 'MFP_SESSION') { mfp.expired = mfp.connected; expiredAt = mfp.saved_at; renderMfp(); }
+      if (res.errorCode === 'MFP_SESSION') { mfp.expired = mfp.connected; renderMfp(); }
     }
   }
 
