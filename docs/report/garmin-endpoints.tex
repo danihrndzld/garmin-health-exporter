@@ -1,0 +1,126 @@
+% Garmin Export: why some Garmin Connect endpoints answer 204, and what our code got wrong.
+% Set as a 1940s Bulletin paper in Mills 8A. Build: pdflatex garmin-endpoints.tex (twice).
+\documentclass[11pt]{article}
+\def\bulletinmeasure{334pt}
+\usepackage{bulletin1947}
+\usepackage{booktabs}
+\usepackage{url}
+\urlstyle{rm}
+\usepackage[hidelinks]{hyperref}
+\newcommand\code[1]{\textit{#1}}
+\setlength\tabcolsep{4pt}
+\begin{document}
+\received{Received October 14, 2026. The measurements in Section 4 were taken on that day, between 09:01 and 09:10 UTC, from one home network and one Garmin account.}
+\articletitle{ON THE EMPTY ANSWERS OF THE\\GARMIN CONNECT SERVICE}{the garmin export project}
+
+\begin{center}\footnotesize\begin{minipage}{290pt}
+\textsc{Abstract.} Garmin Export is a Mac app that downloads health data from Garmin Connect and writes it to CSV files. During a 90 day export, the app reported that some endpoints, e.g., the endurance score, answered with HTTP 204 and no data. We measured all 40 endpoints that the app uses, we repeated the sign in from scratch, and we compared the exported JSON with the CSV files. Every 204 came from a day that the watch hadn't synced yet, and no endpoint returned 401, 403, 404, or 429. The sign in flow that the upstream libraries call broken since March 2026 still worked for this account. We also found that nine CSV columns were always empty because our code read field names that Garmin doesn't send, and we fixed them in version 4.1.1.
+\end{minipage}\end{center}
+\medskip
+
+\head{1. Introduction.} Garmin Export signs in to Garmin Connect, downloads each day in a range, and writes one CSV file for each kind of data. The data then goes to a language model such as Claude, so an empty column is a real loss, because the model reads an empty column as missing data and draws conclusions from the gap.
+
+On October 14, 2026, a 90 day export from July 17 to October 14 printed lines like the one below, and the user asked why the endpoints return these codes.
+
+\smallskip
+{\footnotesize\noindent\code{[skip] endurance\_score: Empty response body. Garmin returned HTTP 204 with no content.}}
+\smallskip
+
+\noindent A language model that read the export also reported that the HRV, hill score, running tolerance, and VO$_2$ max columns were empty, and it guessed that Garmin computes those values only for outdoor runs with GPS. We wanted to know which of three causes applies to each empty value. The first cause is a change on Garmin's side, the second is an error in our code, and the third is that Garmin has no data for that day or that device.
+
+\head{2. The libraries that our code follows.} Our Garmin code is written in JavaScript, but it copies two Python libraries. The sign in follows \code{garth}, and the list of endpoint addresses follows \code{python-garminconnect}. The facts in this section come from the release notes, the source code, and the issue trackers of both projects.
+
+The author of \code{garth} marked it as deprecated in version 0.8.0 on March 28, 2026.\footnote{\url{https://github.com/matin/garth/releases/tag/v0.8.0} and discussion 222 in the same repository.} The notice says that Garmin changed its sign in, so new logins no longer work, and that a saved token keeps working for about one year. Version 0.7.0 of March 18 had already replaced the form based sign in at \code{/sso/embed} and \code{/sso/signin} with a mobile flow. Our code still uses the older form based flow.
+
+\code{python-garminconnect} dropped \code{garth} in version 0.3.0 on April 2, 2026, and it now signs in through a token service at \code{diauth.garmin.com}.\footnote{\url{https://github.com/cyberjunky/python-garminconnect/releases/tag/0.3.0}} The current version, 0.3.17 of September 29, treats a 204 answer as an empty result and not as an error. It refreshes a token that has less than 15 minutes left, and on a 401 answer it refreshes and tries once more. On a 403 answer it fails only the one call and keeps the tokens. Our client clears the saved tokens on any 401 or 403 and stops the whole export.
+
+The issue trackers show the same pattern. In issues 332 and 337, from March 17 and 19, users report 401 and 429 answers at the \code{preauthorized} step of the old sign in, which is the exact call at line 254 of our \code{auth.js}.\footnote{\url{https://github.com/cyberjunky/python-garminconnect/issues/332} and issue 337.} Issue 444, which is still open, reports 403 answers on HRV, readiness, Body Battery, and stress with a valid token, and the maintainer traces them to Cloudflare rejecting the client from some networks. Issue 431 shows that the goals endpoint needs \code{start=1} and a \code{Sec-Fetch-Site} header, while our code sends \code{start=0}.
+
+We compared each of our 40 endpoint addresses with version 0.3.17. Thirty eight match exactly. The endpoint we call \code{activity\_typed\_splits} reads \code{split\_summaries}, while the Python method of the same name reads \code{typedsplits}, and the goals endpoint differs as described above. The versions we use are in Table 1.
+
+\begin{center}\footnotesize
+\textsc{Table 1.} Versions in use and latest versions on October 14, 2026.\par\smallskip
+\begin{tabular}{@{}lll@{}}
+\toprule
+Component & In use & Latest \\
+\midrule
+\code{python-garminconnect} (old scripts) & 0.2.40 or later & 0.3.17 \\
+\code{garth} (followed by \code{auth.js}) & copied & 0.8.0, deprecated \\
+\code{sql.js} & 1.14.1 & 1.14.2 \\
+Tauri CLI and crates & 2.12.2, 2.12.3 & same \\
+Bun & 1.3.11 & 1.4.3 \\
+Electron (app 3.x only) & 33 & 44.7.2 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\head{3. Method.} We took three measurements, and none of them used the tokens of the running app directly.
+
+First, we copied the saved tokens to a separate folder and called every endpoint once, with 900 ms between calls. Each of the 22 daily endpoints was called for three days, i.e., October 13, September 14, and July 26, 2026, and each of the 18 other endpoints was called once for the last 28 days. We added six calls that use the addresses of \code{python-garminconnect} where they differ from ours. In total we made 90 calls, and for each call we kept the status, the size of the answer, and its first 140 characters.
+
+Second, we signed in from scratch with the old flow of \code{auth.js}, using the account's email and password and a new empty token folder. We recorded the status of every step and allowed no retries, so a 429 answer would have stopped the test.
+
+Third, we read the JSON file of the 90 day export, and we counted for each daily endpoint the days with no data. Then we counted, for each CSV column, the days that have a value, and we compared both counts.
+
+\head{4. Results.} Of the 90 calls, 87 returned 200 and 3 returned 204. No call returned 401, 403, 404, or 429, and the mean time per call was 163 ms. Table 2 lists every call that returned no data.
+
+\begin{center}\footnotesize
+\textsc{Table 2.} Calls that returned no data.\par\smallskip
+\begin{tabular}{@{}llrl@{}}
+\toprule
+Endpoint & Day & Status & Answer \\
+\midrule
+\code{hrv} & Oct 13 & 204 & empty \\
+\code{endurance\_score} & Oct 13 & 204 & empty \\
+\code{hillscore?calendarDate} (variant) & Oct 13 & 204 & empty \\
+\code{steps}, \code{body\_battery\_events} & Oct 13 & 200 & \code{[]} \\
+\code{training\_readiness}, morning & Oct 13 & 200 & \code{[]} \\
+\code{running\_tolerance} & Oct 13 & 200 & \code{[]} \\
+\code{max\_metrics} & Oct 13, Sep 14 & 200 & \code{[]} \\
+\code{goals}, both variants & last 28 days & 200 & \code{[]} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The same endpoints returned full answers for September 14 and July 26. For example, \code{endurance\_score} returned 688 and 689 bytes, and \code{hrv} returned 7,700 and 6,505 bytes. So the 204 answers and the empty lists belong to October 13, and the endpoints themselves work.
+
+The export shows the same picture. In the JSON file, 13 of the 22 daily endpoints have data on all 90 days. Seven have no data on exactly two days, October 13 and 14, and the user's language model also reported that the watch hadn't synced those two days. The last daily endpoint, \code{max\_metrics}, which holds VO$_2$ max, has a value on 31 of the 90 days. The hill score list has 88 days, and the score is empty on all of them. The export holds 37 strength sessions, 31 walks, 21 treadmill runs, and 1 yoga session, and none of them is an outdoor run.
+
+The sign in from scratch succeeded. Its six steps, from the consumer file through \code{/sso/embed}, \code{/sso/signin}, \code{preauthorized}, and the token exchange, all returned 200, and together they took 3,790 ms.
+
+The comparison of the JSON with the CSV files found nine columns that were empty on every day, although the JSON held the values. Table 3 lists them. In each case our code read a field name that Garmin doesn't send, or read the value one level too high in the answer. The test data of our CSV writer used the same wrong shapes, so the tests passed.
+
+\begin{center}\footnotesize
+\textsc{Table 3.} Columns that our code left empty, with the days that have a value before and after the fix.\par\smallskip
+\begin{tabular}{@{}llcc@{}}
+\toprule
+File and column & Where Garmin puts the value & Before & After \\
+\midrule
+\code{hrv} \code{lastNight} & \code{lastNightAvg} & 0 & 88 \\
+\code{training} \code{vo2max} & \code{mostRecentVO2Max.generic} & 0 & 88 \\
+\code{training} \code{trainingStatus} & inside a map by device id & 0 & 88 \\
+\code{training} load, 7 and 28 day & not sent; now acute load & 0 & 88 \\
+\code{running\_tolerance}, all columns & \code{acuteImpactLoad} and others & 0 & 88 \\
+\code{misc\_metrics} lactate threshold & two entries, speed and heart rate & text & 1 \\
+\code{daily\_summary} \code{stepGoal} & \code{dailyStepGoal} & 0 & 90 \\
+\code{daily\_summary} intensity minutes & \code{moderateMinutes} & 0 & 90 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent Before the fix, the lactate threshold column held the text ``[object Object],[object Object]'', and after it the file holds a speed and a heart rate of 182 bpm.
+
+\head{5. Discussion.} The 204 answer from Garmin means that the day has no data yet. Every 204 in our measurements came from a day that the watch hadn't synced, and the same endpoint returned data for older days. The app already downloads the last three days again on every export, so a later export fills those days without any change. The message that the app printed, which suggested a temporary failure or an outdated endpoint, was wrong, and version 4.1.1 says that the day probably hasn't synced yet.
+
+Most of the empty columns that the language model reported came from our code and not from Garmin. The running tolerance and VO$_2$ max values were in the export, but the CSV writer dropped them, so the model's explanation about outdoor runs was a guess that fit the gap. The hill score is a different case, because Garmin returned a list with an empty score for every day. With no outdoor runs in the 90 days, an empty hill score is expected, although we didn't confirm Garmin's rule for it.
+
+The sign in result disagrees with the upstream libraries, and both can be true. Our test covers one account, one network, and one day, while the upstream reports come from many users, some behind VPNs or data centers. The old flow can stop working at any time, and our client makes that more likely to hurt, because it deletes the saved tokens on any 403 answer. After that, the next export has to sign in again, and a sign in is the step that Garmin is most likely to block.
+
+We also found that the update button of Garmin Data Exporter 3.0 to 3.3 can't show any newer version. It calls \code{localeCompare} with \code{sensitivity: 'version'}, which Electron rejects with a \code{RangeError}, so the button stays on Checking. Users of 3.x have to download version 4 by hand.
+
+\head{6. Recommendations.} Version 4.1.1 already contains the fixes in Table 3 and the new 204 message. We suggest the following changes next, in order of importance.
+
+First, the client should keep the saved tokens on a 403 answer and skip only that endpoint, and on a 401 answer it should refresh the token and try once before it clears anything. Second, the client should log a 204 answer as no data rather than as a warning, and the cache should store that result for days outside the refresh window, so that old empty days are not downloaded again on every export. Third, the project should plan a move to the token service that \code{python-garminconnect} uses now, because the current sign in depends on a flow that Garmin has started to retire. Fourth, the goals endpoint should send \code{start=1} with the \code{Sec-Fetch-Site} header, although our account has no goals, so we couldn't confirm the fix. Fifth, the endpoint named \code{activity\_typed\_splits} should be renamed to match what it reads, and the three pairs of endpoints that request the same address for each day should share one call. Finally, the old Python scripts should either require \code{python-garminconnect} 0.3.17 with Python 3.12 or be marked as frozen, and \code{sql.js} should move to 1.14.2.
+
+\affiliation{Garmin Export, github.com/danihrndzld/garmin-health-exporter}
+\end{document}
