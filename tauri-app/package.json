@@ -8,7 +8,7 @@
     "dev": "tauri dev",
     "build": "tauri build",
     "tauri": "tauri",
-    "sidecar:universal": "cp ../electron-app/renderer/date-range.js ui/ && for a in arm64:aarch64 x64:x86_64; do bun build --compile --target=bun-darwin-${a%%:*} sidecar/cli.js --outfile src-tauri/binaries/garmin-core-${a##*:}-apple-darwin || exit 1; done && lipo -create -output src-tauri/binaries/garmin-core-universal-apple-darwin src-tauri/binaries/garmin-core-aarch64-apple-darwin src-tauri/binaries/garmin-core-x86_64-apple-darwin",
+    "sidecar:universal": "cp ../electron-app/renderer/date-range.js ui/ && for a in arm64:aarch64 x64-baseline:x86_64; do bun build --compile --target=bun-darwin-${a%%:*} sidecar/cli.js --outfile src-tauri/binaries/garmin-core-${a##*:}-apple-darwin || exit 1; done && lipo -create -output src-tauri/binaries/garmin-core-universal-apple-darwin src-tauri/binaries/garmin-core-aarch64-apple-darwin src-tauri/binaries/garmin-core-x86_64-apple-darwin",
     "release": "bun run sidecar:universal && tauri build --target universal-apple-darwin --config '{\"build\":{\"beforeBuildCommand\":\"\"}}'"
   },
   "devDependencies": {
