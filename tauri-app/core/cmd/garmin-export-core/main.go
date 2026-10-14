@@ -3,8 +3,11 @@
 package main
 
 import (
+	"context"
 	"os"
+	"time"
 
+	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/mfp"
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/protocol"
 )
 
@@ -16,6 +19,12 @@ func main() {
 		return
 	}
 	switch req["cmd"] {
+	case "mfp-export":
+		opts := mfp.Options{Gap: time.Second}
+		if mfp.FakeServer() != "" {
+			opts.Gap = 0 // only the loopback test server may skip the pause
+		}
+		out.Result(mfp.Export(context.Background(), req, out, opts))
 	default:
 		out.Result(map[string]any{"ok": false, "error": "Unknown command."})
 	}
