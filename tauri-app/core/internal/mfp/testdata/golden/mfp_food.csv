@@ -1,0 +1,5 @@
+date,meal,meal_position,consumed_at,logged_at,description,brand,verified,servings,serving_size,serving_unit,grams,energy_kcal,protein_g,carbohydrates_g,fiber_g,sugar_g,added_sugars_g,fat_g,saturated_fat_g,trans_fat_g,cholesterol_mg,sodium_mg,potassium_mg,calcium_pct_dv,iron_pct_dv,vitamin_d_pct_dv
+2026-10-05,Breakfast,0,2026-10-05T07:40:00-06:00,2026-10-05T08:02:11-06:00,"Pan ""Bimbo"", integral",Bimbo,true,2,1,slice,56,140,6,24,4,3,2,2,0.4,0,0,260,120,4,8,
+2026-10-05,Lunch,1,2026-10-05T13:10:00-06:00,2026-10-05T13:30:00-06:00,"Arroz con pollo
+de la casa",,false,1.5,1,cup,360,615,42,70,3,2,,16,4,,110,980,,,,
+2026-10-07,Snacks,3,2026-10-07T16:00:00-06:00,2026-10-07T16:05:00-06:00,Banana,,true,1,1,medium,118,104.9,1.3,27,3.1,14,,0.4,,,,1,422,,,
