@@ -5,7 +5,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { writePack, readPack } from './llm-pack.js';
+import { previewPack, buildPack } from './llm-pack.js';
 import { buildReport } from './report.js';
 import wasmPath from '../../electron-app/node_modules/sql.js/dist/sql-wasm.wasm' with { type: 'file' };
 
@@ -68,11 +68,9 @@ async function runExport(req) {
   const summary = summarize(res.jsonPath);
   let pack = null;
   try {
-    const range = summary?.range || {};
-    writePack({ csvDir: res.csvDir, startDate: range.start, endDate: range.end, warnings });
-    pack = readPack(res.csvDir);
+    pack = previewPack({ csvDir: res.csvDir, startDate: summary?.range?.start, endDate: summary?.range?.end, warnings });
   } catch (err) {
-    emit({ kind: 'log', type: 'warn', msg: `LLM pack failed: ${err.message}`, ts: ts() });
+    emit({ kind: 'log', type: 'warn', msg: `LLM pack preview failed: ${err.message}`, ts: ts() });
   }
   return { ok: true, path: res.csvDir, jsonPath: res.jsonPath, summary, pack };
 }
@@ -105,7 +103,21 @@ async function summary(req) {
   if (!p || !p.endsWith('.json')) return fail('jsonPath must be a .json file within your home directory.');
   const s = summarize(p);
   const dir = req.csvDir && resolveOutputDir(req.csvDir);
-  return s ? { ok: true, summary: s, pack: dir ? readPack(dir) : null } : fail('Could not read export.');
+  if (!s) return fail('Could not read export.');
+  const pack = dir ? previewPack({ csvDir: dir, startDate: s.range?.start, endDate: s.range?.end, warnings: cleanWarnings(req.warnings) }) : null;
+  return { ok: true, summary: s, pack };
+}
+
+const ISO = /^\d{4}-\d{2}-\d{2}$/;
+const cleanWarnings = (w) => (Array.isArray(w) ? w.slice(0, 200).map((x) => String(x).slice(0, 500)) : []);
+
+// Writes one language into its own subfolder of an export's csv dir; runs only on a button press.
+async function pack(req) {
+  const csvDir = resolveOutputDir(req.csvDir);
+  // buildPack deletes and recreates llm-* subfolders, so only accept an export's csv_* folder.
+  if (!csvDir || !/^csv_/.test(path.basename(csvDir)) || !fs.existsSync(csvDir) || !fs.statSync(csvDir).isDirectory()) return fail('csvDir must be an export csv_ folder within your home directory.');
+  if (!ISO.test(req.startDate) || !ISO.test(req.endDate)) return fail('startDate and endDate must be YYYY-MM-DD.');
+  return { ok: true, ...buildPack({ csvDir, startDate: req.startDate, endDate: req.endDate, warnings: cleanWarnings(req.warnings), lang: req.lang, mode: req.mode }) };
 }
 
 async function clearCache(req) {
@@ -116,7 +128,7 @@ async function clearCache(req) {
   return { ok: true };
 }
 
-const COMMANDS = { export: runExport, 'clear-cache': clearCache, summary, report: async (req) => ({ ok: true, ...buildReport(req) }) };
+const COMMANDS = { export: runExport, 'clear-cache': clearCache, summary, pack, report: async (req) => ({ ok: true, ...buildReport(req) }) };
 
 async function main() {
   // First line only: Tauri's shell Child can write() but cannot close stdin.

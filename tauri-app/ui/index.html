@@ -147,8 +147,9 @@
       <div class="files" id="files"></div>
     </div>
     <div class="sh-actions" id="sh-actions">
-      <button type="button" class="cta" id="copy-ctx"><span class="stack"><span id="copy-ctx-l">Copiar contexto + ver archivos</span><small id="copy-ctx-s">pega el texto, arrastra los CSV</small></span><kbd class="mono">⌘ C</kbd></button>
-      <button type="button" class="cta ghost" id="copy-one"><span class="stack"><span id="copy-one-l">Copiar como un archivo</span><small class="mono" id="copy-one-s">—</small></span></button>
+      <button type="button" class="cta pk" id="copy-ctx" data-mode="files"><span class="stack"><span id="copy-ctx-l">Armar carpeta: contexto + CSV</span><small class="mono" id="copy-ctx-s">llm-es/</small></span><span class="pk-ico" aria-hidden="true"><kbd class="mono">↵</kbd><i class="spin"></i><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span></button>
+      <button type="button" class="cta ghost pk" id="copy-one" data-mode="single"><span class="stack"><span id="copy-one-l">Armar un solo archivo</span><small class="mono" id="copy-one-s">—</small></span><span class="pk-ico" aria-hidden="true"><i class="spin"></i><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span></button>
+      <p class="sr" id="pk-live" aria-live="polite"></p>
     </div>
     <div class="sh-links mono"><span id="open-l">abrir</span>
       <button type="button" data-url="https://claude.ai/new">claude.ai ↗</button>

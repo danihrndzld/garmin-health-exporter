@@ -2,29 +2,47 @@ import { test, expect } from 'bun:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { writePack, readPack } from './llm-pack.js';
+import { previewPack, buildPack } from './llm-pack.js';
 
-test('writePack + readPack round-trip', () => {
+function exportDir() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pack-'));
   fs.writeFileSync(path.join(dir, 'sleep.csv'), 'date,sleepTimeSeconds,restingHeartRate,hrTimeInZone_2,averageSpO2HRSleep\n2026-05-12,25200,52,600,55\n2026-05-11,24000,54,300,56\n');
   fs.writeFileSync(path.join(dir, 'correr.csv'), 'activityId,startTimeLocal,distance\n1,"2026-05-20 07:00:00",5000\n');
-  // A stale pack from an earlier same-day run must be replaced, not duplicated.
-  fs.writeFileSync(path.join(dir, 'garmin_2026-01-01_2026-01-02.es.md'), 'old');
+  return dir;
+}
+const opts = (csvDir) => ({ csvDir, startDate: '2026-05-11', endDate: '2026-07-09', warnings: ['hill_score skipped (404)'] });
 
-  writePack({ csvDir: dir, startDate: '2026-05-11', endDate: '2026-07-09', warnings: ['hill_score skipped (404)'] });
-  const pack = readPack(dir);
+test('previewPack builds both languages in memory and writes nothing', () => {
+  const dir = exportDir();
+  const p = previewPack(opts(dir));
+  expect(fs.readdirSync(dir).sort()).toEqual(['correr.csv', 'sleep.csv']);
+  expect(p.days).toBe(60);
+  expect(p.files).toEqual([{ name: 'correr.csv', rows: 1 }, { name: 'sleep.csv', rows: 2 }]);
+  expect(p.langs.es.context).toContain('Rango: 2026-05-11 → 2026-07-09 (60 días)');
+  expect(p.langs.es.context).toContain('2 filas, 2026-05-11 → 2026-05-12');
+  for (const c of ['sleepTimeSeconds (s)', 'restingHeartRate (bpm)', 'hrTimeInZone_2 (s)', 'averageSpO2HRSleep (bpm)']) expect(p.langs.es.context).toContain(c);
+  expect(p.langs.en.context).toContain('- hill_score skipped (404)');
+  expect(p.langs.en.tokens).toBeGreaterThan(0);
+  expect(previewPack({ ...opts(dir), startDate: undefined })).toBe(null);
+});
 
-  expect(pack.days).toBe(60);
-  expect(pack.files).toEqual([{ name: 'correr.csv', rows: 1 }, { name: 'sleep.csv', rows: 2 }]);
-  expect(fs.existsSync(path.join(dir, 'garmin_2026-01-01_2026-01-02.es.md'))).toBe(false);
-  expect(pack.langs.es.context).toContain('Rango: 2026-05-11 → 2026-07-09 (60 días)');
-  expect(pack.langs.es.context).toContain('2 filas, 2026-05-11 → 2026-05-12');
-  expect(pack.langs.es.context).toContain('sleepTimeSeconds (s)');
-  expect(pack.langs.es.context).toContain('restingHeartRate (bpm)');
-  expect(pack.langs.es.context).toContain('hrTimeInZone_2 (s)');
-  expect(pack.langs.es.context).toContain('averageSpO2HRSleep (bpm)');
-  expect(pack.langs.en.context).toContain('- hill_score skipped (404)');
-  expect(pack.langs.en.single).toContain('```csv\nactivityId,startTimeLocal,distance');
-  expect(pack.tokens).toBeGreaterThan(0);
-  expect(readPack(fs.mkdtempSync(path.join(os.tmpdir(), 'nopack-')))).toBe(null);
+test('buildPack writes one language per subfolder with no duplicated data', () => {
+  const dir = exportDir();
+  fs.writeFileSync(path.join(dir, 'CONTEXT.es.md'), 'legacy'); // v4.0.0 leftovers get removed
+  fs.writeFileSync(path.join(dir, 'garmin_2026-01-01_2026-01-02.en.md'), 'legacy');
+
+  const a = buildPack({ ...opts(dir), lang: 'en', mode: 'files' });
+  expect(a.dir).toBe(path.join(dir, 'llm-en'));
+  expect(fs.readdirSync(a.dir).sort()).toEqual(['CONTEXT.en.md', 'correr.csv', 'sleep.csv']);
+  expect(fs.readFileSync(path.join(a.dir, 'CONTEXT.en.md'), 'utf8')).not.toContain('```csv');
+
+  const b = buildPack({ ...opts(dir), lang: 'es', mode: 'single' });
+  expect(fs.readdirSync(b.dir)).toEqual(['garmin_2026-05-11_2026-07-09.es.md']);
+  expect(fs.readFileSync(b.file, 'utf8')).toContain('```csv\nactivityId,startTimeLocal,distance');
+
+  expect(fs.readdirSync(dir).sort()).toEqual(['correr.csv', 'llm-en', 'llm-es-one-file', 'sleep.csv']);
+  fs.writeFileSync(path.join(a.dir, 'stale.txt'), 'x');
+  buildPack({ ...opts(dir), lang: 'en', mode: 'files' }); // a second press replaces the folder
+  expect(fs.existsSync(path.join(a.dir, 'stale.txt'))).toBe(false);
+  expect(() => buildPack({ ...opts(dir), lang: 'fr', mode: 'files' })).toThrow();
 });

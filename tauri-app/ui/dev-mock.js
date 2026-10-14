@@ -19,8 +19,8 @@
     const ctx = (es) => [es ? '# Datos de Garmin Connect' : '# Garmin Connect data', '', (es ? 'Rango' : 'Range') + ': 2026-09-14 → 2026-10-13 (30 ' + (es ? 'días' : 'days') + ')', '',
       es ? '## Archivos' : '## Files', ...files.map((f) => `- \`${f.name}\`: ${f.rows} ${es ? 'filas' : 'rows'}.`), '', es ? '## Faltantes y avisos' : '## Missing data and warnings', '- hill_score skipped (404)'].join('\n');
     const dir = '/Users/you/Documents/GarminExport/csv_2026-10-13';
-    const lang = (l) => ({ contextPath: `${dir}/CONTEXT.${l}.md`, singlePath: `${dir}/garmin_2026-09-14_2026-10-13.${l}.md`, context: ctx(l === 'es'), single: ctx(l === 'es') + '\n...' });
-    return { csvDir: dir, startDate: '2026-09-14', endDate: '2026-10-13', days: 30, files, bytes: 121000, tokens: 40300, langs: { es: lang('es'), en: lang('en') } };
+    const lang = (l) => ({ context: ctx(l === 'es'), bytes: 121000, tokens: 40300, singleName: `garmin_2026-09-14_2026-10-13.${l}.md` });
+    return { csvDir: dir, startDate: '2026-09-14', endDate: '2026-10-13', days: 30, files, warnings: ['hill_score skipped (404)'], langs: { es: lang('es'), en: lang('en') } };
   };
   window.devMock = {
     defaults: async () => ({ outputDir: '/Users/you/Documents/GarminExport', dataDir: '/tmp' }),
@@ -35,6 +35,12 @@
       const ts = () => new Date().toLocaleTimeString();
       const done = (async () => {
         if (req.cmd === 'summary') return { ok: true, summary: fakeSummary(), pack: fakePack() };
+        if (req.cmd === 'pack') {
+          await sleep(180);
+          if (localStorage.getItem('mock_pack_fail')) return { ok: false, error: 'EACCES: permission denied' };
+          const dir = `${req.csvDir}/llm-${req.lang}${req.mode === 'single' ? '-one-file' : ''}`;
+          return { ok: true, dir, file: req.mode === 'single' ? `${dir}/garmin_${req.startDate}_${req.endDate}.${req.lang}.md` : undefined, count: req.mode === 'single' ? 1 : 11 };
+        }
         if (req.cmd === 'report') return { ok: true, issueUrl: 'https://github.com/x/issues/new', mailtoUrl: 'mailto:x' };
         if (req.cmd !== 'export') return { ok: true };
         if (req.email === 'fail@x.com') {

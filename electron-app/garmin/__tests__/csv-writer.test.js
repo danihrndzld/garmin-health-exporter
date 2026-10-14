@@ -316,7 +316,7 @@ test('generateCsvs: writes expected CSV files from sample data', () => {
           avgOvernightHrv: 42,
         },
         hrv: {
-          hrvSummary: { weeklyAvg: 45, lastNight: 42, status: 'BALANCED' },
+          hrvSummary: { weeklyAvg: 45, lastNightAvg: 42, status: 'BALANCED', baseline: { balancedLow: 40, balancedUpper: 52 } },
         },
         body_battery: [
           { charged: 60, drained: 45 },
@@ -372,6 +372,12 @@ test('generateCsvs: writes expected CSV files from sample data', () => {
   assert.ok(headerLine.includes('date'));
   assert.ok(headerLine.includes('totalSteps'));
   assert.ok(headerLine.includes('totalKilocalories'));
+
+  // HRV: Garmin's key is lastNightAvg; the column used to come out empty
+  const [hrvHead, hrvRow] = fs.readFileSync(path.join(result.csvDir, 'hrv.csv'), 'utf8').split('\n');
+  const hrvCol = (name) => hrvRow.split(',')[hrvHead.split(',').indexOf(name)];
+  assert.strictEqual(hrvCol('lastNightAvg'), '42');
+  assert.strictEqual(hrvCol('baselineBalancedLow'), '40');
 
   // Verify activities content
   const actCsv = fs.readFileSync(path.join(result.csvDir, 'activities.csv'), 'utf8');

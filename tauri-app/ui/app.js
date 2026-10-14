@@ -379,6 +379,7 @@
       openOut.hidden = false;
       if (res.summary) renderSummary(res.summary);
       pack = res.pack || null;
+      store.set('last_warnings', JSON.stringify(pack?.warnings || []));
       toast('Done. CSVs are in ' + tilde(res.path));
     } else {
       if (running.phase) setRow(running.phase, res.cancelled ? 'warn' : 'err', res.error);
@@ -404,7 +405,6 @@
     const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName);
     if (!sheet.hidden) {
       if (e.key === 'Escape') { e.preventDefault(); closeSheet(); }
-      if ((isMac ? e.metaKey : e.ctrlKey) && e.key === 'c' && !String(getSelection())) { e.preventDefault(); copyContext(); }
       return;
     }
     if ((isMac ? e.metaKey : e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); startExport(); }
@@ -451,31 +451,36 @@
     document.querySelectorAll('.preview').forEach((el) => el.setAttribute('data-empty', ''));
     const jsonPath = store.get('last_json');
     if (!jsonPath) return;
-    const res = await platform.run({ cmd: 'summary', jsonPath, csvDir: lastOutDir }, () => {}).done;
+    let warnings = [];
+    try { warnings = JSON.parse(store.get('last_warnings', '[]')); } catch { /* old or missing */ }
+    const res = await platform.run({ cmd: 'summary', jsonPath, csvDir: lastOutDir, warnings }, () => {}).done;
     if (res.ok && res.summary) renderSummary(res.summary);
     pack = (res.ok && res.pack) || null;
     arrangeCtas(false);
   }
 
   // ── LLM pack ────────────────────────────────────────────────────────────
-  // The sidecar writes CONTEXT.<lang>.md + garmin_<range>.<lang>.md after every
-  // export; this sheet only copies / reveals them.
+  // Export writes nothing extra. Each button asks the sidecar to build ONE language
+  // into its own subfolder (llm-<lang>/ or llm-<lang>-one-file/) and opens it, so
+  // dragging the whole folder never sends the same data twice.
   const STR = {
     es: {
       h1: 'Pásaselo a un LLM.', sub: (p) => `${p.days} días · ${p.files.length} archivos.`,
       fits: 'cabe en Claude · 200k', over: 'excede 200k · usa los CSV sueltos', note: 'solo contexto, sin pedido',
-      ctx: 'Copiar contexto + ver archivos', ctxS: 'pega el texto, arrastra los CSV', one: 'Copiar como un archivo',
-      open: 'abrir', reveal: 'mostrar en Finder', copied: 'Copiado ✓', files: 'Archivos en la carpeta',
-      tCtx: 'Contexto copiado. Pégalo en el chat y arrastra los CSV.', tOne: 'Archivo copiado. Pégalo en el chat: entra como adjunto.',
-      emptyH: 'aún no hay paquete.', empty: 'Este export es anterior al LLM pack. Haz "Pull again" para generarlo.',
+      ctx: 'Armar carpeta: contexto + CSV', one: 'Armar un solo archivo',
+      open: 'abrir', reveal: 'carpeta del export', files: 'Archivos en la carpeta',
+      building: 'Armando…', done: (n) => `Listo · ${n} ${n === 1 ? 'archivo' : 'archivos'}`,
+      tCtx: 'Arrastra todo lo de la carpeta al chat.', tOne: 'Arrastra el archivo al chat.', fail: 'No se pudo armar: ',
+      emptyH: 'aún no hay paquete.', empty: 'No se pudo leer este export. Haz "Pull again" para generarlo.',
     },
     en: {
       h1: 'Hand it to an LLM.', sub: (p) => `${p.days} days · ${p.files.length} files.`,
       fits: 'fits Claude · 200k', over: 'over 200k · use the loose CSVs', note: 'context only, no ask',
-      ctx: 'Copy context + show files', ctxS: 'paste the text, drag the CSVs', one: 'Copy as one file',
-      open: 'open', reveal: 'show in Finder', copied: 'Copied ✓', files: 'Files in the folder',
-      tCtx: 'Context copied. Paste it in the chat and drag the CSVs.', tOne: 'File copied. Paste it in the chat; it lands as an attachment.',
-      emptyH: 'no pack yet.', empty: 'This export predates the LLM pack. Hit "Pull again" to build one.',
+      ctx: 'Build folder: context + CSVs', one: 'Build one file',
+      open: 'open', reveal: 'export folder', files: 'Files in the folder',
+      building: 'Building…', done: (n) => `Ready · ${n} ${n === 1 ? 'file' : 'files'}`,
+      tCtx: 'Drag everything in the folder into the chat.', tOne: 'Drag the file into the chat.', fail: 'Could not build: ',
+      emptyH: 'no pack yet.', empty: 'This export could not be read. Hit "Pull again" to build one.',
     },
   };
   const CONTEXT_WINDOW = 200000;
@@ -498,13 +503,13 @@
     if (!pack) { $('sh-h2').textContent = t.emptyH; empty.textContent = t.empty; return; }
     const L = pack.langs[lang] || pack.langs.es;
     $('sh-h2').textContent = t.sub(pack);
-    const over = pack.tokens > CONTEXT_WINDOW;
+    const over = L.tokens > CONTEXT_WINDOW;
     $('ctx-meter').classList.toggle('over', over);
-    requestAnimationFrame(() => { $('ctx-fill').style.width = Math.min(100, (pack.tokens / CONTEXT_WINDOW) * 100) + '%'; });
-    $('ctx-tokens').textContent = `≈ ${Math.round(pack.tokens / 1000)}k tokens`;
-    $('ctx-kb').textContent = `${Math.round(pack.bytes / 1024)} KB`;
+    requestAnimationFrame(() => { $('ctx-fill').style.width = Math.min(100, (L.tokens / CONTEXT_WINDOW) * 100) + '%'; });
+    $('ctx-tokens').textContent = `≈ ${Math.round(L.tokens / 1000)}k tokens`;
+    $('ctx-kb').textContent = `${Math.round(L.bytes / 1024)} KB`;
     $('ctx-fit').textContent = over ? t.over : t.fits;
-    $('ctx-name').textContent = L.contextPath.split('/').pop();
+    $('ctx-name').textContent = `CONTEXT.${lang}.md`;
     $('ctx-note').textContent = t.note;
     const pre = $('ctx-pre');
     pre.textContent = '';
@@ -519,17 +524,18 @@
     lbl.className = 'lbl2';
     lbl.textContent = t.files;
     files.append(lbl);
-    for (const f of pack.files) {
+    pack.files.forEach((f, i) => {
       const chip = document.createElement('span');
       const n = document.createElement('em');
       n.textContent = f.rows;
       chip.append(f.name.replace(/\.csv$/, ''), n);
+      chip.style.setProperty('--i', i);
       files.append(chip);
-    }
+    });
     $('copy-ctx-l').textContent = t.ctx;
-    $('copy-ctx-s').textContent = t.ctxS;
+    $('copy-ctx-s').textContent = `llm-${lang}/`;
     $('copy-one-l').textContent = t.one;
-    $('copy-one-s').textContent = L.singlePath.split('/').pop();
+    $('copy-one-s').textContent = `llm-${lang}-one-file/`;
     $('open-l').textContent = t.open;
     $('reveal-one').textContent = t.reveal;
   }
@@ -550,29 +556,52 @@
     llmBtn.focus();
   }
 
-  async function copyFlow(btn, text, after, msg) {
-    try {
-      await platform.copyText(text);
-      after();
-      const label = btn.querySelector('.stack > span');
-      const prev = label.textContent;
-      label.textContent = STR[lang].copied;
-      btn.classList.add('ok');
-      setTimeout(() => { label.textContent = prev; btn.classList.remove('ok'); }, 1500);
-      toast(msg);
-    } catch (err) {
-      toast('Copy failed: ' + (err?.message || err));
+  // Build → open. The button holds a "building" state for at least MIN_BUILD_MS so
+  // the motion reads as feedback even when the sidecar answers in 50 ms.
+  const MIN_BUILD_MS = 700;
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const calm = matchMedia('(prefers-reduced-motion: reduce)');
+  function swapText(el, text) {
+    el.textContent = text;
+    if (!calm.matches) el.animate([{ opacity: 0, transform: 'translateY(4px)' }, { opacity: 1, transform: 'none' }], { duration: 220, easing: 'cubic-bezier(.25,1,.5,1)' });
+  }
+  async function buildFlow(btn) {
+    if (!pack || btn.dataset.state === 'building') return;
+    const t = STR[lang], mode = btn.dataset.mode;
+    const label = btn.querySelector('.stack > span'), prev = t[mode === 'single' ? 'one' : 'ctx'];
+    const live = $('pk-live');
+    clearTimeout(btn._reset);
+    btn.dataset.state = 'building';
+    btn.setAttribute('aria-busy', 'true');
+    swapText(label, t.building);
+    live.textContent = t.building;
+    $('files').classList.remove('packing');
+    void $('files').offsetWidth; // restart the chip stagger
+    $('files').classList.add('packing');
+    const [res] = await Promise.all([
+      platform.run({ cmd: 'pack', mode, lang, csvDir: pack.csvDir, startDate: pack.startDate, endDate: pack.endDate, warnings: pack.warnings || [] }, () => {}).done
+        .catch((err) => ({ ok: false, error: err?.message || String(err) })),
+      wait(MIN_BUILD_MS),
+    ]);
+    btn.removeAttribute('aria-busy');
+    if (res.ok) {
+      btn.dataset.state = 'done';
+      swapText(label, t.done(res.count));
+      live.textContent = label.textContent;
+      if (mode === 'single') platform.reveal(res.file); else platform.openPath(res.dir);
+      toast(mode === 'single' ? t.tOne : t.tCtx);
+    } else {
+      btn.dataset.state = 'error';
+      swapText(label, prev);
+      live.textContent = t.fail + res.error;
+      toast(t.fail + res.error, 6000);
     }
+    btn._reset = setTimeout(() => { delete btn.dataset.state; swapText(label, STR[lang][mode === 'single' ? 'one' : 'ctx']); }, 1800);
   }
 
-  const L = () => pack.langs[lang] || pack.langs.es;
-  function copyContext() {
-    if (!pack) return;
-    copyFlow($('copy-ctx'), L().context, () => platform.openPath(pack.csvDir), STR[lang].tCtx);
-  }
-  $('copy-ctx').addEventListener('click', copyContext);
-  $('copy-one').addEventListener('click', () => pack && copyFlow($('copy-one'), L().single, () => platform.reveal(L().singlePath), STR[lang].tOne));
-  $('reveal-one').addEventListener('click', () => pack && platform.reveal(L().singlePath));
+  $('copy-ctx').addEventListener('click', () => buildFlow($('copy-ctx')));
+  $('copy-one').addEventListener('click', () => buildFlow($('copy-one')));
+  $('reveal-one').addEventListener('click', () => pack && platform.openPath(pack.csvDir));
   sheet.querySelectorAll('[data-url]').forEach((b) => b.addEventListener('click', () => platform.openUrl(b.dataset.url)));
   $('lang-seg').addEventListener('click', (e) => {
     const b = e.target.closest('[data-lang]');

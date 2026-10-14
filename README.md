@@ -35,7 +35,7 @@ Each export creates a folder named `csv_YYYY-MM-DD` inside your output folder, w
 - Daily health data, with one row per day, in `daily_summary.csv`, `sleep.csv`, `hrv.csv`, `body_battery.csv`, `training.csv`, and `spo2_respiration.csv`. The daily summary covers steps, calories, heart rate, stress, intensity minutes, and hydration.
 - Longer term data in `weight_body_comp.csv`, `blood_pressure.csv`, `misc_metrics.csv`, `running_tolerance.csv`, `daily_steps_aggregated.csv`, `weekly_intensity.csv`, and `hill_score_daily.csv`. The misc file holds fitness age, race predictions, lactate threshold, and FTP.
 - Activities, with every activity in `activities.csv` and one file per type in `caminar.csv`, `correr.csv`, and `gym.csv`. Each type also has a laps file, e.g., `correr_laps.csv`.
-- The LLM pack, which is described in [Give the data to an LLM](#give-the-data-to-an-llm).
+- The LLM pack folders, after you click a button in the pack panel, as described in [Give the data to an LLM](#give-the-data-to-an-llm).
 
 The app also saves the raw JSON that Garmin returned next to the folder, in case you need a field that the CSV files leave out. A file is missing from the folder when Garmin has no data of that kind for your account, e.g., `blood_pressure.csv` when you never logged a reading.
 
@@ -75,17 +75,14 @@ After the first sign in, the app keeps the Garmin login tokens in its Applicatio
 
 ## Give the data to an LLM
 
-After each export, the app writes four Markdown files into the CSV folder, in Spanish and in English.
+Press L, or click LLM pack, to open the pack panel. The panel shows the description of your data in the language you pick, Spanish or English, and an estimate of the token count against a 200,000 token context window. The export itself doesn't write any LLM files. The app writes them only when you click one of the two buttons, and it writes only the language you picked.
 
-- `CONTEXT.es.md` and `CONTEXT.en.md` describe the data. They list the date range, each file with its row count and dates, each column with its unit, and any data that Garmin didn't return. They don't ask the LLM to do anything, so you add your own question.
-- `garmin_<start>_<end>.es.md` and `garmin_<start>_<end>.en.md` hold the same description followed by every CSV file, in one file you can upload.
+1. Build folder writes `llm-en`, which holds `CONTEXT.en.md` and a copy of every CSV file, and it opens the folder. Drag everything in the folder into the chat, and then type your question.
+2. Build one file writes `llm-en-one-file`, which holds one Markdown file with the description and every CSV file inside it, and it selects the file in Finder. Drag the file into the chat.
 
-Press L, or click LLM pack, to open the pack panel. The panel shows an estimate of the token count against a 200,000 token context window, and it has two buttons.
+Each folder holds the data once, so you can drag the whole folder without sending the same rows twice. A second click replaces the folder. `CONTEXT.en.md` lists the date range, each file with its row count and dates, each column with its unit, and any data that Garmin didn't return, and it doesn't ask the LLM to do anything. The panel also has links that open claude.ai, chatgpt.com, and gemini.google.com.
 
-1. Copy context and show files copies the description, and it opens the folder so you can drag the CSV files into the chat.
-2. Copy as one file copies the single Markdown file, and it selects the file in Finder.
-
-The panel also has links that open claude.ai, chatgpt.com, and gemini.google.com. The raw JSON is never part of the pack, because a 60 day export is about 38 MB, and Claude accepts files up to 30 MB. The CSV files for the same 60 days are about 240 KB.
+The raw JSON is never part of the pack, because a 60 day export is about 38 MB, and Claude accepts files up to 30 MB. The CSV files for a 90 day export are about 350 KB, which is about 120,000 tokens.
 
 ## Questions
 
@@ -99,7 +96,7 @@ The refresh window is the number of recent days that the app downloads again on 
 <details>
 <summary>What does a line that starts with [skip] mean?</summary>
 
-A `[skip]` line means that Garmin returned no data for one kind of data, and the export kept going without it. For example, `endurance_score: Empty response body` means that Garmin answered with HTTP 204, which is an empty answer, usually because your watch doesn't record that score. The skipped data is listed under missing data in `CONTEXT.en.md`.
+A `[skip]` line means that Garmin returned no data for one kind of data, and the export kept going without it. For example, `endurance_score: Empty response body` means that Garmin answered with HTTP 204, which is an empty answer, usually because your watch doesn't record that score. The skipped data is listed under missing data in `CONTEXT.en.md` when you build the LLM pack.
 
 </details>
 
@@ -147,7 +144,7 @@ bun run dev
 To run the tests, use the commands below. The first command tests the Garmin client and cache, and the second tests the LLM pack and the error report.
 
 ```sh
-(cd electron-app && node --test garmin/__tests__/)
+(cd electron-app && for f in garmin/__tests__/*.test.js; do node "$f"; done)
 (cd tauri-app && bun test sidecar)
 ```
 

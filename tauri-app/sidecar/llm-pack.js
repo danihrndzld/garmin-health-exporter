@@ -1,5 +1,8 @@
-// LLM pack: after each export, write CONTEXT.<lang>.md (what the data is, no ask)
-// and garmin_<start>_<end>.<lang>.md (context + every CSV inline) next to the CSVs.
+// LLM pack. Export writes nothing extra; previewPack builds the text in memory for the sheet.
+// buildPack runs on a button press and writes ONE language into its own subfolder, so the user
+// can drag everything in that folder without sending the same data twice:
+//   llm-<lang>/           CONTEXT.<lang>.md + copies of the CSVs
+//   llm-<lang>-one-file/  garmin_<start>_<end>.<lang>.md (context + every CSV inline)
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -34,7 +37,7 @@ const UNITS = [
   [/Milliseconds$|InMilliseconds$/i, 'ms'], [/Seconds$|InSeconds$|^duration$|Duration$/, 's'],
   [/Meters$|^distance$|Distance$/, 'm'], [/Kilocalories$|^calories$|Calories$/, 'kcal'],
   [/Hrv$|HRV|hrv/, 'ms'], [/HeartRate$|Hr$|^hr|Bpm$/i, 'bpm'], [/Ml$|InML$/i, 'ml'],
-  [/Percent$|Pct$|SpO2/i, '%'], [/C$/, '°C'], [/Speed$/, 'm/s'], [/[Ww]eight$/, 'g'],
+  [/^lastNight|^baseline(Low|Balanced)/, 'ms'], [/Percent$|Pct$|SpO2/i, '%'], [/C$/, '°C'], [/Speed$/, 'm/s'], [/[Ww]eight$/, 'g'],
 ];
 const unitOf = (col) => (UNITS.find(([re]) => re.test(col)) || [])[1];
 
@@ -88,36 +91,49 @@ export function buildContext({ lang, startDate, endDate, exportedAt, tz, files, 
   return out.join('\n') + '\n';
 }
 
-/** Write the 4 pack files into csvDir. Returns nothing; read back with readPack. */
-export function writePack({ csvDir, startDate, endDate, warnings = [], now = new Date() }) {
+const LEGACY_RE = /^(CONTEXT|garmin_).*\.(es|en)\.md$/; // v4.0.0 wrote these next to the CSVs
+
+function texts({ csvDir, startDate, endDate, warnings = [], now = new Date() }, lang) {
   const files = csvFiles(csvDir).map((name) => ({ name, ...scanCsv(path.join(csvDir, name)) }));
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const exportedAt = `${now.toLocaleDateString('sv-SE')} ${now.toTimeString().slice(0, 5)}`;
-  for (const old of fs.readdirSync(csvDir)) if (/^(CONTEXT|garmin_).*\.(es|en)\.md$/.test(old)) fs.rmSync(path.join(csvDir, old));
-  for (const lang of LANGS) {
-    const context = buildContext({ lang, startDate, endDate, exportedAt, tz, files, warnings });
-    fs.writeFileSync(path.join(csvDir, `CONTEXT.${lang}.md`), context);
-    const single = [context, ...files.map((f) => `## \`${f.name}\`\n\n\`\`\`csv\n${f.text.trimEnd()}\n\`\`\`\n`)].join('\n');
-    fs.writeFileSync(path.join(csvDir, `garmin_${startDate}_${endDate}.${lang}.md`), single);
-  }
+  const context = buildContext({ lang, startDate, endDate, exportedAt, tz, files, warnings });
+  const single = [context, ...files.map((f) => `## \`${f.name}\`\n\n\`\`\`csv\n${f.text.trimEnd()}\n\`\`\`\n`)].join('\n');
+  return { files, context, single };
 }
 
-/** Read the pack back from disk (works for any past export that has one). */
-export function readPack(csvDir) {
-  if (!csvDir || !fs.existsSync(csvDir)) return null;
-  const names = fs.readdirSync(csvDir);
-  const singles = names.map((n) => n.match(/^garmin_(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2})\.es\.md$/)).filter(Boolean);
-  if (!singles.length || !names.includes('CONTEXT.es.md')) return null;
-  const [, startDate, endDate] = singles[0];
+/** In-memory preview for the sheet: both languages, no files written. */
+export function previewPack(opts) {
+  const { csvDir, startDate, endDate, warnings = [] } = opts;
+  if (!csvDir || !startDate || !endDate || !fs.existsSync(csvDir)) return null;
   const langs = {};
+  let files = [];
   for (const lang of LANGS) {
-    const contextPath = path.join(csvDir, `CONTEXT.${lang}.md`);
-    const singlePath = path.join(csvDir, `garmin_${startDate}_${endDate}.${lang}.md`);
-    if (!fs.existsSync(contextPath) || !fs.existsSync(singlePath)) continue;
-    langs[lang] = { contextPath, singlePath, context: fs.readFileSync(contextPath, 'utf8'), single: fs.readFileSync(singlePath, 'utf8') };
+    const t = texts(opts, lang);
+    files = t.files.map((f) => ({ name: f.name, rows: f.rows }));
+    const bytes = Buffer.byteLength(t.single);
+    // ponytail: ~3 bytes/token for numeric CSV; good enough for a "fits / doesn't fit" meter.
+    langs[lang] = { context: t.context, bytes, tokens: Math.round(bytes / 3), singleName: `garmin_${startDate}_${endDate}.${lang}.md` };
   }
-  const files = csvFiles(csvDir).map((name) => ({ name, rows: scanCsv(path.join(csvDir, name)).rows }));
-  const bytes = Buffer.byteLength(langs.es?.single || '');
-  // ponytail: ~3 bytes/token for numeric CSV; good enough for a "fits / doesn't fit" meter.
-  return { csvDir, startDate, endDate, days: daysBetween(startDate, endDate), files, bytes, tokens: Math.round(bytes / 3), langs };
+  return { csvDir, startDate, endDate, days: daysBetween(startDate, endDate), files, warnings, langs };
+}
+
+/** Write one language, one mode, into its own subfolder (replaced on every press). */
+export function buildPack({ lang, mode, ...opts }) {
+  if (!LANGS.includes(lang)) throw new Error('lang must be es or en.');
+  if (mode !== 'files' && mode !== 'single') throw new Error('mode must be files or single.');
+  const { csvDir, startDate, endDate } = opts;
+  for (const old of fs.readdirSync(csvDir)) if (LEGACY_RE.test(old)) fs.rmSync(path.join(csvDir, old));
+  const t = texts(opts, lang);
+  const dir = path.join(csvDir, mode === 'files' ? `llm-${lang}` : `llm-${lang}-one-file`);
+  fs.rmSync(dir, { recursive: true, force: true });
+  fs.mkdirSync(dir);
+  if (mode === 'files') {
+    fs.writeFileSync(path.join(dir, `CONTEXT.${lang}.md`), t.context);
+    for (const f of t.files) fs.copyFileSync(path.join(csvDir, f.name), path.join(dir, f.name));
+    return { dir, count: t.files.length + 1 };
+  }
+  const file = path.join(dir, `garmin_${startDate}_${endDate}.${lang}.md`);
+  fs.writeFileSync(file, t.single);
+  return { dir, file, count: 1 };
 }

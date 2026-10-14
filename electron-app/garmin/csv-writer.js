@@ -185,12 +185,14 @@ function extractHrv(daily) {
     const summary = hrv.hrvSummary || {};
     if (!Object.keys(summary).length) continue;
     const row = { date };
-    for (const key of [
-      'weeklyAvg', 'lastNight', 'lastNight5MinHigh', 'lastNight5MinLow',
-      'status', 'feedbackPhrase', 'startTimestampGMT', 'endTimestampGMT',
-    ]) {
+    // Garmin's field is lastNightAvg (an older 'lastNight' key never arrives).
+    for (const key of ['weeklyAvg', 'lastNightAvg', 'lastNight5MinHigh', 'status', 'feedbackPhrase']) {
       row[key] = summary[key] !== undefined ? summary[key] : null;
     }
+    const b = summary.baseline || {};
+    row.baselineLowUpper = b.lowUpper ?? null;
+    row.baselineBalancedLow = b.balancedLow ?? null;
+    row.baselineBalancedUpper = b.balancedUpper ?? null;
     rows.push(row);
   }
   return rows;
