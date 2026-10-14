@@ -30,13 +30,13 @@ const DESCRIBE = {
   caminar_laps: ['Vueltas (laps) de cada caminata', 'Laps of each walk'],
   correr_laps: ['Vueltas (laps) de cada carrera', 'Laps of each run'],
   gym_laps: ['Series / vueltas de cada sesión de gimnasio', 'Sets / laps of each gym session'],
-  mfp_food: ['Diario de comida de MyFitnessPal, una fila por alimento: comida del día, hora, porción y nutrientes', 'Food diary from MyFitnessPal, one row per food: meal, time, serving and nutrients'],
+  mfp_food: ['Diario de comida de MyFitnessPal, una fila por alimento: comida del día, hora, porción y nutrientes. Calcio, hierro y vitamina D van como los guarda MyFitnessPal para cada alimento, que puede ser porcentaje del valor diario o miligramos.', 'Food diary from MyFitnessPal, one row per food: meal, time, serving and nutrients. Calcium, iron and vitamin D are as MyFitnessPal stores them for each food, which can be a percent of daily value or milligrams.'],
   mfp_daily: ['MyFitnessPal por día: si hay registro, totales, metas y calorías de ejercicio registradas en MFP', 'MyFitnessPal per day: whether food was logged, totals, goals and exercise calories logged in MFP'],
   mfp_exercise: ['Ejercicio registrado en MyFitnessPal; puede repetir ejercicio que Garmin ya tiene', 'Exercise logged in MyFitnessPal; it can repeat exercise that Garmin already has'],
 };
 
 const UNITS = [
-  [/_kcal(_mfp)?$/, 'kcal'], [/_g$|^grams$/, 'g'], [/_mg$/, 'mg'], [/_min$/, 'min'], [/_pct_dv$/, '% DV'],
+  [/_kcal(_mfp)?$/, 'kcal'], [/_g$|^grams$/, 'g'], [/_mg$/, 'mg'], [/_min$/, 'min'],
   [/TimeInZone/, 's'], [/SpO2HR/i, 'bpm'],
   [/Milliseconds$|InMilliseconds$/i, 'ms'], [/Seconds$|InSeconds$|^duration$|Duration$/, 's'],
   [/Meters$|^distance$|Distance$/, 'm'], [/Kilocalories$|^calories$|Calories$/, 'kcal'],

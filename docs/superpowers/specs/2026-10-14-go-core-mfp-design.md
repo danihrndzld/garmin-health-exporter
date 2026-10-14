@@ -81,7 +81,8 @@ Rules for the values:
 - Days are keyed by the diary date (`date` / `entry_date`), not by `consumed_at`.
 - Energy is converted to kcal when the account uses kilojoules.
 - On a day with `logged=no`, the totals are empty, not 0.
-- `calcium`, `iron` and `vitamin_d` get a unit suffix only after the Go spike shows whether MFP sends milligrams or a percent of daily value. With a percent, the columns are named `calcium_pct_dv`, `iron_pct_dv` and `vitamin_d_pct_dv`.
+- `calcium`, `iron` and `vitamin_d` carry no unit, because the API sends none and the values do not settle percent of daily value versus milligrams.
+- `grams` is `serving_size.value` times `servings` when `serving_size.unit`, lowercased and trimmed, is `g`, `gram`, `grams`, `gramo` or `gramos`. For any other unit the cell is empty.
 
 The LLM pack gets a description for each file in `DESCRIBE`, the new unit suffixes in `UNITS`, and one line in the context file, e.g., "MyFitnessPal: food logged on 17 of 45 days. Days with logged=no have no data, which does not mean that the person did not eat. Join with the Garmin files by date." `mfp_exercise.csv` gets a note that it can repeat exercise that Garmin already recorded.
 
@@ -122,3 +123,17 @@ If Go's TLS client gets HTTP 403 where Python got 200, the plan adds `utls` for 
 - MFP can change its private API or its bot detection at any time, as it did in June and December 2025. The client fails with a clear message, and the Garmin export isn't affected.
 - Google and Apple sign in usually refuse embedded windows. Email and password sign in should work.
 - The session lifetime is unknown until the spike measures it.
+
+## Spike results (Go), 2026-10-14
+
+The spike ran against the real MyFitnessPal API.
+
+- The `auth_token` request needs all the session cookies. Sending only the session token gets HTTP 302 to the login page.
+- `v2/diary` works with only the Bearer token and the headers, without cookies.
+- The session token lasted 30 days, so a sign in on 2026-10-14 expires on 2026-11-13.
+- The API token lasted 10 days (`expires_in` is 864000).
+- `auth_token` sets the cookies `known_user`, `_mfp_session` and `__cf_bm`.
+- `user_id` is a JSON string, not a number.
+- The nutrients of an entry are already totals for the logged amount, so they are not multiplied by `servings` again.
+- Calcium, iron and vitamin D have no unit field. Values such as 20.06, 122.46, 29.1 and 1.7 do not settle percent of daily value versus milligrams, so the three columns carry no unit and the LLM pack says so.
+- Grams come from `serving_size.value` times `servings`, and only for gram units. `gram_weight` was unreliable: a 26 g entry had a `gram_weight` of 0.01 per serving, which gives 0.26 g. Entries in `ml` have no reliable weight, so their grams cell is empty.

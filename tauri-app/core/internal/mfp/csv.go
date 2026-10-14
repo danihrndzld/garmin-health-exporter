@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 )
 
 type DayData struct {
@@ -17,7 +18,7 @@ type DayData struct {
 var foodHeader = []string{"date", "meal", "meal_position", "consumed_at", "logged_at", "description", "brand", "verified",
 	"servings", "serving_size", "serving_unit", "grams", "energy_kcal", "protein_g", "carbohydrates_g", "fiber_g", "sugar_g",
 	"added_sugars_g", "fat_g", "saturated_fat_g", "trans_fat_g", "cholesterol_mg", "sodium_mg", "potassium_mg",
-	"calcium_pct_dv", "iron_pct_dv", "vitamin_d_pct_dv"}
+	"calcium", "iron", "vitamin_d"}
 
 var dailyHeader = []string{"date", "logged", "meals_logged", "foods_logged", "energy_kcal", "protein_g", "carbohydrates_g",
 	"fat_g", "fiber_g", "sugar_g", "sodium_mg", "goal_energy_kcal", "goal_protein_g", "goal_carbohydrates_g", "goal_fat_g",
@@ -31,6 +32,15 @@ func num(v *float64) string {
 		return ""
 	}
 	return strconv.FormatFloat(math.Round(*v*10)/10, 'f', -1, 64)
+}
+
+// grams is value times servings for gram portions only; gram_weight was unreliable in the real API.
+func grams(unit string, value, servings float64) string {
+	switch strings.ToLower(strings.TrimSpace(unit)) {
+	case "g", "gram", "grams", "gramo", "gramos":
+		return num(f(value * servings))
+	}
+	return ""
 }
 
 func f(v float64) *float64 { return &v }
@@ -78,7 +88,7 @@ func WriteFiles(dir string, days []DayData, g Goals) (int, error) {
 				meals[it.MealName] = true
 				food = append(food, []string{d.Date, it.MealName, strconv.Itoa(it.MealPosition), it.ConsumedAt, it.LoggedAt,
 					it.Food.Description, it.Food.BrandName, strconv.FormatBool(it.Food.Verified),
-					num(f(it.Servings)), num(f(it.ServingSize.Value)), it.ServingSize.Unit, num(f(it.ServingSize.GramWeight * it.Servings)),
+					num(f(it.Servings)), num(f(it.ServingSize.Value)), it.ServingSize.Unit, grams(it.ServingSize.Unit, it.ServingSize.Value, it.Servings),
 					num(n.Energy.Kcal()), num(n.Protein), num(n.Carbohydrate), num(n.Fiber), num(n.Sugar), num(n.AddedSugars),
 					num(n.Fat), num(n.SaturatedFat), num(n.TransFat), num(n.Cholesterol), num(n.Sodium), num(n.Potassium),
 					num(n.Calcium), num(n.Iron), num(n.VitaminD)})

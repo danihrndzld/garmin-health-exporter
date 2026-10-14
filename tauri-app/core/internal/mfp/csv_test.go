@@ -104,3 +104,43 @@ func TestCSVRules(t *testing.T) {
 		t.Errorf("exercise rows: %v", ex)
 	}
 }
+
+func TestGramsOnlyFromGramPortions(t *testing.T) {
+	// Real entries from the 2026-10-14 spike: gram_weight was unreliable, so only gram units count.
+	entries := []struct{ size, servings, want string }{
+		{`{"unit":"g","value":1,"gram_weight":1}`, "74", "74"},
+		{`{"unit":"GRAMOS","value":215,"gram_weight":1}`, "2", "430"},
+		{`{"unit":" gramos ","value":1,"gram_weight":0.01}`, "26", "26"},
+		{`{"unit":"ml","value":1,"gram_weight":0.004}`, "712", ""},
+	}
+	var items []DiaryItem
+	for _, e := range entries {
+		var it DiaryItem
+		raw := `{"type":"food_entry","serving_size":` + e.size + `,"servings":` + e.servings + `}`
+		if err := json.Unmarshal([]byte(raw), &it); err != nil {
+			t.Fatal(err)
+		}
+		items = append(items, it)
+	}
+	dir := t.TempDir()
+	if _, err := WriteFiles(dir, []DayData{{Date: "2026-10-14", Items: items}}, Goals{}); err != nil {
+		t.Fatal(err)
+	}
+	fh, _ := os.Open(filepath.Join(dir, "mfp_food.csv"))
+	defer fh.Close()
+	rows, err := csv.NewReader(fh).ReadAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	col := -1
+	for i, h := range rows[0] {
+		if h == "grams" {
+			col = i
+		}
+	}
+	for i, e := range entries {
+		if got := rows[i+1][col]; got != e.want {
+			t.Errorf("%s x %s: grams = %q, want %q", e.size, e.servings, got, e.want)
+		}
+	}
+}
