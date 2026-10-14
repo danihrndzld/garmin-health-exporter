@@ -60,6 +60,8 @@ async function runExport(req) {
     email, password, ...range,
     outputDir: out,
     refreshWindow: rw,
+    // Only the loopback test server (GARMIN_FAKE_SERVER) may skip the pause between requests.
+    ...(require('../../electron-app/garmin/auth').fakeServer() && { requestDelayMs: 0 }),
     dataDir: resolveDataDir(req.dataDir),
     onProgress: (p) => emit({ kind: 'progress', ...p }),
     onLog: (l) => (l.type === 'warn' && warnings.push(l.message), emit({ kind: 'log', type: l.type, msg: l.message, ts: ts(), ...(l.errorCode && { errorCode: l.errorCode }) })),

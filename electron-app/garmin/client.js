@@ -4,8 +4,11 @@
  * Authenticated HTTP client with:
  *   - Auto-injection of Bearer token and mobile User-Agent
  *   - Configurable inter-request delay (R12)
- *   - Exponential backoff + jitter on 429 (R11)
- *   - Immediate fail + token clear on 401/403
+ *   - 429: honors Retry-After, at most 2 retries, then the run stops (rateLimited)
+ *     (python-garminconnect never retries a 429; garth removed it in #177)
+ *   - 401: refresh the token once and retry; clear tokens only if that fails
+ *   - 403: skip that endpoint and keep the tokens; stop after 5 in a row or on the profile call
+ *   - 204 or an empty body: success with data null ("no data yet", e.g. an unsynced day)
  *   - safe() wrapper matching Python's pattern
  *
  * Usage:
@@ -40,6 +43,15 @@ function backoffDelay(attempt) {
   return Math.min(base + jitter, 60000);
 }
 
+/** Retry-After in ms (seconds or an HTTP date), capped at 60 s; null when absent. */
+function retryAfterMs(resp) {
+  const raw = resp.headers && typeof resp.headers.get === 'function' ? resp.headers.get('retry-after') : null;
+  if (raw == null || raw === '') return null;
+  const secs = Number(raw);
+  const ms = Number.isFinite(secs) ? secs * 1000 : Date.parse(raw) - Date.now();
+  return Number.isFinite(ms) ? Math.min(Math.max(ms, 0), 60000) : null;
+}
+
 function trimPreview(text, max = 200) {
   if (text == null) return '';
   // Redact first so secrets don't survive the length trim.
@@ -66,6 +78,8 @@ function formatErrorMessage(errorCode, meta) {
       return `Network error${ep}: ${meta.errorClass || 'Error'}: ${meta.errorMessage || ''}`.trim();
     case 'AUTH':
       return `Auth failed (${meta.status}) — tokens cleared, re-login required`;
+    case 'FORBIDDEN':
+      return `HTTP 403${ep}: Garmin refused this request. The saved login was kept.`;
     case 'RATE_LIMIT':
       return `Rate limited (429) after ${meta.attempt} attempts — try again later`;
     case 'HTTP_4XX':
@@ -93,13 +107,24 @@ class GarminClient {
   constructor(auth, opts = {}) {
     this.auth = auth;
     this.delay = opts.delay ?? 500;
-    this.maxRetries = opts.maxRetries ?? 5;
+    this.maxRetries = opts.maxRetries ?? 5;               // network errors and timeouts
+    this.maxRateLimitRetries = opts.maxRateLimitRetries ?? 2; // HTTP 429
     this.timeoutMs = opts.timeoutMs ?? 30000;
     this._fetch = opts.fetch || globalThis.fetch;
     this._log = opts.log || console.log;
     this._sleep = opts.sleep || sleep;
     this._lastRequestTime = 0;
     this.authFailed = false;
+    this.rateLimited = false;
+    this.stopReason = null;
+    this._forbiddenStreak = 0;
+  }
+
+  /** Stop the whole run (exporter checks client.authFailed / rateLimited after each step). */
+  _stop(kind, reason) {
+    if (kind === 'auth') this.authFailed = true;
+    if (kind === 'rate') this.rateLimited = true;
+    this.stopReason ||= reason;
   }
 
   /**
@@ -123,16 +148,16 @@ class GarminClient {
    * @param {string} [endpointName]      Optional endpoint label for diagnostics
    * @returns {Promise<{ok: true, data: any} | {ok: false, error: string, errorCode: string, meta: object}>}
    */
-  async fetchUrl(url, endpointName = null) {
+  async fetchUrl(url, endpointName = null, extraHeaders = {}) {
     const redactedUrl = redactUrl(url);
     const baseMeta = { endpoint: endpointName, url: redactedUrl };
 
-    if (this.authFailed) {
+    if (this.authFailed || this.rateLimited) {
       const meta = { ...baseMeta };
       return {
         ok: false,
-        errorCode: 'AUTH',
-        error: 'Auth previously failed — aborting further requests',
+        errorCode: this.authFailed ? 'AUTH' : 'RATE_LIMIT',
+        error: `${this.stopReason || 'Run stopped'} — aborting further requests`,
         meta,
       };
     }
@@ -143,7 +168,7 @@ class GarminClient {
     try {
       token = await this.auth.getAccessToken();
     } catch (err) {
-      this.authFailed = true;
+      this._stop('auth', `Auth error: ${err.message}`);
       const meta = { ...baseMeta, errorClass: err.name, errorMessage: err.message };
       return {
         ok: false,
@@ -153,11 +178,15 @@ class GarminClient {
       };
     }
 
-    const headers = {
-      Authorization: `Bearer ${token}`,
-      'User-Agent': USER_AGENT_MOBILE,
-      Accept: 'application/json',
-    };
+    const buildHeaders = (t) => ({
+      ...(typeof this.auth.apiHeaders === 'function'
+        ? this.auth.apiHeaders(t)
+        : { Authorization: `Bearer ${t}`, 'User-Agent': USER_AGENT_MOBILE, Accept: 'application/json' }),
+      ...extraHeaders,
+    });
+    let headers = buildHeaders(token);
+    let refreshed = false;
+    let rateLimitAttempt = 0;
 
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
       const controller = new AbortController();
@@ -170,33 +199,59 @@ class GarminClient {
           ? resp.headers.get('content-type')
           : null;
 
-        // 401/403: clear tokens, fail immediately, block subsequent requests
-        if (resp.status === 401 || resp.status === 403) {
+        // 401: the token is not accepted. Refresh once and retry; only a second 401
+        // (or a failed refresh) clears the tokens and stops the run.
+        if (resp.status === 401) {
+          if (!refreshed && typeof this.auth.refresh === 'function') {
+            refreshed = true;
+            const r = await this.auth.refresh();
+            if (r && r.ok) {
+              headers = buildHeaders(await this.auth.getAccessToken());
+              this._log(`[client] 401${endpointName ? ` on ${endpointName}` : ''}: token refreshed, retrying`);
+              attempt--; // the retry after a refresh does not count against maxRetries
+              continue;
+            }
+          }
           this.auth.clearTokens();
-          this.authFailed = true;
+          this._stop('auth', 'Garmin no longer accepts the saved login');
           const meta = {
             ...baseMeta, status: resp.status, contentType,
             attempt: attempt + 1, elapsedMs: Date.now() - startedAt,
           };
-          return {
-            ok: false,
-            errorCode: 'AUTH',
-            error: formatErrorMessage('AUTH', meta),
-            meta,
-          };
+          return { ok: false, errorCode: 'AUTH', error: formatErrorMessage('AUTH', meta), meta };
         }
 
-        // 429: backoff + retry
+        // 403: Garmin (or Cloudflare) refused this one request. Keep the tokens: deleting
+        // them would force a new sign in, which is the step most likely to be blocked.
+        if (resp.status === 403) {
+          await resp.text().catch(() => '');
+          this._forbiddenStreak++;
+          const meta = {
+            ...baseMeta, status: 403, contentType,
+            attempt: attempt + 1, elapsedMs: Date.now() - startedAt,
+          };
+          if (endpointName === 'social_profile' || this._forbiddenStreak >= 5) {
+            this._stop('auth', `Garmin refused ${this._forbiddenStreak} request(s) in a row (HTTP 403). The saved login was kept; try again later or from another network.`);
+          }
+          return { ok: false, errorCode: 'FORBIDDEN', error: formatErrorMessage('FORBIDDEN', meta), meta };
+        }
+        this._forbiddenStreak = 0;
+
+        // 429: wait (Retry-After when Garmin sends it) and retry; then stop the run.
         if (resp.status === 429) {
-          if (attempt < this.maxRetries) {
-            const wait = backoffDelay(attempt);
-            this._log(`[client] 429 rate-limited${endpointName ? ` on ${endpointName}` : ''} on attempt ${attempt + 1}/${this.maxRetries + 1}, retrying in ${wait}ms`);
+          await resp.text().catch(() => '');
+          if (rateLimitAttempt < this.maxRateLimitRetries) {
+            const wait = retryAfterMs(resp) ?? backoffDelay(rateLimitAttempt);
+            rateLimitAttempt++;
+            attempt--; // 429 retries have their own budget
+            this._log(`[client] 429 rate-limited${endpointName ? ` on ${endpointName}` : ''} (retry ${rateLimitAttempt}/${this.maxRateLimitRetries}), waiting ${wait}ms`);
             await this._sleep(wait);
             continue;
           }
+          this._stop('rate', 'Garmin is rate limiting requests (HTTP 429). The data so far is cached; try again in an hour.');
           const meta = {
             ...baseMeta, status: 429, contentType,
-            attempt: this.maxRetries + 1, elapsedMs: Date.now() - startedAt,
+            attempt: rateLimitAttempt + 1, elapsedMs: Date.now() - startedAt,
           };
           return {
             ok: false,
@@ -223,20 +278,11 @@ class GarminClient {
           };
         }
 
-        // Success — text-then-parse so we can distinguish EMPTY_BODY from BAD_JSON
+        // Success. 204 or an empty body means Garmin has no data (yet) for this request,
+        // e.g. a day the watch has not synced; upstream maps it to {} the same way.
         const text = await resp.text();
         if (!text || text.trim() === '') {
-          const meta = {
-            ...baseMeta, status: resp.status, contentType,
-            bodyPreview: '', attempt: attempt + 1,
-            elapsedMs: Date.now() - startedAt,
-          };
-          return {
-            ok: false,
-            errorCode: 'EMPTY_BODY',
-            error: formatErrorMessage('EMPTY_BODY', meta),
-            meta,
-          };
+          return { ok: true, data: null, empty: true, status: resp.status };
         }
         let data;
         try {
@@ -324,7 +370,7 @@ class GarminClient {
       };
     }
 
-    return this.fetchUrl(url, endpointName);
+    return this.fetchUrl(url, endpointName, endpoint.headers || {});
   }
 
   /**
@@ -345,6 +391,7 @@ class GarminClient {
         });
         return null;
       }
+      if (result.empty) this._log(`[no data] ${endpointName} (HTTP ${result.status})`);
       return result.data;
     } catch (err) {
       this._log(`[skip] ${endpointName}: ${err.message}`, {
@@ -392,6 +439,7 @@ module.exports = {
   GarminClient,
   // Expose for testing
   backoffDelay,
+  retryAfterMs,
   redactUrl,
   trimPreview,
   formatErrorMessage,

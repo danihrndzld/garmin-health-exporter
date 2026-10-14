@@ -311,24 +311,6 @@ async function runClientTests() {
     assert.ok(logs.some((l) => l.includes('429')), 'Should log 429 retry message');
   });
 
-  await test('error path: 429 exhausts all retries', async () => {
-    // Create enough 429 responses to exhaust maxRetries + 1
-    const responses = Array.from({ length: 7 }, () => ({ status: 429, body: 'Too Many Requests' }));
-    const { fetch } = mockFetch(responses);
-    const client = createGarminClient(mockAuth(), {
-      fetch,
-      delay: 0,
-      maxRetries: 5,
-      log: () => {},
-      sleep: async () => {},
-    });
-
-    const result = await client.fetch('stats', { date: '2026-04-15', displayName: 'u' });
-
-    assert.strictEqual(result.ok, false);
-    assert.ok(result.error.includes('429'), 'Error message should mention 429');
-    assert.ok(result.error.includes('6 attempts'), `Error should mention attempt count: ${result.error}`);
-  });
 
   await test('error path: 401 clears tokens and returns auth error immediately', async () => {
     const { fetch, calls } = mockFetch([
@@ -348,22 +330,6 @@ async function runClientTests() {
     assert.strictEqual(calls.length, 1, 'Should NOT retry on 401');
   });
 
-  await test('error path: 403 clears tokens and returns auth error immediately', async () => {
-    const { fetch, calls } = mockFetch([
-      { status: 403, body: 'Forbidden' },
-    ]);
-    let tokenCleared = false;
-    const auth = mockAuth({
-      clearTokens: () => { tokenCleared = true; return { ok: true }; },
-    });
-    const client = createGarminClient(auth, { fetch, delay: 0, log: () => {} });
-
-    const result = await client.fetch('stats', { date: '2026-04-15', displayName: 'u' });
-
-    assert.strictEqual(result.ok, false);
-    assert.ok(tokenCleared, 'Tokens should be cleared on 403');
-    assert.strictEqual(calls.length, 1, 'Should NOT retry on 403');
-  });
 
   await test('error path: network error returns error without crashing', async () => {
     const fetch = async () => { throw new Error('ECONNREFUSED'); };
@@ -483,27 +449,6 @@ async function runClientTests() {
     assert.strictEqual(calls[0].url, 'https://example.com/api/test');
   });
 
-  await test('error path: 401 sets authFailed flag and short-circuits subsequent calls', async () => {
-    const { fetch, calls } = mockFetch([
-      { status: 401, body: 'unauthorized' },
-    ]);
-    let tokensCleared = 0;
-    const auth = mockAuth({ clearTokens: () => { tokensCleared++; return { ok: true }; } });
-    const client = createGarminClient(auth, { fetch, delay: 0 });
-
-    const first = await client.fetchUrl('https://example.com/a');
-    assert.strictEqual(first.ok, false);
-    assert.match(first.error, /Auth failed/);
-    assert.strictEqual(client.authFailed, true);
-    assert.strictEqual(tokensCleared, 1);
-    assert.strictEqual(calls.length, 1);
-
-    // Second call must short-circuit without hitting fetch
-    const second = await client.fetchUrl('https://example.com/b');
-    assert.strictEqual(second.ok, false);
-    assert.match(second.error, /Auth previously failed/);
-    assert.strictEqual(calls.length, 1, 'fetch should not be invoked after authFailed');
-  });
 
   await test('error path: AbortError (timeout) is retried and surfaced as Timeout', async () => {
     let attempts = 0;
@@ -535,16 +480,6 @@ async function runClientTests() {
 async function runErrorClassificationTests() {
   console.log('\nStructured error classification:');
 
-  await test('EMPTY_BODY: 200 with empty body is classified distinctly', async () => {
-    const { fetch } = mockFetch([{ status: 200, body: '', ok: true }]);
-    const client = createGarminClient(mockAuth(), { fetch, delay: 0, log: () => {} });
-    const result = await client.fetch('stats', { date: '2026-04-15', displayName: 'u' });
-    assert.strictEqual(result.ok, false);
-    assert.strictEqual(result.errorCode, 'EMPTY_BODY');
-    assert.strictEqual(result.meta.status, 200);
-    assert.strictEqual(result.meta.endpoint, 'stats');
-    assert.match(result.error, /Empty response body/);
-  });
 
   await test('BAD_JSON: 200 with invalid JSON body is classified distinctly', async () => {
     const { fetch } = mockFetch([{ status: 200, body: '{not json', ok: true }]);
@@ -608,16 +543,6 @@ async function runErrorClassificationTests() {
     assert.strictEqual(result.meta.status, 401);
   });
 
-  await test('RATE_LIMIT: 429 exhausted carries RATE_LIMIT code and attempt count', async () => {
-    const responses = Array.from({ length: 7 }, () => ({ status: 429, body: 'Too Many' }));
-    const { fetch } = mockFetch(responses);
-    const client = createGarminClient(mockAuth(), {
-      fetch, delay: 0, maxRetries: 5, log: () => {}, sleep: async () => {},
-    });
-    const result = await client.fetch('stats', { date: '2026-04-15', displayName: 'u' });
-    assert.strictEqual(result.errorCode, 'RATE_LIMIT');
-    assert.strictEqual(result.meta.attempt, 6);
-  });
 
   await test('meta.endpoint is present on error from fetch() but undefined for raw fetchUrl', async () => {
     const { fetch } = mockFetch([{ status: 500, body: 'err' }]);

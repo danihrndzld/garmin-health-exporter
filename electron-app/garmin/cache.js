@@ -30,6 +30,21 @@ class GarminCache {
     return result;
   }
 
+  /** Like getCachedDaily, plus when it was fetched: { data, fetchedAt } or null on a miss. */
+  getCachedDailyEntry(date, endpointName) {
+    const stmt = this._db.prepare(
+      'SELECT json_blob, fetched_at FROM daily_cache WHERE date = ? AND endpoint = ?'
+    );
+    stmt.bind([date, endpointName]);
+    let result = null;
+    if (stmt.step()) {
+      const row = stmt.getAsObject();
+      result = { data: JSON.parse(row.json_blob), fetchedAt: row.fetched_at };
+    }
+    stmt.free();
+    return result;
+  }
+
   setCachedDaily(date, endpointName, jsonData) {
     this._db.run(
       'INSERT OR REPLACE INTO daily_cache (date, endpoint, json_blob, fetched_at) VALUES (?, ?, ?, ?)',

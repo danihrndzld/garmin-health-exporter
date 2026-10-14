@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 #
 # /// script
-# requires-python = ">=3.11"
+# requires-python = ">=3.12"
 # dependencies = [
-#     "garminconnect>=0.2.40",
+#     "garminconnect>=0.3.17",
 #     "python-dotenv>=1.0.0",
 # ]
 # ///

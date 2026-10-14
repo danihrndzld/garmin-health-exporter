@@ -9,7 +9,7 @@
  *   - params vary by type (see JSDoc on each)
  */
 
-const { API_BASE } = require('./auth');
+const { apiBase } = require('./auth');
 
 // ---------------------------------------------------------------------------
 // Per-day endpoints (type: 'daily')
@@ -21,134 +21,137 @@ const dailyEndpoints = [
     name: 'stats',
     type: 'daily',
     buildUrl: ({ date, displayName }) =>
-      `${API_BASE}/usersummary-service/usersummary/daily/${displayName}?calendarDate=${date}`,
+      `${apiBase()}/usersummary-service/usersummary/daily/${displayName}?calendarDate=${date}`,
   },
   {
     name: 'user_summary',
     type: 'daily',
+    aliasOf: 'stats', // same URL: the exporter reuses stats's answer instead of a second request
     buildUrl: ({ date, displayName }) =>
-      `${API_BASE}/usersummary-service/usersummary/daily/${displayName}?calendarDate=${date}`,
+      `${apiBase()}/usersummary-service/usersummary/daily/${displayName}?calendarDate=${date}`,
   },
   {
     name: 'heart_rates',
     type: 'daily',
     buildUrl: ({ date, displayName }) =>
-      `${API_BASE}/wellness-service/wellness/dailyHeartRate/${displayName}?date=${date}`,
+      `${apiBase()}/wellness-service/wellness/dailyHeartRate/${displayName}?date=${date}`,
   },
   {
     name: 'rhr',
     type: 'daily',
     buildUrl: ({ date, displayName }) =>
-      `${API_BASE}/userstats-service/wellness/daily/${displayName}?fromDate=${date}&untilDate=${date}&metricId=60`,
+      `${apiBase()}/userstats-service/wellness/daily/${displayName}?fromDate=${date}&untilDate=${date}&metricId=60`,
   },
   {
     name: 'hrv',
     type: 'daily',
     buildUrl: ({ date }) =>
-      `${API_BASE}/hrv-service/hrv/${date}`,
+      `${apiBase()}/hrv-service/hrv/${date}`,
   },
   {
     name: 'stress',
     type: 'daily',
     buildUrl: ({ date }) =>
-      `${API_BASE}/wellness-service/wellness/dailyStress/${date}`,
+      `${apiBase()}/wellness-service/wellness/dailyStress/${date}`,
   },
   {
     name: 'all_day_stress',
     type: 'daily',
+    aliasOf: 'stress', // same URL: the exporter reuses stress's answer instead of a second request
     buildUrl: ({ date }) =>
-      `${API_BASE}/wellness-service/wellness/dailyStress/${date}`,
+      `${apiBase()}/wellness-service/wellness/dailyStress/${date}`,
   },
   {
     name: 'sleep',
     type: 'daily',
     buildUrl: ({ date, displayName }) =>
-      `${API_BASE}/wellness-service/wellness/dailySleepData/${displayName}?date=${date}&nonSleepBufferMinutes=60`,
+      `${apiBase()}/wellness-service/wellness/dailySleepData/${displayName}?date=${date}&nonSleepBufferMinutes=60`,
   },
   {
     name: 'body_battery',
     type: 'daily',
     buildUrl: ({ date }) =>
-      `${API_BASE}/wellness-service/wellness/bodyBattery/reports/daily?startDate=${date}&endDate=${date}`,
+      `${apiBase()}/wellness-service/wellness/bodyBattery/reports/daily?startDate=${date}&endDate=${date}`,
   },
   {
     name: 'body_battery_events',
     type: 'daily',
     buildUrl: ({ date }) =>
-      `${API_BASE}/wellness-service/wellness/bodyBattery/events/${date}`,
+      `${apiBase()}/wellness-service/wellness/bodyBattery/events/${date}`,
   },
   {
     name: 'respiration',
     type: 'daily',
     buildUrl: ({ date }) =>
-      `${API_BASE}/wellness-service/wellness/daily/respiration/${date}`,
+      `${apiBase()}/wellness-service/wellness/daily/respiration/${date}`,
   },
   {
     name: 'spo2',
     type: 'daily',
     buildUrl: ({ date }) =>
-      `${API_BASE}/wellness-service/wellness/daily/spo2/${date}`,
+      `${apiBase()}/wellness-service/wellness/daily/spo2/${date}`,
   },
   {
     name: 'steps',
     type: 'daily',
     buildUrl: ({ date, displayName }) =>
-      `${API_BASE}/wellness-service/wellness/dailySummaryChart/${displayName}?date=${date}`,
+      `${apiBase()}/wellness-service/wellness/dailySummaryChart/${displayName}?date=${date}`,
   },
   {
     name: 'intensity_minutes',
     type: 'daily',
     buildUrl: ({ date }) =>
-      `${API_BASE}/wellness-service/wellness/daily/im/${date}`,
+      `${apiBase()}/wellness-service/wellness/daily/im/${date}`,
   },
   {
     name: 'hydration',
     type: 'daily',
     buildUrl: ({ date }) =>
-      `${API_BASE}/usersummary-service/usersummary/hydration/daily/${date}`,
+      `${apiBase()}/usersummary-service/usersummary/hydration/daily/${date}`,
   },
   {
     name: 'training_readiness',
     type: 'daily',
     buildUrl: ({ date }) =>
-      `${API_BASE}/metrics-service/metrics/trainingreadiness/${date}`,
+      `${apiBase()}/metrics-service/metrics/trainingreadiness/${date}`,
   },
   {
     name: 'morning_training_readiness',
     type: 'daily',
+    aliasOf: 'training_readiness', // same URL: the exporter reuses training_readiness's answer instead of a second request
     // Same URL as training_readiness — filtered client-side for AFTER_WAKEUP_RESET
     buildUrl: ({ date }) =>
-      `${API_BASE}/metrics-service/metrics/trainingreadiness/${date}`,
+      `${apiBase()}/metrics-service/metrics/trainingreadiness/${date}`,
   },
   {
     name: 'training_status',
     type: 'daily',
     buildUrl: ({ date }) =>
-      `${API_BASE}/metrics-service/metrics/trainingstatus/aggregated/${date}`,
+      `${apiBase()}/metrics-service/metrics/trainingstatus/aggregated/${date}`,
   },
   {
     name: 'weigh_ins',
     type: 'daily',
     buildUrl: ({ date }) =>
-      `${API_BASE}/weight-service/weight/dayview/${date}?includeAll=true`,
+      `${apiBase()}/weight-service/weight/dayview/${date}?includeAll=true`,
   },
   {
     name: 'max_metrics',
     type: 'daily',
     buildUrl: ({ date }) =>
-      `${API_BASE}/metrics-service/metrics/maxmet/daily/${date}/${date}`,
+      `${apiBase()}/metrics-service/metrics/maxmet/daily/${date}/${date}`,
   },
   {
     name: 'endurance_score',
     type: 'daily',
     buildUrl: ({ date }) =>
-      `${API_BASE}/metrics-service/metrics/endurancescore?calendarDate=${date}`,
+      `${apiBase()}/metrics-service/metrics/endurancescore?calendarDate=${date}`,
   },
   {
     name: 'running_tolerance',
     type: 'daily',
     buildUrl: ({ date }) =>
-      `${API_BASE}/metrics-service/metrics/runningtolerance/stats?startDate=${date}&endDate=${date}&aggregation=daily`,
+      `${apiBase()}/metrics-service/metrics/runningtolerance/stats?startDate=${date}&endDate=${date}&aggregation=daily`,
   },
 ];
 
@@ -162,75 +165,75 @@ const aggregatedEndpoints = [
     name: 'blood_pressure',
     type: 'aggregated',
     buildUrl: ({ startDate, endDate }) =>
-      `${API_BASE}/bloodpressure-service/bloodpressure/range/${startDate}/${endDate}?includeAll=true`,
+      `${apiBase()}/bloodpressure-service/bloodpressure/range/${startDate}/${endDate}?includeAll=true`,
   },
   {
     name: 'agg_weigh_ins',
     type: 'aggregated',
     buildUrl: ({ startDate, endDate }) =>
-      `${API_BASE}/weight-service/weight/range/${startDate}/${endDate}?includeAll=true`,
+      `${apiBase()}/weight-service/weight/range/${startDate}/${endDate}?includeAll=true`,
   },
   {
     name: 'daily_steps',
     type: 'aggregated',
     // NOTE: 28-day max range — caller must chunk
     buildUrl: ({ startDate, endDate }) =>
-      `${API_BASE}/usersummary-service/stats/steps/daily/${startDate}/${endDate}`,
+      `${apiBase()}/usersummary-service/stats/steps/daily/${startDate}/${endDate}`,
   },
   {
     name: 'weekly_steps',
     type: 'aggregated',
     // Python uses end + weeks, but we pass startDate/endDate and compute weeks
     buildUrl: ({ endDate, weeks }) =>
-      `${API_BASE}/usersummary-service/stats/steps/weekly/${endDate}/${weeks || 52}`,
+      `${apiBase()}/usersummary-service/stats/steps/weekly/${endDate}/${weeks || 52}`,
   },
   {
     name: 'weekly_intensity',
     type: 'aggregated',
     buildUrl: ({ startDate, endDate }) =>
-      `${API_BASE}/usersummary-service/stats/im/weekly/${startDate}/${endDate}`,
+      `${apiBase()}/usersummary-service/stats/im/weekly/${startDate}/${endDate}`,
   },
   {
     name: 'body_composition',
     type: 'aggregated',
     buildUrl: ({ startDate, endDate }) =>
-      `${API_BASE}/weight-service/weight/dateRange?startDate=${startDate}&endDate=${endDate}`,
+      `${apiBase()}/weight-service/weight/dateRange?startDate=${startDate}&endDate=${endDate}`,
   },
   {
     name: 'progress_summary',
     type: 'aggregated',
     buildUrl: ({ startDate, endDate }) =>
-      `${API_BASE}/fitnessstats-service/activity?startDate=${startDate}&endDate=${endDate}&aggregation=lifetime&groupByParentActivityType=true&metric=duration`,
+      `${apiBase()}/fitnessstats-service/activity?startDate=${startDate}&endDate=${endDate}&aggregation=lifetime&groupByParentActivityType=true&metric=duration`,
   },
   {
     name: 'race_predictions',
     type: 'aggregated',
     buildUrl: ({ displayName }) =>
-      `${API_BASE}/metrics-service/metrics/racepredictions/latest/${displayName}`,
+      `${apiBase()}/metrics-service/metrics/racepredictions/latest/${displayName}`,
   },
   {
     name: 'lactate_threshold',
     type: 'aggregated',
     buildUrl: () =>
-      `${API_BASE}/biometric-service/biometric/latestLactateThreshold`,
+      `${apiBase()}/biometric-service/biometric/latestLactateThreshold`,
   },
   {
     name: 'cycling_ftp',
     type: 'aggregated',
     buildUrl: () =>
-      `${API_BASE}/biometric-service/biometric/latestFunctionalThresholdPower/CYCLING`,
+      `${apiBase()}/biometric-service/biometric/latestFunctionalThresholdPower/CYCLING`,
   },
   {
     name: 'fitness_age',
     type: 'aggregated',
     buildUrl: ({ endDate }) =>
-      `${API_BASE}/fitnessage-service/fitnessage/${endDate}`,
+      `${apiBase()}/fitnessage-service/fitnessage/${endDate}`,
   },
   {
     name: 'hill_score',
     type: 'aggregated',
     buildUrl: ({ startDate, endDate }) =>
-      `${API_BASE}/metrics-service/metrics/hillscore/stats?startDate=${startDate}&endDate=${endDate}&aggregation=daily`,
+      `${apiBase()}/metrics-service/metrics/hillscore/stats?startDate=${startDate}&endDate=${endDate}&aggregation=daily`,
   },
 ];
 
@@ -244,19 +247,22 @@ const activityEndpoints = [
     name: 'activity_details',
     type: 'activity',
     buildUrl: ({ activityId }) =>
-      `${API_BASE}/activity-service/activity/${activityId}/details?maxChartSize=2000&maxPolylineSize=4000`,
+      `${apiBase()}/activity-service/activity/${activityId}/details?maxChartSize=2000&maxPolylineSize=4000`,
   },
   {
     name: 'activity_splits',
     type: 'activity',
     buildUrl: ({ activityId }) =>
-      `${API_BASE}/activity-service/activity/${activityId}/splits`,
+      `${apiBase()}/activity-service/activity/${activityId}/splits`,
   },
   {
-    name: 'activity_typed_splits',
+    // Was named activity_typed_splits, but it reads split_summaries; python-garminconnect's
+    // get_activity_typed_splits reads /typedsplits. The export JSON keeps the key
+    // `typed_splits` so the CSV files and old caches stay the same.
+    name: 'activity_split_summaries',
     type: 'activity',
     buildUrl: ({ activityId }) =>
-      `${API_BASE}/activity-service/activity/${activityId}/split_summaries`,
+      `${apiBase()}/activity-service/activity/${activityId}/split_summaries`,
   },
 ];
 
@@ -271,7 +277,7 @@ const listEndpoints = [
     type: 'list',
     // Pagination: caller should increment `start` by `limit` until results < limit
     buildUrl: ({ startDate, endDate, start = 0, limit = 20, activityType = '' }) => {
-      let url = `${API_BASE}/activitylist-service/activities/search/activities?startDate=${startDate}&endDate=${endDate}&start=${start}&limit=${limit}`;
+      let url = `${apiBase()}/activitylist-service/activities/search/activities?startDate=${startDate}&endDate=${endDate}&start=${start}&limit=${limit}`;
       if (activityType) url += `&activityType=${activityType}`;
       return url;
     },
@@ -279,14 +285,16 @@ const listEndpoints = [
   {
     name: 'goals',
     type: 'list',
-    buildUrl: ({ status = 'active', start = 0, limit = 100 }) =>
-      `${API_BASE}/goal-service/goal/goals?status=${status}&start=${start}&limit=${limit}&sortOrder=asc`,
+    // start is 1-based and the header is required, or Garmin returns [] (python-garminconnect #431).
+    headers: { 'Sec-Fetch-Site': 'same-origin' },
+    buildUrl: ({ status = 'active', start = 1, limit = 30 }) =>
+      `${apiBase()}/goal-service/goal/goals?status=${status}&start=${start}&limit=${limit}&sortOrder=asc`,
   },
   {
     name: 'social_profile',
     type: 'list',
     buildUrl: () =>
-      `${API_BASE}/userprofile-service/socialProfile`,
+      `${apiBase()}/userprofile-service/socialProfile`,
   },
 ];
 

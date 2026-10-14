@@ -8,7 +8,9 @@
     "dev": "electron . --dev",
     "dist": "electron-builder --mac",
     "dist:dir": "electron-builder --mac --dir",
-    "fonts": "node scripts/download-fonts.js"
+    "fonts": "node scripts/download-fonts.js",
+    "test": "node --test garmin/__tests__/*.test.js",
+    "fixture": "node scripts/make-fixture.js"
   },
   "build": {
     "appId": "com.garmin.data-exporter",

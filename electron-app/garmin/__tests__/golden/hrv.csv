@@ -1,0 +1,4 @@
+date,weeklyAvg,lastNightAvg,lastNight5MinHigh,status,feedbackPhrase,baselineLowUpper,baselineBalancedLow,baselineBalancedUpper
+2024-02-19,27,47,63,BALANCED,HRV_BALANCED_7,43,41,53
+2024-02-18,29,53,68,BALANCED,HRV_BALANCED_6,43,41,53
+2024-02-17,29,55,70,BALANCED,HRV_BALANCED_4,41,41,52

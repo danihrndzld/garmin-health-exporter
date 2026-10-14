@@ -16,7 +16,7 @@
 
 <br>
 
-<img src="docs/images/garmin-export.png" alt="The Garmin Export window after a 90 day export, with progress rings on the left and the LLM pack panel on the right, showing an English context file, a token meter at 119k tokens, and 18 CSV files" width="900">
+<img src="docs/images/garmin-export.png" alt="The Garmin Export window with the LLM pack panel open, showing an English context file, a token meter at 118k tokens, 18 CSV files, and the Build folder and Build one file buttons" width="900">
 
 </div>
 

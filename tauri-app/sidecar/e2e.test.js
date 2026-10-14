@@ -1,0 +1,93 @@
+// End to end: the sidecar as the app runs it (one JSON line on stdin, JSON lines out),
+// with every Garmin host pointed at the local fake server. Checks the whole path from
+// sign in to CSV files, and that the CSV files equal the golden files.
+import { test, expect, beforeAll, afterAll } from 'bun:test';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const T = path.resolve(import.meta.dir, '../../electron-app/garmin/__tests__');
+const { startFakeGarmin } = require(path.join(T, 'helpers/fake-garmin.js'));
+const { compareDirs } = require(path.resolve(import.meta.dir, '../../electron-app/scripts/compare-csv.js'));
+const FIXTURE = JSON.parse(fs.readFileSync(path.join(T, 'fixtures/export-sample.json'), 'utf8'));
+
+let fake;
+const cleanup = [];
+beforeAll(async () => { fake = await startFakeGarmin(FIXTURE); });
+afterAll(async () => { await fake.close(); for (const d of cleanup) fs.rmSync(d, { recursive: true, force: true }); });
+
+async function sidecar(req) {
+  const proc = Bun.spawn(['bun', path.join(import.meta.dir, 'cli.js')], {
+    stdin: 'pipe', stdout: 'pipe', stderr: 'pipe',
+    env: { ...process.env, GARMIN_FAKE_SERVER: fake.base },
+  });
+  proc.stdin.write(JSON.stringify(req) + '\n');
+  proc.stdin.end();
+  const lines = (await new Response(proc.stdout).text()).trim().split('\n').map((l) => JSON.parse(l));
+  await proc.exited;
+  return { result: lines.find((l) => l.kind === 'result'), logs: lines.filter((l) => l.kind === 'log') };
+}
+
+function dirs() {
+  // The sidecar only writes inside $HOME, so the output folder lives there during the test.
+  const out = fs.mkdtempSync(path.join(os.homedir(), '.garmin-export-e2e-'));
+  const data = fs.mkdtempSync(path.join(os.tmpdir(), 'garmin-e2e-data-'));
+  cleanup.push(out, data);
+  return { out, data };
+}
+
+test('AC-04 export through the sidecar signs in with DI and writes the golden CSV files', async () => {
+  const { out, data } = dirs();
+  const { result, logs } = await sidecar({
+    cmd: 'export', email: 'e2e@example.invalid', password: 'right-password',
+    startDate: FIXTURE.date_range.start, endDate: FIXTURE.date_range.end,
+    outputDir: out, dataDir: data, refreshWindow: 3,
+  });
+  expect(result.ok).toBe(true);
+  expect(logs.some((l) => /Login successful \(Garmin mobile sign in\)/.test(l.msg))).toBe(true);
+  expect(compareDirs(path.join(T, 'golden'), result.path)).toEqual({ addedFiles: [], removedFiles: [], files: {} });
+  expect(result.pack.days).toBe(Object.keys(FIXTURE.daily).length);
+  expect(logs.filter((l) => l.type === 'warn')).toEqual([]);
+  expect(JSON.parse(fs.readFileSync(path.join(data, 'tokens.json'), 'utf8')).di).toBeTruthy();
+}, 60000);
+
+test('AC-05 Bun sends the Sec-Fetch-Site header on the goals request', async () => {
+  fake.calls.length = 0;
+  const { out, data } = dirs();
+  await sidecar({
+    cmd: 'export', email: 'e2e@example.invalid', password: 'right-password',
+    startDate: FIXTURE.date_range.start, endDate: FIXTURE.date_range.end, outputDir: out, dataDir: data,
+  });
+  const goals = fake.calls.find((c) => c.path === '/goal-service/goal/goals');
+  expect(goals.headers['sec-fetch-site']).toBe('same-origin');
+}, 60000);
+
+test('AC-06 the legacy fallback works under Bun (cookies from getSetCookie)', async () => {
+  fake.control.mobileLogin = 'cloudflare';
+  try {
+    const { out, data } = dirs();
+    const { result, logs } = await sidecar({
+      cmd: 'export', email: 'e2e@example.invalid', password: 'right-password',
+      startDate: FIXTURE.date_range.start, endDate: FIXTURE.date_range.end, outputDir: out, dataDir: data,
+    });
+    expect(result.ok).toBe(true);
+    expect(logs.some((l) => /older Garmin sign in/.test(l.msg))).toBe(true);
+    const signin = fake.calls.filter((c) => c.path === '/sso/signin' && c.method === 'POST').at(-1);
+    expect(signin.headers.cookie).toContain('GARMIN-SSO=1');
+  } finally {
+    fake.control.mobileLogin = 'ok';
+  }
+}, 60000);
+
+test('AC-07 a wrong password ends with a clear error and no CSV files', async () => {
+  const { out, data } = dirs();
+  const { result } = await sidecar({
+    cmd: 'export', email: 'e2e@example.invalid', password: 'nope',
+    startDate: FIXTURE.date_range.start, endDate: FIXTURE.date_range.end, outputDir: out, dataDir: data,
+  });
+  expect(result.ok).toBe(false);
+  expect(result.error).toMatch(/Wrong email or password/);
+  expect(fs.readdirSync(out)).toEqual([]);
+}, 60000);

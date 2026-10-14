@@ -230,30 +230,6 @@ test('login stores token file at expected path with mode 0600', async () => {
   assert.ok(data.oauth2.refresh_token_expires_at > 0, 'should have refresh_token_expires_at');
 });
 
-test('login returns error on bad credentials (no ticket)', async () => {
-  const dir = makeTmpDir();
-  const mockFetch = createMockFetch([
-    {
-      match: 'oauth_consumer.json',
-      response: { body: { consumer_key: 'ck', consumer_secret: 'cs' } },
-    },
-    {
-      match: '/sso/embed',
-      response: { body: '<html></html>', cookies: ['A=1; Path=/'] },
-    },
-    {
-      match: /\/sso\/signin/,
-      response: {
-        body: '<input name="_csrf" value="tok"><html>Invalid credentials</html>',
-        cookies: ['B=2; Path=/'],
-      },
-    },
-  ]);
-  const client = createClient(dir, { fetch: mockFetch });
-  const result = await client.login('bad@test.com', 'wrong');
-  assert.strictEqual(result.ok, false);
-  assert.ok(result.error.includes('Ticket not found'), `Unexpected error: ${result.error}`);
-});
 
 test('loadTokens reads existing valid token file', async () => {
   const dir = makeTmpDir();
@@ -306,20 +282,6 @@ test('loadTokens with expired access_token but valid refresh triggers exchange',
   assert.ok(mockFetch.calls[0].url.includes('exchange/user/2.0'));
 });
 
-test('loadTokens with expired refresh_token returns error', async () => {
-  const dir = makeTmpDir();
-  const now = Math.floor(Date.now() / 1000);
-  const data = makeTokenData({
-    expires_at: now - 100, // expired
-    refresh_token_expires_at: now - 50, // also expired
-  });
-  fs.writeFileSync(path.join(dir, 'tokens.json'), JSON.stringify(data), { mode: 0o600 });
-
-  const client = createClient(dir);
-  const result = await client.loadTokens();
-  assert.strictEqual(result.ok, false);
-  assert.ok(result.error.includes('Refresh token expired'), `Unexpected error: ${result.error}`);
-});
 
 test('clearTokens deletes the file', () => {
   const dir = makeTmpDir();
@@ -424,23 +386,6 @@ test('clearTokens invalidates in-memory cache', async () => {
   assert.strictEqual(second.ok, false);
 });
 
-test('login flow makes correct sequence of fetch calls', async () => {
-  const dir = makeTmpDir();
-  const mockFetch = createLoginMockFetch();
-  const client = createClient(dir, { fetch: mockFetch });
-
-  await client.login('user@test.com', 'pass123');
-
-  // Should be 6 calls: consumer, embed, signin GET, signin POST, preauthorized, exchange
-  assert.strictEqual(mockFetch.calls.length, 6, `Expected 6 calls, got ${mockFetch.calls.length}`);
-  assert.ok(mockFetch.calls[0].url.includes('oauth_consumer.json'));
-  assert.ok(mockFetch.calls[1].url.includes('/sso/embed'));
-  assert.ok(mockFetch.calls[2].url.includes('/sso/signin'));
-  assert.ok(mockFetch.calls[3].url.includes('/sso/signin'));
-  assert.strictEqual(mockFetch.calls[3].opts.method, 'POST');
-  assert.ok(mockFetch.calls[4].url.includes('preauthorized'));
-  assert.ok(mockFetch.calls[5].url.includes('exchange/user/2.0'));
-});
 
 // ---------------------------------------------------------------------------
 // Run

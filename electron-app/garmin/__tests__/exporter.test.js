@@ -152,6 +152,12 @@ function buildExporter(mockConfig = {}) {
           const key = `${date}:${epName}`;
           return dailyCacheData[key] !== undefined ? dailyCacheData[key] : null;
         },
+        getCachedDailyEntry: (date, epName) => {
+          calls.cacheGetDaily.push({ date, epName });
+          const key = `${date}:${epName}`;
+          // fetched long after the day, so even an empty cached answer counts as final
+          return dailyCacheData[key] !== undefined ? { data: dailyCacheData[key], fetchedAt: '2099-01-01T00:00:00Z' } : null;
+        },
         setCachedDaily: (date, epName, data) => {
           calls.cacheSetDaily.push({ date, epName, data });
         },
@@ -399,11 +405,13 @@ async function runTests() {
     try {
       await exporter.exportHealth(defaultOpts({ daysBack: 1 }));
       // Daily endpoints should have been fetched via client.safe (not from cache)
+      // Aliases (same URL as an earlier endpoint) reuse that answer instead of a request.
       const dailyFetches = calls.clientSafe.filter((c) => {
         return dailyEps.some((ep) => ep.name === c.endpointName);
       });
-      assert.strictEqual(dailyFetches.length, dailyEps.length,
-        `All ${dailyEps.length} daily endpoints should be re-fetched`);
+      const unique = dailyEps.filter((ep) => !ep.aliasOf);
+      assert.strictEqual(dailyFetches.length, unique.length,
+        `All ${unique.length} distinct daily endpoints should be re-fetched`);
     } finally {
       restoreFs();
       restoreModules();
@@ -622,16 +630,16 @@ async function runTests() {
       const result = await exporter.exportHealth(defaultOpts({ daysBack: 1 }));
       assert.strictEqual(result.ok, true);
 
-      // activity_splits and activity_typed_splits should NOT have been called via client.safe
+      // activity_splits should NOT be fetched when cached; split summaries are no longer fetched at all
       const splitFetches = calls.clientSafe.filter(
-        (c) => c.endpointName === 'activity_splits' || c.endpointName === 'activity_typed_splits'
+        (c) => c.endpointName === 'activity_splits' || c.endpointName === 'activity_split_summaries'
       );
       assert.strictEqual(splitFetches.length, 0, 'Should not fetch splits when cached');
 
       // But the data should be in the output
       const written = JSON.parse(capturedWrites[0].content);
       assert.deepStrictEqual(written.activities[0].splits, { cachedSplits: true });
-      assert.deepStrictEqual(written.activities[0].typed_splits, { cachedTypedSplits: true });
+      assert.strictEqual(written.activities[0].typed_splits, undefined);
     } finally {
       restoreFs();
       restoreModules();

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 #
 # /// script
-# requires-python = ">=3.11"
+# requires-python = ">=3.12"
 # dependencies = [
-#     "garminconnect>=0.2.40",
+#     "garminconnect>=0.3.17",
 #     "python-dotenv>=1.0.0",
 # ]
 # ///
@@ -123,7 +123,7 @@ def export(days_back: int = DEFAULT_DAYS_BACK) -> dict:
     data["aggregated"]["blood_pressure"]       = safe(client.get_blood_pressure,        start_date, today, label="blood_pressure")
     data["aggregated"]["weigh_ins"]            = safe(client.get_weigh_ins,             start_date, today, label="weigh_ins_range")
     data["aggregated"]["daily_steps"]          = safe(client.get_daily_steps,           start_date, today, label="daily_steps")
-    data["aggregated"]["weekly_steps"]         = safe(client.get_weekly_steps,          start_date, today, 1, label="weekly_steps")
+    data["aggregated"]["weekly_steps"]         = safe(client.get_weekly_steps,          today, -(-days_back // 7), label="weekly_steps")
     data["aggregated"]["weekly_intensity"]     = safe(client.get_weekly_intensity_minutes, start_date, today, label="weekly_intensity")
     data["aggregated"]["body_composition"]     = safe(client.get_body_composition,      start_date, today, label="body_composition")
     data["aggregated"]["progress_summary"]     = safe(client.get_progress_summary_between_dates, start_date, today, label="progress_summary")

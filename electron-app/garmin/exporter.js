@@ -71,9 +71,27 @@ async function fetchDailyStepsChunked(client, startDate, endDate) {
     else if (chunk && Array.isArray(chunk.values)) results.push(...chunk.values);
     cursor = new Date(capped);
     cursor.setDate(cursor.getDate() + 1);
-    if (client.authFailed) break;
+    if (client.authFailed || client.rateLimited) break;
   }
   return results;
+}
+
+// A cached day counts as final only if it was downloaded at least this many days after
+// the day itself. Before that the watch may not have synced, and Garmin answers with
+// objects full of nulls rather than an empty body, so the content cannot tell us.
+// Without this rule a day fetched inside the refresh window stayed incomplete forever.
+// ponytail: costs up to 19 extra requests per day for days 4 to 6 days old; tune here.
+const FINAL_AFTER_DAYS = 7;
+
+/** Whole days between a YYYY-MM-DD date and a timestamp (ISO string or Date). */
+function daysBetween(date, when) {
+  return (new Date(when).getTime() - new Date(date + 'T00:00:00').getTime()) / 864e5;
+}
+
+/** Use a cached daily answer? Only if it was fetched FINAL_AFTER_DAYS or more after the day. */
+function shouldTrustCached(entry, date) {
+  if (!entry || entry.data === null) return false;
+  return daysBetween(date, entry.fetchedAt) >= FINAL_AFTER_DAYS;
 }
 
 /**
@@ -112,6 +130,7 @@ function generateDateRange(startDate, endDate) {
  * @param {string} opts.outputDir
  * @param {number} [opts.refreshWindow=3]  Days within which cached daily data is re-fetched
  * @param {string} opts.dataDir            Directory for tokens + cache DB
+ * @param {number} [opts.requestDelayMs=500] Pause between Garmin requests (tests use 0)
  * @param {function} [opts.onProgress]     ({current, total, phase}) => void
  * @param {function} [opts.onLog]          ({type, message}) => void
  * @returns {Promise<{ok: true, jsonPath: string, csvDir: string} | {ok: false, error: string}>}
@@ -126,12 +145,13 @@ async function exportHealth(opts) {
     outputDir,
     refreshWindow = 3,
     dataDir,
+    requestDelayMs = 500,
     onProgress = () => {},
     onLog = () => {},
   } = opts;
 
   // -- 1. Auth ---------------------------------------------------------------
-  const auth = createClient(dataDir);
+  const auth = createClient(dataDir, { log: (m) => onLog({ type: 'dim', message: m }) });
 
   // Try loading saved tokens first
   const tokenResult = await auth.loadTokens();
@@ -144,11 +164,12 @@ async function exportHealth(opts) {
     if (!loginResult.ok) {
       return { ok: false, error: `Auth failed: ${loginResult.error}` };
     }
-    onLog({ type: 'success', message: 'Login successful' });
+    onLog({ type: 'success', message: `Login successful (${loginResult.method === 'di' ? 'Garmin mobile sign in' : 'older Garmin sign in'})` });
   }
 
   // -- 2. Client -------------------------------------------------------------
   const client = createGarminClient(auth, {
+    delay: requestDelayMs,
     log: (msg, extras) => {
       // Log lines that carry structured meta (e.g. skipped endpoints) are
       // surfaced as warnings so the renderer can tag them for bug reports.
@@ -179,6 +200,10 @@ async function exportHealth(opts) {
     onLog({ type: 'dim', message: `Display name: ${displayName}` });
   } else {
     onLog({ type: 'warn', message: `Could not get display name: ${dnResult.error}` });
+    if (client.authFailed || client.rateLimited) {
+      if (cache) { try { cache.save(); } catch (_e) { /* best effort */ } }
+      return { ok: false, error: client.stopReason };
+    }
   }
 
   // -- Date range ------------------------------------------------------------
@@ -205,6 +230,12 @@ async function exportHealth(opts) {
   const dates = generateDateRange(startDate, endDate);
   const spanDays = dates.length;
 
+  // Every early return goes through here, so a stopped run keeps what it downloaded.
+  const stop = (error) => {
+    if (cache) { try { cache.save(); } catch (_e) { /* best effort */ } }
+    return { ok: false, error };
+  };
+
   onLog({ type: 'info', message: `Pulling ${spanDays} days: ${startDate} -> ${endDate}` });
 
   // -- 5. Daily endpoints ----------------------------------------------------
@@ -219,13 +250,19 @@ async function exportHealth(opts) {
     for (const ep of dailyEps) {
       const epName = ep.name;
 
+      // Same URL as an earlier endpoint this day: reuse its answer (no second request).
+      if (ep.aliasOf && ep.aliasOf in dayEntry) {
+        dayEntry[epName] = dayEntry[ep.aliasOf];
+        continue;
+      }
+
       // Check cache (skip if outside refresh window and cached)
       if (cache) {
         const withinWindow = cache.isWithinRefreshWindow(date, refreshWindow);
         if (!withinWindow) {
-          const cached = cache.getCachedDaily(date, epName);
-          if (cached !== null) {
-            dayEntry[epName] = cached;
+          const cached = cache.getCachedDailyEntry(date, epName);
+          if (shouldTrustCached(cached, date)) {
+            dayEntry[epName] = cached.data;
             continue;
           }
         }
@@ -235,7 +272,8 @@ async function exportHealth(opts) {
       const result = await client.safe(epName, { date, displayName });
       dayEntry[epName] = result;
 
-      // Store in cache
+      // Store in cache. Failures (null) are never stored, and an answer for a recent
+      // day is stored but not trusted later (see FINAL_AFTER_DAYS).
       if (cache && result !== null) {
         try {
           cache.setCachedDaily(date, epName, result);
@@ -254,9 +292,7 @@ async function exportHealth(opts) {
       try { cache.save(); } catch (_e) {}
     }
 
-    if (client.authFailed) {
-      return { ok: false, error: 'Auth failed mid-export — re-login required' };
-    }
+    if (client.authFailed || client.rateLimited) return stop(client.stopReason);
   }
 
   // -- 6. Aggregated endpoints (always re-fetched per R8) --------------------
@@ -276,9 +312,7 @@ async function exportHealth(opts) {
     aggregatedData[ep.name] = result;
     onProgress({ current: i + 1, total: aggEps.length, phase: 'aggregated' });
 
-    if (client.authFailed) {
-      return { ok: false, error: 'Auth failed mid-export — re-login required' };
-    }
+    if (client.authFailed || client.rateLimited) return stop(client.stopReason);
   }
 
   // -- 7. Activity list (with pagination) ------------------------------------
@@ -300,9 +334,12 @@ async function exportHealth(opts) {
     start += PAGE_SIZE;
   }
 
+  if (client.authFailed || client.rateLimited) return stop(client.stopReason);
   onLog({ type: 'info', message: `Found ${allActivities.length} activities` });
 
-  // -- 8. Activity details (splits, typed_splits) ----------------------------
+  // -- 8. Activity details (splits) -----------------------------------------
+  // split_summaries ("typed_splits" before 4.2) is no longer fetched: no CSV used it,
+  // and it cost one request per activity.
   for (let i = 0; i < allActivities.length; i++) {
     const act = allActivities[i];
     const activityId = act.activityId;
@@ -332,22 +369,6 @@ async function exportHealth(opts) {
       }
       act.splits = splits;
 
-      // Typed splits
-      let typedSplits = null;
-      if (cache) {
-        typedSplits = cache.getCachedActivity(activityId, 'typed_splits');
-      }
-      if (typedSplits === null) {
-        typedSplits = await client.safe('activity_typed_splits', { activityId });
-        if (cache && typedSplits !== null) {
-          try {
-            cache.setCachedActivity(activityId, 'typed_splits', typedSplits);
-          } catch (err) {
-            onLog({ type: 'warn', message: `Cache write failed for typed_splits/${activityId}: ${err.message}` });
-          }
-        }
-      }
-      act.typed_splits = typedSplits;
     }
 
     onProgress({ current: i + 1, total: allActivities.length, phase: 'activities' });
@@ -357,14 +378,13 @@ async function exportHealth(opts) {
       try { cache.save(); } catch (_e) {}
     }
 
-    if (client.authFailed) {
-      return { ok: false, error: 'Auth failed mid-export — re-login required' };
-    }
+    if (client.authFailed || client.rateLimited) return stop(client.stopReason);
   }
 
   // -- Goals -----------------------------------------------------------------
   const goalsRaw = await client.safe('goals', { status: 'active' });
   const goals = Array.isArray(goalsRaw) ? goalsRaw : [];
+  if (client.authFailed || client.rateLimited) return stop(client.stopReason);
 
   // -- 9. Build output JSON --------------------------------------------------
   const exportDate = formatDate(now);
@@ -372,7 +392,7 @@ async function exportHealth(opts) {
 
   const jsonData = {
     export_date: exportDate,
-    date_range: { start: startDate, end: endDate, days: daysBack },
+    date_range: { start: startDate, end: endDate, days: spanDays },
     daily: dailyData,
     aggregated: aggregatedData,
     activities: allActivities,
@@ -413,7 +433,7 @@ async function exportHealth(opts) {
     return { ok: false, error: `CSV generation failed: ${csvError}`, jsonPath };
   }
 
-  onLog({ type: 'success', message: `Done. ${daysBack} days | ${allActivities.length} activities` });
+  onLog({ type: 'success', message: `Done. ${spanDays} days | ${allActivities.length} activities` });
   return { ok: true, jsonPath, csvDir };
 }
 
@@ -428,4 +448,5 @@ module.exports = {
   formatTimeForFile,
   generateDateRange,
   fetchDailyStepsChunked,
+  shouldTrustCached,
 };
