@@ -4,6 +4,7 @@ package guard
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -64,12 +65,13 @@ func ValidateRange(start, end string, maxDays int) error {
 		return errors.New("startDate must be on or before endDate")
 	}
 	if int(e.Sub(s).Hours()/24)+1 > maxDays {
-		return errors.New("the range can be at most 90 days")
+		return fmt.Errorf("the range can be at most %d days", maxDays)
 	}
 	return nil
 }
 
 // Dates lists every date from start to end, inclusive, oldest first.
+// It ignores parse errors: callers run ValidateRange first.
 func Dates(start, end string) []string {
 	s, _ := time.Parse(layout, start)
 	e, _ := time.Parse(layout, end)

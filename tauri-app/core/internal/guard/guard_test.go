@@ -101,6 +101,16 @@ func TestValidateRange(t *testing.T) {
 	}
 }
 
+func TestValidateRangeNamesItsLimit(t *testing.T) {
+	t.Parallel()
+	t.Run("BVA-177 a range one day over a 7 day limit names 7 days in the error", func(t *testing.T) {
+		t.Parallel()
+		if err := ValidateRange("2026-10-01", "2026-10-08", 7); err == nil || err.Error() != "the range can be at most 7 days" {
+			t.Fatalf("err = %v", err)
+		}
+	})
+}
+
 func TestDates(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
