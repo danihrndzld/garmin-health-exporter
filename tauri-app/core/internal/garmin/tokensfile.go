@@ -11,8 +11,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/gconnect"
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/atomicfile"
+	"github.com/danihrndzld/gconnect"
 )
 
 // tokenFile is tokens.json: Garmin's tokens plus saved_at and the expired marker. The

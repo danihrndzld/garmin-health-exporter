@@ -16,9 +16,9 @@ import (
 
 const mod = "github.com/danihrndzld/garmin-health-exporter/tauri-app/core/"
 
-// allowedRequires lists the modules go.mod may require. It is empty: the gconnect extraction
-// (spec section 2.5) adds exactly one, github.com/danihrndzld/gconnect, and must add it here.
-var allowedRequires = map[string]bool{}
+// allowedRequires lists the modules go.mod may require: only the extracted gconnect library
+// (spec section 2.5), whose gconnecttest package lives in the same module.
+var allowedRequires = map[string]bool{"github.com/danihrndzld/gconnect": true}
 
 // envNames are the os and syscall members that read or change the process environment or
 // its standard streams. Only cmd/ may use them.

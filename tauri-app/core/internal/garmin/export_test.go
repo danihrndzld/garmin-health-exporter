@@ -12,11 +12,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/gconnect"
-	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/gconnect/gconnecttest"
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/garmin/garmintest"
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/guard"
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/jsjson"
+	"github.com/danihrndzld/gconnect"
+	"github.com/danihrndzld/gconnect/gconnecttest"
 )
 
 func TestPrepareDirMakesTheEndDateFolderAndDropsStaleMfpFiles(t *testing.T) {

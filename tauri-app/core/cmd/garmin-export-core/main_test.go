@@ -15,10 +15,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/gconnect/gconnecttest"
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/garmin/garmintest"
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/mfp"
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/mfp/mfptest"
+	"github.com/danihrndzld/gconnect/gconnecttest"
 )
 
 const fixtures = "../../internal/mfp/testdata"

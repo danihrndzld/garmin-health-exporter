@@ -9,9 +9,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/gconnect"
-	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/gconnect/gconnecttest"
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/jsjson"
+	"github.com/danihrndzld/gconnect"
+	"github.com/danihrndzld/gconnect/gconnecttest"
 )
 
 // DisplayName is what the fake's social profile answers.

@@ -6,10 +6,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/gconnect"
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/garmin"
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/guard"
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/protocol"
+	"github.com/danihrndzld/gconnect"
 )
 
 func inputError(msg string) error { return &garmin.CodeError{Code: "GARMIN_INPUT", Msg: msg} }

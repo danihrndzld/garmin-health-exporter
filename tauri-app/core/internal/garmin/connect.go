@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/gconnect"
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/atomicfile"
+	"github.com/danihrndzld/gconnect"
 )
 
 const (

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/gconnect"
+	"github.com/danihrndzld/gconnect"
 )
 
 // Written by electron-app/garmin/auth.js:_writeTokens; Go must read both shapes as they are.

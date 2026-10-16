@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/gconnect"
-	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/gconnect/gconnecttest"
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/garmin/garmintest"
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/jsjson"
+	"github.com/danihrndzld/gconnect"
+	"github.com/danihrndzld/gconnect/gconnecttest"
 )
 
 var fixturePath = filepath.Join("..", "..", "..", "..", "..", "electron-app", "garmin", "__tests__", "fixtures", "export-sample.json")

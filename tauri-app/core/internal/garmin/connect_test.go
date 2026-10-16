@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/gconnect"
-	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/gconnect/gconnecttest"
+	"github.com/danihrndzld/gconnect"
+	"github.com/danihrndzld/gconnect/gconnecttest"
 )
 
 func fakeGarmin(t *testing.T) (*gconnecttest.Server, *gconnect.Auth) {

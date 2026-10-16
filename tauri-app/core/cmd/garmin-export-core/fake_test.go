@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/gconnect"
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/mfp"
+	"github.com/danihrndzld/gconnect"
 )
 
 // No t.Parallel: t.Setenv forbids it.

@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/gconnect"
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/atomicfile"
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/guard"
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/jsjson"
+	"github.com/danihrndzld/gconnect"
 )
 
 // mfpFiles are the files mfp-export writes. A copy, not an import: internal/garmin must not depend on internal/mfp.
