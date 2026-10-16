@@ -65,6 +65,19 @@ test.describe('decision table: MFP step of a run', () => {
     await expect(app.hero.legend('mfp')).toHaveText('cancelled');
     for (const phase of ['daily', 'csv']) await expect(app.run.row(phase).root).toHaveAttribute('data-st', /^(ok|warn)$/);
   });
+
+  test('DT-R9 Garmin off, MFP session expired: the run fails and the MFP row says Session expired', async ({ app, scenario }) => {
+    scenario.mfpConnected().mfpSessionExpired();
+    await app.open();
+    await app.garmin.include.uncheck();
+    await app.startExport();
+    await app.waitForRunEnd();
+    await expect(app.hero.badge).toHaveText('Failed');
+    await expect(app.run.row('mfp').root).toHaveAttribute('data-st', 'err');
+    await expect(app.mfp.state).toHaveText('Session expired');
+    await expect(app.mfp.button).toHaveText('reconnect');
+    await expect(app.run.report).toBeHidden();
+  });
 });
 
 test.describe('state transitions: Setup row', () => {

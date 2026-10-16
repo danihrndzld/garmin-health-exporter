@@ -68,11 +68,11 @@ test.describe('valid transitions', () => {
   });
 });
 
-test('ST-I1 Ready + submit with Garmin not connected: stays Ready, asks to connect Garmin', async ({ app, scenario }) => {
+test('ST-I1 Ready + submit with no source connected: stays Ready, asks to switch on and connect a source', async ({ app, scenario }) => {
   scenario.garminNotConnected();
   await app.open();
   await app.startExport();
-  await expect(app.toast).toHaveText('Connect Garmin first.');
+  await expect(app.toast).toHaveText('Switch on and connect Garmin or MyFitnessPal first.');
   await expect(app.hero.badge).toHaveText('Ready');
   await expect(app.run.logLines).toHaveCount(0);
 });

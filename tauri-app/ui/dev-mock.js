@@ -44,7 +44,8 @@
         if (req.cmd === 'summary') {
           // localStorage.mock_summary_hangs = '1' keeps the summary after MyFitnessPal running until cancelled.
           while (localStorage.getItem('mock_summary_hangs')) { if (cancelled) return { ok: false, cancelled: true, error: 'Cancelled.' }; await sleep(50); }
-          return { ok: true, summary: fakeSummary(), pack: fakePack() };
+          // Without a jsonPath (Garmin was off) the sidecar has no Garmin summary, only the pack.
+          return { ok: true, summary: req.jsonPath ? fakeSummary() : null, pack: fakePack() };
         }
         if (req.cmd === 'pack') {
           await sleep(180);
@@ -74,6 +75,11 @@
           return garminStatus();
         }
         if (req.cmd !== 'export') return { ok: true };
+        // Garmin off: the Go core only makes csv_<endDate> and answers at once.
+        if (req.garmin === false) {
+          const r = req.daysBack ? window.DateRange.defaultCustomRange({ daysBack: req.daysBack }) : req;
+          return { ok: true, path: `/Users/you/Documents/GarminExport/csv_${r.endDate}`, jsonPath: null, startDate: r.startDate, endDate: r.endDate };
+        }
         if (!localStorage.getItem('mock_garmin') || localStorage.getItem('mock_garmin_expired')) {
           await sleep(300);
           return { ok: false, errorCode: 'GARMIN_SESSION', error: 'Connect Garmin first.' };

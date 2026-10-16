@@ -6,14 +6,38 @@ import { test, expect } from './fixtures.js';
 import { REJECTED_EMAIL, VALID_LOGIN } from './support/mock-backend.js';
 
 test.describe('decision table: can a run start', () => {
-  test('DT-R6 not connected: Include off and disabled, Pull asks to connect Garmin', async ({ app, scenario }) => {
+  test('DT-R6 not connected: Include off and disabled, Pull asks to switch on a source', async ({ app, scenario }) => {
     scenario.garminNotConnected();
     await app.open();
     await expect(app.garmin.state).toHaveText('Not connected');
     await expect(app.garmin.include).toBeDisabled();
     await expect(app.garmin.include).not.toBeChecked();
     await app.startExport();
-    await expect(app.toast).toHaveText('Connect Garmin first.');
+    await expect(app.toast).toHaveText('Switch on and connect Garmin or MyFitnessPal first.');
+    await expect(app.hero.badge).toHaveText('Ready');
+  });
+
+  test('DT-R7 Garmin off, MFP on: the Garmin rows say Off, MFP logs 17 of 30 days, the LLM pack is offered', async ({ app, scenario }) => {
+    scenario.mfpConnected();
+    await app.open();
+    await app.garmin.include.uncheck();
+    await app.startExport();
+    await app.waitForRunEnd();
+    await expect(app.hero.badge).toHaveText('Done');
+    for (const phase of ['auth', 'daily', 'aggregated', 'activities', 'csv']) {
+      await expect(app.run.row(phase).detail).toHaveText('Off');
+      await expect(app.run.row(phase).root).not.toHaveAttribute('data-st');
+    }
+    await expect(app.hero.legend('daily')).toHaveText('—');
+    await expect(app.run.row('mfp').detail).toHaveText('Food logged on 17 of 30 days');
+    await expect(app.hero.llmButton).toBeVisible();
+  });
+
+  test('DT-R8 Garmin off, MFP not connected: Pull asks to switch on a source and the app stays Ready', async ({ app }) => {
+    await app.open();
+    await app.garmin.include.uncheck();
+    await app.startExport();
+    await expect(app.toast).toHaveText('Switch on and connect Garmin or MyFitnessPal first.');
     await expect(app.hero.badge).toHaveText('Ready');
   });
 });
