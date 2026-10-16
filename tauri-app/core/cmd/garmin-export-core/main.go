@@ -7,6 +7,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/garmin"
+	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/guard"
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/mfp"
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/protocol"
 )
@@ -25,6 +27,21 @@ func main() {
 			opts.Gap = 0 // only the loopback test server may skip the pause
 		}
 		out.Result(mfp.Export(context.Background(), req, out, opts))
+	case "garmin-status", "garmin-disconnect":
+		dir, _ := req["dataDir"].(string)
+		dataDir, err := guard.InsideHome(dir)
+		if err != nil {
+			out.Result(map[string]any{"ok": false, "errorCode": "GARMIN_INPUT", "error": "dataDir: " + err.Error()})
+			return
+		}
+		if req["cmd"] == "garmin-disconnect" {
+			if err := garmin.Delete(dataDir); err != nil {
+				out.Result(map[string]any{"ok": false, "errorCode": "GARMIN_ERROR", "error": err.Error()})
+				return
+			}
+		}
+		s := garmin.StatusOf(dataDir, time.Now())
+		out.Result(map[string]any{"ok": true, "connected": s.Connected, "expired": s.Expired, "savedAt": s.SavedAt, "loginKind": s.Kind}) // not "kind": Emitter.Result sets that to "result"
 	default:
 		out.Result(map[string]any{"ok": false, "error": "Unknown command."})
 	}

@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -163,5 +165,57 @@ func TestBinaryRejectsBadRequests(t *testing.T) {
 				t.Fatalf("lines = %v", lines)
 			}
 		})
+	}
+}
+
+func TestBinaryGarminStatusAndDisconnect(t *testing.T) {
+	t.Parallel()
+	fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("EP-217 garmin-status or garmin-disconnect sent a request: %s", r.URL)
+	}))
+	t.Cleanup(fake.Close)
+	home, _ := os.UserHomeDir()
+	dir, err := os.MkdirTemp(home, ".garmin-binary-test-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(dir) })
+	tokens := `{"di":{"access_token":"a.b.c","refresh_token":"r","client_id":"c","expires_at":1760540000,"refresh_token_expires_at":null},"saved_at":"2026-10-01T00:00:00Z"}`
+	if err := os.WriteFile(filepath.Join(dir, "tokens.json"), []byte(tokens), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	run := func(cmd string) map[string]any {
+		b, _ := json.Marshal(map[string]any{"cmd": cmd, "dataDir": dir})
+		c := exec.Command(binary)
+		c.Stdin = strings.NewReader(string(b) + "\n")
+		c.Env = append(os.Environ(), "GARMIN_FAKE_SERVER="+fake.URL)
+		out, err := c.Output()
+		if err != nil {
+			t.Fatalf("binary failed: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal([]byte(strings.TrimSpace(string(out))), &m); err != nil {
+			t.Fatalf("stdout %q: %v", out, err)
+		}
+		return m
+	}
+	if r := run("garmin-status"); r["ok"] != true || r["connected"] != true || r["loginKind"] != "di" || r["savedAt"] != "2026-10-01T00:00:00Z" {
+		t.Errorf("CL-213 status before disconnect = %v", r)
+	}
+	if r := run("garmin-disconnect"); r["ok"] != true || r["connected"] != false {
+		t.Errorf("CL-214 disconnect = %v", r)
+	}
+	if r := run("garmin-status"); r["connected"] != false {
+		t.Errorf("CL-215 status after disconnect = %v", r)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "tokens.json")); !os.IsNotExist(err) {
+		t.Errorf("CL-216 tokens.json still exists: %v", err)
+	}
+	b, _ := json.Marshal(map[string]any{"cmd": "garmin-status", "dataDir": "/etc"})
+	c := exec.Command(binary)
+	c.Stdin = strings.NewReader(string(b) + "\n")
+	out, _ := c.Output()
+	if !strings.Contains(string(out), `"errorCode":"GARMIN_INPUT"`) {
+		t.Errorf("CL-217 dataDir outside home answered %s", out)
 	}
 }
