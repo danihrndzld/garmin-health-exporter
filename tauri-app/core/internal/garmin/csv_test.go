@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/jsjson"
@@ -116,6 +117,7 @@ func TestAC302ColumnsThatGarminFillsAreNotEmpty(t *testing.T) {
 // matchJavaScript writes testdata/<name>/export.json and compares it with the files that the
 // JavaScript writer made from the same input.
 func matchJavaScript(t *testing.T, name string, files ...string) {
+	t.Helper()
 	dir := filepath.Join("testdata", name)
 	raw, err := os.ReadFile(filepath.Join(dir, "export.json"))
 	if err != nil {
@@ -147,5 +149,53 @@ func TestWeightAndBloodPressureMatchJavaScript(t *testing.T) {
 func TestDailyBranchesMatchJavaScript(t *testing.T) {
 	t.Run("AC-304 steps as null, object or list, the last readiness item, and the device key 1001 before abc equal the JavaScript files", func(t *testing.T) {
 		matchJavaScript(t, "daily_branches", "daily_summary.csv", "training.csv", "spo2_respiration.csv")
+	})
+}
+
+func TestWriteCSVsRejectsAnExportDateThatIsNotADay(t *testing.T) {
+	for _, c := range []struct{ id, json string }{
+		{"EG-301", `{"export_date":"2026-10-07/../..","activities":[{"activityId":1}]}`},
+		{"EG-302", `{"export_date":"/../../../tmp/evil","activities":[{"activityId":1}]}`},
+		{"EG-303", `{"export_date":"2026-1-7","activities":[{"activityId":1}]}`},
+	} {
+		t.Run(c.id+" export_date "+c.json[16:strings.Index(c.json, `",`)]+" returns an error and writes nothing", func(t *testing.T) {
+			export, err := jsjson.Parse([]byte(c.json))
+			if err != nil {
+				t.Fatal(err)
+			}
+			parent := t.TempDir()
+			out := filepath.Join(parent, "out")
+			os.Mkdir(out, 0o755)
+			if dir, written, err := WriteCSVs(export, out); err == nil {
+				t.Fatalf("WriteCSVs = %q %v, want an error", dir, written)
+			}
+			for _, d := range []string{parent, out} {
+				if e, _ := os.ReadDir(d); len(e) != map[string]int{parent: 1, out: 0}[d] {
+					t.Fatalf("%s holds %v", d, e)
+				}
+			}
+		})
+	}
+	t.Run("EG-304 a missing export_date writes into csv_export, as JavaScript does", func(t *testing.T) {
+		export, _ := jsjson.Parse([]byte(`{"activities":[{"activityId":1}]}`))
+		out := t.TempDir()
+		dir, written, err := WriteCSVs(export, out)
+		if err != nil || dir != filepath.Join(out, "csv_export") || !slices.Equal(written, []string{"activities.csv"}) {
+			t.Fatalf("WriteCSVs = %q %v %v", dir, written, err)
+		}
+	})
+}
+
+func TestFormatCsvFieldQuotesLikeJavaScript(t *testing.T) {
+	// Expected values from node: require('./electron-app/garmin/csv-writer').formatCsvField(s)
+	t.Run("AC-305 a field holding \\r is quoted", func(t *testing.T) {
+		if got := formatCsvField(jsjson.Str("a\rb")); got != "\"a\rb\"" {
+			t.Fatalf("got %q", got)
+		}
+	})
+	t.Run("AC-306 a field holding a quote and a comma is quoted with the quote doubled", func(t *testing.T) {
+		if got := formatCsvField(jsjson.Str(`say "hi", ok`)); got != `"say ""hi"", ok"` {
+			t.Fatalf("got %q", got)
+		}
 	})
 }

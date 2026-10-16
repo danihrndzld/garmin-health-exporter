@@ -1,8 +1,10 @@
 package garmin
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/jsjson"
@@ -592,15 +594,24 @@ func flattenLaps(splits value) []*jsjson.Obj {
 	return rows
 }
 
+var dayTag = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
+
 // WriteCSVs writes the Garmin CSV files into outputDir/csv_<export_date> and returns that
 // folder and the names of the files written. A table with no rows writes no file.
 // csv-writer.js:525-575 (generateCsvs)
 func WriteCSVs(export jsjson.Value, outputDir string) (csvDir string, written []string, err error) {
+	// `jsonData.export_date || 'export'`, but only a YYYY-MM-DD day may become a folder name.
 	dateTag := "export"
 	if tag := export.Get("export_date"); truthy(tag) {
-		dateTag = jsjson.Cell(tag)
+		if tag.Kind != jsjson.String || !dayTag.MatchString(tag.S) {
+			return "", nil, errors.New("export_date must be a YYYY-MM-DD date")
+		}
+		dateTag = tag.S
 	}
 	csvDir = filepath.Join(outputDir, "csv_"+dateTag)
+	if filepath.Dir(csvDir) != filepath.Clean(outputDir) {
+		return "", nil, errors.New("the CSV folder must be inside the output folder")
+	}
 	if err := os.MkdirAll(csvDir, 0o755); err != nil {
 		return "", nil, err
 	}
