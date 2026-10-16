@@ -40,6 +40,12 @@ export class ExportApp {
     await this.#page.waitForFunction(() => !/…/.test(document.getElementById('ver').textContent)); // boot() finished
   }
 
+  /** Quits and starts the app again: localStorage (the app's memory) survives, as in the real app. */
+  async restart() {
+    await this.#page.reload();
+    await this.#page.waitForFunction(() => !/…/.test(document.getElementById('ver').textContent));
+  }
+
   /** Pull: runs from the saved Garmin login, no credentials. */
   async startExport() {
     await this.hero.pressCta();

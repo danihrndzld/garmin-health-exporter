@@ -54,6 +54,7 @@
           return { ok: true, dir, file: req.mode === 'single' ? `${dir}/garmin_${req.startDate}_${req.endDate}.${req.lang}.md` : undefined, count: req.mode === 'single' ? 1 : 11 };
         }
         if (req.cmd === 'mfp-export') {
+          localStorage.setItem('mock_mfp_exports', String(Number(localStorage.getItem('mock_mfp_exports') || 0) + 1));
           if (localStorage.getItem('mock_mfp_expired')) return { ok: false, errorCode: 'MFP_SESSION', error: 'MyFitnessPal session expired' };
           for (let i = 1; i <= 3; i++) { if (cancelled) return { ok: false, cancelled: true, error: 'Cancelled.' }; await sleep(1000); onEvent({ kind: 'progress', phase: 'mfp', current: i * 10, total: 30 }); }
           return { ok: true, days: 30, loggedDays: 17, files: ['mfp_food.csv', 'mfp_daily.csv', 'mfp_exercise.csv'] };

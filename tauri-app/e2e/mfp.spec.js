@@ -77,6 +77,24 @@ test.describe('decision table: MFP step of a run', () => {
     await expect(app.mfp.state).toHaveText('Session expired');
     await expect(app.mfp.button).toHaveText('reconnect');
     await expect(app.run.report).toBeHidden();
+    await expect(app.hero.legend('mfp')).toHaveText('failed');
+    await expect(app.run.logLines.filter({ hasText: 'skipped' })).toHaveCount(0);
+  });
+
+  test('DT-R10 Garmin on, MFP session already expired: no MFP request, the MFP row says skipped, the run is Done', async ({ app, scenario }) => {
+    scenario.mfpConnected().mfpSessionExpired();
+    await app.open();
+    await app.startExport();
+    await app.waitForRunEnd();
+    await expect(app.mfp.state).toHaveText('Session expired');
+    expect(await scenario.mfpExportCalls()).toBe(1);
+    await app.startExport();
+    await app.waitForRunEnd();
+    await expect(app.hero.badge).toHaveText('Done');
+    expect(await scenario.mfpExportCalls()).toBe(1);
+    await expect(app.run.row('mfp').root).toHaveAttribute('data-st', 'warn');
+    await expect(app.run.row('mfp').detail).toHaveText('Skipped: the MyFitnessPal session expired. Reconnect MyFitnessPal.');
+    await expect(app.hero.legend('mfp')).toHaveText('skipped');
   });
 });
 

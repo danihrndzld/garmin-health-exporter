@@ -74,3 +74,16 @@ test('EG-03 pack write fails (EACCES): error toast, button label restored', asyn
   await expect(app.sheet.folderButton).toHaveAttribute('data-state', 'error');
   await expect(app.sheet.folderLabel).toHaveText('Armar carpeta: contexto + CSV');
 });
+
+test('ST-T18 Garmin off run → restart → the sheet still offers the pack', async ({ app, scenario }) => {
+  scenario.mfpConnected();
+  await app.open();
+  await app.garmin.include.uncheck();
+  await app.startExport();
+  await app.waitForRunEnd();
+  await app.restart();
+  await app.sheet.openWithShortcut();
+  await expect(app.sheet.dialog).toBeVisible();
+  await expect(app.sheet.emptyNote).toBeHidden();
+  await expect(app.sheet.folderButton).toBeFocused();
+});

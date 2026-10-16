@@ -11,6 +11,8 @@ export class LlmPackSheet {
     this.folderTarget = page.locator('#copy-ctx-s');
     this.oneFileButton = page.locator('#copy-one');
     this.oneFileLabel = page.locator('#copy-one-l');
+    /** Shown instead of the pack when the export could not be read. */
+    this.emptyNote = page.locator('#sh-empty');
   }
 
   /** The keyboard shortcut the app documents on the button (<kbd>L</kbd>). */

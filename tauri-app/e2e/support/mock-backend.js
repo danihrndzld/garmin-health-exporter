@@ -21,6 +21,11 @@ export class MockBackend {
     return Number(await this.#page.evaluate(() => localStorage.getItem('mock_garmin_connects') || 0));
   }
 
+  /** How many mfp-export calls the mock has received in this tab. */
+  async mfpExportCalls() {
+    return Number(await this.#page.evaluate(() => localStorage.getItem('mock_mfp_exports') || 0));
+  }
+
   /** Seeds localStorage once per tab, before the app script runs; reloads keep what the app changed. */
   async install(page) {
     this.#page = page;

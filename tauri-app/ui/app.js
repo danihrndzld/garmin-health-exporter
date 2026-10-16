@@ -455,6 +455,7 @@
     lastOutDir = res.path;
     store.set('last_out', res.path);
     store.set('last_json', ''); // the last Garmin JSON does not belong to this folder
+    store.set('last_range', JSON.stringify({ startDate: res.startDate, endDate: res.endDate })); // the pack reloads from it on the next start
     openOut.hidden = false;
     return res;
   }
@@ -519,10 +520,13 @@
   async function loadLastSummary() {
     document.querySelectorAll('.preview').forEach((el) => el.setAttribute('data-empty', ''));
     const jsonPath = store.get('last_json');
-    if (!jsonPath) return;
-    let warnings = [];
+    let range = null, warnings = [];
+    try { range = JSON.parse(store.get('last_range', 'null')); } catch { /* old or missing */ }
+    // A Garmin off run leaves no JSON: its pack comes from the folder and the range.
+    if (!jsonPath && !(range && lastOutDir)) return;
     try { warnings = JSON.parse(store.get('last_warnings', '[]')); } catch { /* old or missing */ }
-    const res = await platform.run({ cmd: 'summary', jsonPath, csvDir: lastOutDir, warnings }, () => {}).done;
+    const req = jsonPath ? { jsonPath, csvDir: lastOutDir, warnings } : { csvDir: lastOutDir, ...range, warnings };
+    const res = await platform.run({ cmd: 'summary', ...req }, () => {}).done;
     if (res.ok && res.summary) renderSummary(res.summary);
     pack = (res.ok && res.pack) || null;
     arrangeCtas(false);
@@ -733,6 +737,11 @@
   // jsonPath is the Garmin JSON for the pack refresh, or null when Garmin was off.
   async function runMfp(csvDir, range, jsonPath) {
     if (!mfpOn.checked) return { ok: true };
+    if (!usable(mfp, mfpOn)) { // switched on but expired: skipped without a request
+      setRow('mfp', 'warn', 'Skipped: the MyFitnessPal session expired. Reconnect MyFitnessPal.');
+      $('lg-mfp').textContent = 'skipped';
+      return { ok: true };
+    }
     enterPhase('mfp');
     // MFP is outside the Garmin percentage (PHASES/WEIGHT): its own ring, legend and row.
     const onMfpProgress = ({ current, total }) => {
@@ -759,12 +768,14 @@
       const s = await job.done;
       if (s.ok) pack = s.pack || pack;
     } else {
-      const msg = res.cancelled ? 'Cancelled.' : 'Skipped: ' + (res.error || 'unknown error');
       finishPhase('mfp');
-      setRow('mfp', 'warn', msg);
-      $('lg-mfp').textContent = res.cancelled ? 'cancelled' : 'skipped';
-      log('warn', 'MyFitnessPal ' + (res.cancelled ? 'cancelled' : 'skipped: ' + (res.error || 'unknown error')));
       if (res.errorCode === 'MFP_SESSION') { mfp.expired = mfp.connected; renderMfp(); }
+      // With Garmin off the caller fails the run with this error; here it would only repeat it.
+      const alone = jsonPath === null;
+      $('lg-mfp').textContent = res.cancelled ? 'cancelled' : alone ? 'failed' : 'skipped';
+      if (alone) return res;
+      setRow('mfp', 'warn', res.cancelled ? 'Cancelled.' : 'Skipped: ' + (res.error || 'unknown error'));
+      log('warn', 'MyFitnessPal ' + (res.cancelled ? 'cancelled' : 'skipped: ' + (res.error || 'unknown error')));
     }
     return res;
   }
