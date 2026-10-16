@@ -80,6 +80,19 @@ func TestConnectMapsLoginCodesAndWritesFiles(t *testing.T) {
 	})
 }
 
+func TestLoginCodeMapping(t *testing.T) {
+	t.Run("DT-R224 every LoginCode maps to its GARMIN code, and an unknown one to GARMIN_ERROR", func(t *testing.T) {
+		for c, want := range map[gconnect.LoginCode]string{
+			gconnect.BadPassword: "GARMIN_BAD_PASSWORD", gconnect.MFARequired: "GARMIN_MFA", gconnect.RateLimited: "GARMIN_RATE_LIMITED",
+			gconnect.Blocked: "GARMIN_BLOCKED", gconnect.LoginFailed: "GARMIN_ERROR", "new_code": "GARMIN_ERROR", "": "GARMIN_ERROR",
+		} {
+			if got := loginErrorCode(c); got != want {
+				t.Errorf("%q -> %q, want %q", c, got, want)
+			}
+		}
+	})
+}
+
 func TestLoginRateLimitedTwiceStartsCooldown(t *testing.T) {
 	t.Run("DT-R219 ports DT-R9: two 429s start the cooldown and the next login sends nothing", func(t *testing.T) {
 		srv, a := fakeGarmin(t)

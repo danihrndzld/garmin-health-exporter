@@ -1,10 +1,14 @@
 package main
 
 import (
+	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/gconnect"
+	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/mfp"
 )
 
 // No t.Parallel: t.Setenv forbids it.
@@ -60,6 +64,39 @@ func TestFakeServerEnv(t *testing.T) {
 		t.Setenv("MFP_FAKE_SERVER", "http://127.0.0.1:4321")
 		if r := mfpRequest(map[string]any{}); r.Base != "http://127.0.0.1:4321" || r.Gap != 0 {
 			t.Fatalf("base = %q, gap = %v", r.Base, r.Gap)
+		}
+	})
+}
+
+func TestGuardMFP(t *testing.T) {
+	t.Parallel()
+	home, _ := os.UserHomeDir()
+	dir, err := os.MkdirTemp(home, ".guard-mfp-test-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(dir) })
+	ok := mfp.ExportRequest{StartDate: "2026-10-01", EndDate: "2026-10-07", DataDir: dir, CSVDir: dir}
+	t.Run("EP-227 cmd refuses a bad range, a dataDir or a csvDir outside $HOME with MFP_INPUT before mfp.Export runs", func(t *testing.T) {
+		for _, set := range []func(*mfp.ExportRequest){
+			func(r *mfp.ExportRequest) { r.StartDate = "2026-07-01" },
+			func(r *mfp.ExportRequest) { r.EndDate = "07/10/2026" },
+			func(r *mfp.ExportRequest) { r.DataDir = "/etc" },
+			func(r *mfp.ExportRequest) { r.CSVDir = "" },
+		} {
+			r := ok
+			set(&r)
+			var ce *mfp.CodeError
+			if _, err := guardMFP(r); !errors.As(err, &ce) || ce.Code != "MFP_INPUT" {
+				t.Errorf("%+v -> %v", r, err)
+			}
+		}
+	})
+	t.Run("CL-272 cmd passes mfp.Export the dirs that guard resolved", func(t *testing.T) {
+		want, _ := filepath.EvalSymlinks(dir)
+		r, err := guardMFP(ok)
+		if err != nil || r.DataDir != want || r.CSVDir != want {
+			t.Fatalf("%+v %v, want %s", r, err, want)
 		}
 	})
 }

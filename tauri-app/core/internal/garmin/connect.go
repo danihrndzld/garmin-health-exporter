@@ -33,6 +33,15 @@ var loginCodes = map[gconnect.LoginCode]string{
 	gconnect.LoginFailed: "GARMIN_ERROR",
 }
 
+// loginErrorCode maps a gconnect sign in failure to its GARMIN code; a code this app does not
+// know yet is GARMIN_ERROR, never an empty errorCode.
+func loginErrorCode(c gconnect.LoginCode) string {
+	if code, ok := loginCodes[c]; ok {
+		return code
+	}
+	return "GARMIN_ERROR"
+}
+
 // Connect signs in once and saves tokens.json. A rate limited sign in writes
 // sso-cooldown.json, and Connect sends nothing while it holds. Every failure is a *CodeError.
 func Connect(ctx context.Context, a *gconnect.Auth, dataDir, email, password string, now time.Time) (Status, error) {
@@ -46,7 +55,7 @@ func Connect(ctx context.Context, a *gconnect.Auth, dataDir, email, password str
 		if le.Code == gconnect.RateLimited {
 			startCooldown(dataDir, now)
 		}
-		return Status{}, &CodeError{loginCodes[le.Code], le.Msg}
+		return Status{}, &CodeError{loginErrorCode(le.Code), le.Msg}
 	}
 	if err := (&tokenFile{Tokens: *t}).save(dataDir); err != nil {
 		return Status{}, &CodeError{"GARMIN_ERROR", "could not save the Garmin login: " + err.Error()}
