@@ -82,13 +82,16 @@ func LoadTokens(dataDir string) (*Tokens, error) {
 	return t, nil
 }
 
-// Save writes tokens.json atomically with mode 0600 and stamps SavedAt when empty.
+// Save creates dataDir (0700) when missing and writes tokens.json atomically with mode 0600 and stamps SavedAt when empty.
 func (t *Tokens) Save(dataDir string) error {
 	if t.SavedAt == "" {
 		t.SavedAt = time.Now().UTC().Format(time.RFC3339)
 	}
 	b, err := json.MarshalIndent(t, "", "  ")
 	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(dataDir, 0o700); err != nil {
 		return err
 	}
 	return atomicfile.WriteFile(filepath.Join(dataDir, tokensFile), b)

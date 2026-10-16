@@ -123,3 +123,14 @@ func TestFakeServerAcceptsLoopbackOnly(t *testing.T) {
 		}
 	}
 }
+
+func TestSaveCreatesDataDir(t *testing.T) {
+	t.Parallel()
+	dir := filepath.Join(t.TempDir(), "fresh", "data")
+	if err := (&Tokens{DI: &DI{AccessToken: "a"}}).Save(dir); err != nil {
+		t.Fatalf("CL-221 Save on a missing dataDir: %v", err)
+	}
+	if info, err := os.Stat(dir); err != nil || info.Mode().Perm() != 0o700 {
+		t.Fatalf("CL-221 dataDir %v %v", info, err)
+	}
+}
