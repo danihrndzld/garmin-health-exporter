@@ -99,6 +99,7 @@ func checkFile(rel string, f *ast.File, modPrefix string, report func(string, ..
 	dir, isTest := path.Dir(rel), strings.HasSuffix(rel, "_test.go")
 	inCmd, inLib := under(dir, "cmd"), under(dir, "gconnect")
 	envPkgs := map[string]bool{} // local names bound to os or syscall in this file
+	fmtPkgs := map[string]bool{} // local names bound to fmt in this file
 	for _, imp := range f.Imports {
 		p := strings.Trim(imp.Path.Value, `"`)
 		local := strings.TrimPrefix(p, modPrefix)
@@ -111,6 +112,9 @@ func checkFile(rel string, f *ast.File, modPrefix string, report func(string, ..
 			if name == "." && !inCmd && !isTest {
 				report("%s: dot import of %s outside cmd/", rel, p)
 			}
+		}
+		if p == "fmt" {
+			fmtPkgs[name] = true
 		}
 		switch {
 		case p == "C":
@@ -132,6 +136,8 @@ func checkFile(rel string, f *ast.File, modPrefix string, report func(string, ..
 			report("%s: io/ioutil outside cmd/", rel)
 		case p == "unsafe" && !inCmd && !isTest:
 			report("%s: unsafe outside cmd/", rel)
+		case (p == "log" || strings.HasPrefix(p, "log/")) && !inCmd && !isTest:
+			report("%s: imports %s, which writes to the standard streams; only cmd/ may", rel, p)
 		}
 	}
 	if isTest {
@@ -154,6 +160,15 @@ func checkFile(rel string, f *ast.File, modPrefix string, report func(string, ..
 			sanctioned := name == "UserHomeDir" && dir == "internal/guard"
 			if ok && envPkgs[x.Name] && (envNames[name] || hostNames[name] && !sanctioned) {
 				report("%s: %s.%s outside cmd/", rel, x.Name, name)
+			}
+			// stdout is the JSON line protocol: a stray Println corrupts it.
+			if ok && fmtPkgs[x.Name] && (name == "Print" || name == "Printf" || name == "Println") {
+				report("%s: %s.%s writes to the standard streams outside cmd/", rel, x.Name, name)
+			}
+		}
+		if c, ok := n.(*ast.CallExpr); ok {
+			if id, ok := c.Fun.(*ast.Ident); ok && (id.Name == "print" || id.Name == "println") {
+				report("%s: the %s builtin writes to the standard streams outside cmd/", rel, id.Name)
 			}
 		}
 		return true
@@ -418,6 +433,16 @@ func TestArchitectureCheckerCatchesEachRule(t *testing.T) {
 			{"internal/mfp", map[string]string{"internal/mfp/a.go": src("mfp", `_ "unsafe"`, "")}},
 			{"internal/guard under an alias", map[string]string{"internal/guard/a.go": src("guard", `u "unsafe"`, "var _ = u.Pointer(nil)")}},
 		}},
+		{"CL-279 nothing outside cmd writes to stdout or stderr without naming os", "the standard streams", []fixture{
+			{"fmt.Print", map[string]string{"internal/garmin/a.go": src("garmin", `"fmt"`, `func f() { fmt.Print("x") }`)}},
+			{"fmt.Printf", map[string]string{"internal/mfp/a.go": src("mfp", `"fmt"`, `func f() { fmt.Printf("%d", 1) }`)}},
+			{"fmt.Println", map[string]string{"gconnect/a.go": src("gconnect", `"fmt"`, `func f() { fmt.Println("x") }`)}},
+			{"fmt.Println under an alias", map[string]string{"internal/guard/a.go": src("guard", `f "fmt"`, `var p = f.Println`)}},
+			{"an import of log", map[string]string{"internal/garmin/a.go": src("garmin", `"log"`, `func f() { log.Print("x") }`)}},
+			{"an import of log/slog", map[string]string{"internal/mfp/a.go": src("mfp", `"log/slog"`, `func f() { slog.Info("x") }`)}},
+			{"the print builtin", map[string]string{"internal/garmin/a.go": "package garmin\n\nfunc f() { print(\"x\") }\n"}},
+			{"the println builtin", map[string]string{"gconnect/a.go": "package gconnect\n\nfunc f() { println(\"x\") }\n"}},
+		}},
 	}
 	for _, c := range cases {
 		t.Run(c.id, func(t *testing.T) {
@@ -444,6 +469,9 @@ func TestArchitectureCheckerCatchesEachRule(t *testing.T) {
 			"cmd/app/unsafe.go":          src("main", `_ "unsafe"`, ""),
 			"internal/mfp/b_test.go":     "package mfp\n\nimport _ \"unsafe\"\n\n//go:linkname now time.now\nfunc now() (int64, int32, int64)\n",
 			"gconnect/gconnecttest/b.go": "package gconnecttest\n\ntype obj = map[string]any\n\nfunc send(o obj) {}\n",
+			"cmd/app/print.go":           src("main", `"fmt"`+"\n"+`"log"`, `func f() { fmt.Println("x"); log.Print("x"); println("x") }`),
+			"internal/garmin/b_test.go":  src("garmin", `"fmt"`+"\n"+`"log"`, `func f() { fmt.Println("x"); log.Print("x"); println("x") }`),
+			"internal/garmin/b.go":       src("garmin", `"fmt"`, `var _ = fmt.Sprintf("%d", 1)`),
 		})
 		if len(bad) != 0 {
 			t.Fatalf("the clean fixture failed: %v", bad)
