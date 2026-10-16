@@ -42,9 +42,10 @@
     <div class="rings" aria-hidden="true">
       <svg viewBox="0 0 220 220">
         <g class="ring" data-phase="daily"><circle r="100"/><circle r="100" class="v"/></g>
-        <g class="ring" data-phase="aggregated"><circle r="84"/><circle r="84" class="v"/></g>
-        <g class="ring" data-phase="activities"><circle r="68"/><circle r="68" class="v"/></g>
-        <g class="ring" data-phase="csv"><circle r="52"/><circle r="52" class="v"/></g>
+        <g class="ring" data-phase="aggregated"><circle r="85"/><circle r="85" class="v"/></g>
+        <g class="ring" data-phase="activities"><circle r="70"/><circle r="70" class="v"/></g>
+        <g class="ring" data-phase="csv"><circle r="55"/><circle r="55" class="v"/></g>
+        <g class="ring" data-phase="mfp" hidden><circle r="40"/><circle r="40" class="v"/></g>
       </svg>
       <div class="ring-c"><b id="ring-n" class="num">—</b><span id="ring-l">standby</span></div>
     </div>
@@ -54,6 +55,7 @@
       <li data-phase="aggregated"><i></i>Aggregated<em class="mono" id="lg-aggregated">—</em></li>
       <li data-phase="activities"><i></i>Activities<em class="mono" id="lg-activities">—</em></li>
       <li data-phase="csv"><i></i>CSV<em class="mono" id="lg-csv">—</em></li>
+      <li data-phase="mfp" hidden><i></i>MyFitnessPal<em class="mono" id="lg-mfp">—</em></li>
     </ul>
 
     <div class="progress-sr" role="progressbar" id="progressbar" aria-label="Export progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
@@ -124,11 +126,11 @@
   </section>
 
   <section class="card preview sleep" aria-label="Sleep preview">
-    <div class="card-h"><span class="num-lbl mono">04</span>Recovery</div>
-    <div class="donut" id="sleep-donut" style="--p:0"><b class="num" id="sleep-score">—</b><span>sleep score</span></div>
+    <div class="card-h"><span class="num-lbl mono">04</span>Recovery<span class="grow"></span><span class="mono dim">sleep score</span></div>
+    <div class="donut" id="sleep-donut" style="--p:0"><b class="num" id="sleep-score">—</b></div>
     <ul class="stats mono">
       <li><i style="background:var(--c3)"></i>Sleep<em id="st-sleep">—</em></li>
-      <li><i style="background:var(--c4)"></i>Resting HR<em id="st-rhr">—</em></li>
+      <li><i style="background:var(--c4)"></i><span class="l-long">Resting HR</span><span class="l-short">RHR</span><em id="st-rhr">—</em></li>
       <li><i style="background:var(--c2)"></i>HRV<em id="st-hrv">—</em></li>
     </ul>
     <div class="empty">No data yet.</div>

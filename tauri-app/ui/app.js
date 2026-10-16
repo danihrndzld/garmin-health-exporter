@@ -139,7 +139,8 @@
       rangeCheck = { ok: true };
       rangeErr.hidden = true;
       const r = DR.defaultCustomRange({ daysBack: parseInt(days, 10) });
-      rangeRead.textContent = `${r.startDate} → ${r.endDate}`;
+      // Two unbreakable halves: a narrow window wraps after the arrow, never inside a date.
+      rangeRead.replaceChildren(...[`${r.startDate} →`, r.endDate].map((t) => Object.assign(document.createElement('span'), { textContent: t })));
     }
     renderIdle();
   }
@@ -254,7 +255,7 @@
 
   function resetRun() {
     rowsEl.querySelectorAll('li').forEach((li) => setRow(li.dataset.phase, null, defaultSubs[li.dataset.phase], '—'));
-    PHASES.forEach((p) => { setRing(p, 0); $('lg-' + p).textContent = '—'; });
+    [...PHASES, 'mfp'].forEach((p) => { setRing(p, 0); $('lg-' + p).textContent = '—'; });
     ringN.dataset.v = 0;
     ringN.textContent = '—';
     ringL.textContent = 'standby';
@@ -388,7 +389,10 @@
       if (running.phases.csv && res.pack?.files) running.phases.csv.files = res.pack.files.length;
       finishPhase(running.phase);
       PHASES.forEach((p) => {
-        if (!running.phases[p]) setRow(p, 'ok', undefined, '—');
+        // A phase with nothing to fetch (0 activities) sends no progress: full ring, "0" in the legend.
+        // Its opening log line may still have entered the phase, so check for a total, not for the phase.
+        if (!running.phases[p]) setRow(p, 'ok', SUMMARY[p]?.({}) || undefined, '—');
+        if (!running.phases[p]?.total) $('lg-' + p).textContent = '0';
         setRing(p, 1);
       });
       bar.setAttribute('aria-valuenow', '100');
@@ -404,12 +408,15 @@
       try { await runMfp(res.path, { startDate: res.summary?.range?.start, endDate: res.summary?.range?.end }); } catch (e) {
         finishPhase('mfp');
         setRow('mfp', 'warn', 'Skipped: ' + (e?.message || e));
+        $('lg-mfp').textContent = 'skipped';
         log('warn', 'MyFitnessPal skipped: ' + (e?.message || e));
       }
       clearInterval(tick);
       hero.dataset.state = 'done';
       badge.textContent = 'Done';
       setHeadline(`${n} days`, `done in ${short(performance.now() - running.t0)}.`);
+      countTo(ringN, n);
+      ringL.textContent = 'days';
       store.set('last_warnings', JSON.stringify(pack?.warnings || []));
       toast('Done. CSVs are in ' + tilde(res.path));
     } else {
@@ -470,7 +477,8 @@
     $('sleep-donut').style.setProperty('--p', score || 0);
     countTo($('sleep-score'), score || 0);
     const sec = mean(week.map((d) => d.sleepSec));
-    $('st-sleep').textContent = sec ? `${Math.floor(sec / 3600)}h ${String(Math.round((sec % 3600) / 60)).padStart(2, '0')}m` : '—';
+    const min = Math.round(sec / 60); // round once, so 6h 59.6m reads 7h 00m, not 6h 60m
+    $('st-sleep').textContent = sec ? `${Math.floor(min / 60)}h ${String(min % 60).padStart(2, '0')}m` : '—';
     const rhr = mean(week.map((d) => d.rhr));
     $('st-rhr').textContent = rhr ? Math.round(rhr) + ' bpm' : '—';
     const hrv = mean(week.map((d) => d.hrv));
@@ -670,6 +678,7 @@
     mfpOn.disabled = !!running || !mfp.connected;
     mfpOn.checked = mfp.connected && store.get('mfp_on', '1') === '1';
     row('mfp').hidden = !mfpOn.checked;
+    hero.querySelectorAll('[data-phase="mfp"]').forEach((el) => { el.hidden = !mfpOn.checked; });
     rowsEl.classList.toggle('six', mfpOn.checked);
   }
   async function refreshMfp() {
@@ -694,21 +703,32 @@
   async function runMfp(csvDir, range) {
     if (!mfpOn.checked) return;
     enterPhase('mfp');
-    // onProgress only knows the four Garmin rings, so MFP progress goes to its own row.
+    // MFP is outside the Garmin percentage (PHASES/WEIGHT): its own ring, legend and row.
+    const onMfpProgress = ({ current, total }) => {
+      if (!total) return;
+      setRing('mfp', current / total);
+      $('lg-mfp').textContent = `${current}/${total}`;
+      countTo(ringN, current);
+      ringL.textContent = 'diary days';
+      setRow('mfp', undefined, `${current} of ${total} days`);
+    };
     const job = platform.run({ cmd: 'mfp-export', ...range, dataDir: paths.dataDir, csvDir },
-      (e) => (e.kind === 'progress' ? setRow('mfp', undefined, `${e.current} of ${e.total} days`) : e.kind === 'log' && onLog(e)),
+      (e) => (e.kind === 'progress' ? onMfpProgress(e) : e.kind === 'log' && onLog(e)),
       'binaries/garmin-export-core');
     running.cancel = job.cancel;
     const res = await job.done;
     if (res.ok) {
       finishPhase('mfp');
       setRow('mfp', 'ok', `Food logged on ${res.loggedDays} of ${res.days} days`);
+      setRing('mfp', 1);
+      $('lg-mfp').textContent = `${res.loggedDays}/${res.days}`;
       const s = await platform.run({ cmd: 'summary', jsonPath: store.get('last_json'), csvDir, warnings: pack?.warnings || [] }, () => {}).done;
       if (s.ok) pack = s.pack || pack;
     } else {
       const msg = res.cancelled ? 'Cancelled.' : 'Skipped: ' + (res.error || 'unknown error');
       finishPhase('mfp');
       setRow('mfp', 'warn', msg);
+      $('lg-mfp').textContent = res.cancelled ? 'cancelled' : 'skipped';
       log('warn', 'MyFitnessPal ' + (res.cancelled ? 'cancelled' : 'skipped: ' + (res.error || 'unknown error')));
       if (res.errorCode === 'MFP_SESSION') { mfp.expired = mfp.connected; renderMfp(); }
     }
