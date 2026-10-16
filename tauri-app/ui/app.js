@@ -140,7 +140,8 @@
       rangeErr.hidden = true;
       const r = DR.defaultCustomRange({ daysBack: parseInt(days, 10) });
       // Two unbreakable halves: a narrow window wraps after the arrow, never inside a date.
-      rangeRead.replaceChildren(...[`${r.startDate} →`, r.endDate].map((t) => Object.assign(document.createElement('span'), { textContent: t })));
+      const half = (t) => Object.assign(document.createElement('span'), { textContent: t });
+      rangeRead.replaceChildren(half(`${r.startDate} →`), ' ', half(r.endDate));
     }
     renderIdle();
   }
@@ -678,7 +679,8 @@
     mfpOn.disabled = !!running || !mfp.connected;
     mfpOn.checked = mfp.connected && store.get('mfp_on', '1') === '1';
     row('mfp').hidden = !mfpOn.checked;
-    hero.querySelectorAll('[data-phase="mfp"]').forEach((el) => { el.hidden = !mfpOn.checked; });
+    // The attribute, not el.hidden: the ring is an SVG <g>, which has no hidden property.
+    hero.querySelectorAll('[data-phase="mfp"]').forEach((el) => el.toggleAttribute('hidden', !mfpOn.checked));
     rowsEl.classList.toggle('six', mfpOn.checked);
   }
   async function refreshMfp() {

@@ -200,7 +200,7 @@ input:disabled, button:disabled { opacity: .55; }
 .rows.six .sub { display: block; white-space: nowrap; text-overflow: ellipsis; }
 /* A short window gets the one-line rows with five rows too (they scrolled at 860×620). */
 @media (max-height: 680px) {
-  .rows li { padding: 5px 0; line-height: 1.3; }
+  .rows li, .rows.six li { padding: 5px 0; line-height: 1.3; }
   .rows li > div { display: flex; align-items: baseline; gap: 8px; }
   .rows b { flex: none; }
   .rows .sub { min-width: 0; display: block; white-space: nowrap; text-overflow: ellipsis; }

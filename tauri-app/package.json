@@ -15,6 +15,7 @@
     "release": "bun run sidecar:universal && tauri build --target universal-apple-darwin --config '{\"build\":{\"beforeBuildCommand\":\"\"}}'"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@tauri-apps/cli": "2"
   }
 }
