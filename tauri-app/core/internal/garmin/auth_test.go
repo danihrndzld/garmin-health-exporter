@@ -101,6 +101,9 @@ func TestLoginDecisionTable(t *testing.T) {
 			if n := posts(srv.Calls("/sso/signin")); n != c.widgetPosts {
 				t.Fatalf("widget sign in posts: %d, want %d", n, c.widgetPosts)
 			}
+			if c.widgetPosts == 0 && len(srv.Calls("/sso/embed")) != 0 {
+				t.Fatal("a widget request was sent")
+			}
 			if n := len(srv.Calls("/mobile/api/login")); n != 1 {
 				t.Fatalf("mobile logins: %d, want 1", n)
 			}
@@ -116,33 +119,35 @@ func TestLoginDecisionTable(t *testing.T) {
 }
 
 func TestLoginRateLimitedTwiceStartsCooldown(t *testing.T) {
-	srv := fakeGarmin(t)
-	srv.Control().MobileLogin = "429"
-	srv.Control().Widget429 = true
-	dir := t.TempDir()
-	a := &Auth{DataDir: dir}
-	_, err := a.Login(context.Background(), "e2e@example.invalid", "right-password")
-	var le *LoginError
-	if !errors.As(err, &le) || le.Code != "GARMIN_RATE_LIMITED" {
-		t.Fatalf("DT-R219 ports DT-R9: got %v", err)
-	}
-	b, err := os.ReadFile(filepath.Join(dir, "sso-cooldown.json"))
-	if err != nil {
-		t.Fatalf("DT-R219 no cooldown file: %v", err)
-	}
-	var cd struct{ Until int64 }
-	_ = json.Unmarshal(b, &cd)
-	if d := cd.Until - time.Now().Unix(); d < 895 || d > 900 {
-		t.Fatalf("DT-R219 cooldown until is %d s ahead", d)
-	}
-	srv.Reset()
-	_, err = a.Login(context.Background(), "e2e@example.invalid", "right-password")
-	if !errors.As(err, &le) || le.Code != "GARMIN_RATE_LIMITED" || !strings.Contains(le.Msg, "15 more minutes") {
-		t.Fatalf("DT-R219 second login: %v", err)
-	}
-	if n := len(srv.Calls("")); n != 0 {
-		t.Fatalf("DT-R219 %d requests during the cooldown", n)
-	}
+	t.Run("DT-R219 ports DT-R9: two 429s start the cooldown and the next login sends nothing", func(t *testing.T) {
+		srv := fakeGarmin(t)
+		srv.Control().MobileLogin = "429"
+		srv.Control().Widget429 = true
+		dir := t.TempDir()
+		a := &Auth{DataDir: dir}
+		_, err := a.Login(context.Background(), "e2e@example.invalid", "right-password")
+		var le *LoginError
+		if !errors.As(err, &le) || le.Code != "GARMIN_RATE_LIMITED" {
+			t.Fatalf("DT-R219 ports DT-R9: got %v", err)
+		}
+		b, err := os.ReadFile(filepath.Join(dir, "sso-cooldown.json"))
+		if err != nil {
+			t.Fatalf("DT-R219 no cooldown file: %v", err)
+		}
+		var cd struct{ Until int64 }
+		_ = json.Unmarshal(b, &cd)
+		if d := cd.Until - time.Now().Unix(); d < 895 || d > 900 {
+			t.Fatalf("DT-R219 cooldown until is %d s ahead", d)
+		}
+		srv.Reset()
+		_, err = a.Login(context.Background(), "e2e@example.invalid", "right-password")
+		if !errors.As(err, &le) || le.Code != "GARMIN_RATE_LIMITED" || !strings.Contains(le.Msg, "15 more minutes") {
+			t.Fatalf("DT-R219 second login: %v", err)
+		}
+		if n := len(srv.Calls("")); n != 0 {
+			t.Fatalf("DT-R219 %d requests during the cooldown", n)
+		}
+	})
 }
 
 func TestLoginCooldownWrittenByBun(t *testing.T) {
@@ -188,44 +193,48 @@ func TestLoginCooldownWrittenByBun(t *testing.T) {
 func itoa(n int64) string { return strconv.FormatInt(n, 10) }
 
 func TestFreshRefreshesDIBeforeExpiry(t *testing.T) {
-	srv := fakeGarmin(t)
-	srv.Control().TokenTTL = 600 // inside the 15 minute margin
-	dir := t.TempDir()
-	a := &Auth{DataDir: dir}
-	before, err := a.Login(context.Background(), "e2e@example.invalid", "right-password")
-	if err != nil {
-		t.Fatal(err)
-	}
-	srv.Reset()
-	got, err := a.Fresh(context.Background())
-	if err != nil {
-		t.Fatalf("ST-T201 ports ST-T1: %v", err)
-	}
-	calls := srv.Calls("/di-oauth2-service/oauth/token")
-	if len(calls) != 1 || !strings.Contains(calls[0].Body, "grant_type=refresh_token") {
-		t.Fatalf("ST-T201 refresh calls: %+v", calls)
-	}
-	onDisk, _ := LoadTokens(dir)
-	if got.DI.AccessToken == before.DI.AccessToken || onDisk.DI.AccessToken != got.DI.AccessToken {
-		t.Fatal("ST-T201 tokens.json does not hold the new access token")
-	}
-	if onDisk.SavedAt != before.SavedAt {
-		t.Fatalf("ST-T201 a refresh changed saved_at: %q to %q", before.SavedAt, onDisk.SavedAt)
-	}
+	t.Run("ST-T201 ports ST-T1: a DI token near expiry is refreshed once", func(t *testing.T) {
+		srv := fakeGarmin(t)
+		srv.Control().TokenTTL = 600 // inside the 15 minute margin
+		dir := t.TempDir()
+		a := &Auth{DataDir: dir}
+		before, err := a.Login(context.Background(), "e2e@example.invalid", "right-password")
+		if err != nil {
+			t.Fatal(err)
+		}
+		srv.Reset()
+		got, err := a.Fresh(context.Background())
+		if err != nil {
+			t.Fatalf("ST-T201 ports ST-T1: %v", err)
+		}
+		calls := srv.Calls("/di-oauth2-service/oauth/token")
+		if len(calls) != 1 || !strings.Contains(calls[0].Body, "grant_type=refresh_token") {
+			t.Fatalf("ST-T201 refresh calls: %+v", calls)
+		}
+		onDisk, _ := LoadTokens(dir)
+		if got.DI.AccessToken == before.DI.AccessToken || onDisk.DI.AccessToken != got.DI.AccessToken {
+			t.Fatal("ST-T201 tokens.json does not hold the new access token")
+		}
+		if onDisk.SavedAt != before.SavedAt {
+			t.Fatalf("ST-T201 a refresh changed saved_at: %q to %q", before.SavedAt, onDisk.SavedAt)
+		}
+	})
 }
 
 func TestFreshRenewsLegacyThroughOAuth1(t *testing.T) {
-	srv := fakeGarmin(t)
-	dir := t.TempDir()
-	past := itoa(time.Now().Unix() - 10)
-	write(t, dir, `{"oauth1":{"oauth_token":"ot","oauth_token_secret":"os"},"oauth2":{"access_token":"old","expires_at":`+past+`,"refresh_token_expires_at":`+past+`},"consumer":{"consumer_key":"ck","consumer_secret":"cs"}}`)
-	got, err := (&Auth{DataDir: dir}).Fresh(context.Background())
-	if err != nil || got.OAuth2.AccessToken == "old" {
-		t.Fatalf("ST-T202 ports ST-T2: %v", err)
-	}
-	if len(srv.Calls("/oauth-service/oauth/exchange/user/2.0")) != 1 || len(srv.Calls("/mobile/api/login")) != 0 {
-		t.Fatal("ST-T202 the legacy token was not renewed through the OAuth1 exchange alone")
-	}
+	t.Run("ST-T202 ports ST-T2: an expired legacy token renews through the OAuth1 exchange", func(t *testing.T) {
+		srv := fakeGarmin(t)
+		dir := t.TempDir()
+		past := itoa(time.Now().Unix() - 10)
+		write(t, dir, `{"oauth1":{"oauth_token":"ot","oauth_token_secret":"os"},"oauth2":{"access_token":"old","expires_at":`+past+`,"refresh_token_expires_at":`+past+`},"consumer":{"consumer_key":"ck","consumer_secret":"cs"}}`)
+		got, err := (&Auth{DataDir: dir}).Fresh(context.Background())
+		if err != nil || got.OAuth2.AccessToken == "old" {
+			t.Fatalf("ST-T202 ports ST-T2: %v", err)
+		}
+		if len(srv.Calls("/oauth-service/oauth/exchange/user/2.0")) != 1 || len(srv.Calls("/mobile/api/login")) != 0 {
+			t.Fatal("ST-T202 the legacy token was not renewed through the OAuth1 exchange alone")
+		}
+	})
 }
 
 func TestFreshKeepsTokensOnServerOrNetworkError(t *testing.T) {
@@ -239,13 +248,15 @@ func TestFreshKeepsTokensOnServerOrNetworkError(t *testing.T) {
 	before := tokensFileOf(t, dir)
 	srv.Control().RefreshFail = 500
 	for _, step := range []string{"ST-T203 a 500 on the refresh grant", "ST-T203 a closed network"} {
-		_, err := a.Fresh(context.Background())
-		if err == nil || errors.Is(err, ErrSessionDead) || errors.Is(err, ErrNoLogin) {
-			t.Fatalf("%s: got %v, want a plain error", step, err)
-		}
-		if !bytes.Equal(tokensFileOf(t, dir), before) {
-			t.Fatalf("%s changed tokens.json", step)
-		}
+		t.Run(step, func(t *testing.T) {
+			_, err := a.Fresh(context.Background())
+			if err == nil || errors.Is(err, ErrSessionDead) || errors.Is(err, ErrNoLogin) {
+				t.Fatalf("%s: got %v, want a plain error", step, err)
+			}
+			if !bytes.Equal(tokensFileOf(t, dir), before) {
+				t.Fatalf("%s changed tokens.json", step)
+			}
+		})
 		srv.Close()
 	}
 }
@@ -291,56 +302,81 @@ func TestRefreshDeadOnlyOnProvenAnswers(t *testing.T) {
 	}
 }
 
+func TestRefreshWithoutRefreshTokenSendsNothing(t *testing.T) {
+	srv := fakeGarmin(t)
+	dir := t.TempDir()
+	write(t, dir, `{"di":{"access_token":"x","client_id":"GARMIN_CONNECT_MOBILE_ANDROID_DI_2025Q2","expires_at":1}}`)
+	t.Run("ST-T211 a DI tokens.json without refresh_token is dead and sends nothing", func(t *testing.T) {
+		_, err := (&Auth{DataDir: dir}).Fresh(context.Background())
+		if !errors.Is(err, ErrSessionDead) {
+			t.Fatalf("got %v, want ErrSessionDead", err)
+		}
+		if n := len(srv.Calls("")); n != 0 {
+			t.Fatalf("%d requests", n)
+		}
+	})
+}
+
 func TestJWTHelperReadable(t *testing.T) {
-	c := jwtClaims(garmintest.JWT(map[string]any{"exp": 5, "client_id": "X"}))
-	if c.ClientID != "X" || c.Exp != 5 {
-		t.Fatalf("EG-221 ports EG-06: got %+v", c)
-	}
+	t.Run("EG-221 ports EG-06: the JWT claims are readable", func(t *testing.T) {
+		c := jwtClaims(garmintest.JWT(map[string]any{"exp": 5, "client_id": "X"}))
+		if c.ClientID != "X" || c.Exp != 5 {
+			t.Fatalf("EG-221 ports EG-06: got %+v", c)
+		}
+	})
 }
 
 func TestSignOAuth1MatchesAuthJs(t *testing.T) {
-	params := map[string]string{
-		"oauth_consumer_key": "ck", "oauth_nonce": "n", "oauth_signature_method": "HMAC-SHA1",
-		"oauth_timestamp": "1", "oauth_version": "1.0", "ticket": "ST-1",
-		"login-url": "https://sso.garmin.com/sso/embed", "accepts-mfa-tokens": "true",
-	}
-	// node -e "console.log(require('./electron-app/garmin/auth').signOAuth1(...))", see the task 3 brief.
-	if got := signOAuth1("GET", "https://x/oauth-service/oauth/preauthorized", params, "cs", ""); got != "vuDWLkAGwPDSl8r0q3ly059MkjE=" {
-		t.Fatalf("CL-222 signature %s", got)
-	}
+	t.Run("CL-222 the OAuth1 signature matches auth.js", func(t *testing.T) {
+		params := map[string]string{
+			"oauth_consumer_key": "ck", "oauth_nonce": "n", "oauth_signature_method": "HMAC-SHA1",
+			"oauth_timestamp": "1", "oauth_version": "1.0", "ticket": "ST-1",
+			"login-url": "https://sso.garmin.com/sso/embed", "accepts-mfa-tokens": "true",
+		}
+		// node -e "console.log(require('./electron-app/garmin/auth').signOAuth1(...))", see the task 3 brief.
+		if got := signOAuth1("GET", "https://x/oauth-service/oauth/preauthorized", params, "cs", ""); got != "vuDWLkAGwPDSl8r0q3ly059MkjE=" {
+			t.Fatalf("CL-222 signature %s", got)
+		}
+	})
 }
 
 func TestHeadersByKind(t *testing.T) {
-	h := Headers(&Tokens{DI: &DI{AccessToken: "a"}}, "a")
-	if h.Get("X-Garmin-Client-Platform") != "Android" || h.Get("User-Agent") != "GCM-Android-5.23" || h.Get("Authorization") != "Bearer a" {
-		t.Fatalf("CL-223 DI headers %v", h)
-	}
-	h = Headers(&Tokens{OAuth1: &OAuth1{}, OAuth2: &OAuth2{}, Consumer: &Consumer{}}, "b")
-	if h.Get("User-Agent") != "com.garmin.android.apps.connectmobile" || h.Get("X-Garmin-Client-Platform") != "" || h.Get("Authorization") != "Bearer b" {
-		t.Fatalf("CL-224 legacy headers %v", h)
-	}
+	t.Run("CL-223 DI tokens send the native headers", func(t *testing.T) {
+		h := Headers(&Tokens{DI: &DI{AccessToken: "a"}}, "a")
+		if h.Get("X-Garmin-Client-Platform") != "Android" || h.Get("User-Agent") != "GCM-Android-5.23" || h.Get("Authorization") != "Bearer a" {
+			t.Fatalf("CL-223 DI headers %v", h)
+		}
+	})
+	t.Run("CL-224 legacy tokens send the connectmobile user agent", func(t *testing.T) {
+		h := Headers(&Tokens{OAuth1: &OAuth1{}, OAuth2: &OAuth2{}, Consumer: &Consumer{}}, "b")
+		if h.Get("User-Agent") != "com.garmin.android.apps.connectmobile" || h.Get("X-Garmin-Client-Platform") != "" || h.Get("Authorization") != "Bearer b" {
+			t.Fatalf("CL-224 legacy headers %v", h)
+		}
+	})
 }
 
 func TestSocialProfileNeedsAnIssuedToken(t *testing.T) {
-	srv := fakeGarmin(t)
-	a := &Auth{DataDir: t.TempDir()}
-	tok, err := a.Login(context.Background(), "e2e@example.invalid", "right-password")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, c := range []struct {
-		access string
-		want   int
-	}{{tok.DI.AccessToken, 200}, {"unknown", 401}} {
-		req, _ := http.NewRequestWithContext(context.Background(), "GET", srv.URL()+"/userprofile-service/socialProfile", nil)
-		req.Header = Headers(tok, c.access)
-		resp, err := a.client().Do(req)
+	t.Run("CL-225 the fake accepts only an issued token", func(t *testing.T) {
+		srv := fakeGarmin(t)
+		a := &Auth{DataDir: t.TempDir()}
+		tok, err := a.Login(context.Background(), "e2e@example.invalid", "right-password")
 		if err != nil {
 			t.Fatal(err)
 		}
-		resp.Body.Close()
-		if resp.StatusCode != c.want {
-			t.Fatalf("CL-225 token %q answered %d, want %d", c.access, resp.StatusCode, c.want)
+		for _, c := range []struct {
+			access string
+			want   int
+		}{{tok.DI.AccessToken, 200}, {"unknown", 401}} {
+			req, _ := http.NewRequestWithContext(context.Background(), "GET", srv.URL()+"/userprofile-service/socialProfile", nil)
+			req.Header = Headers(tok, c.access)
+			resp, err := a.client().Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp.Body.Close()
+			if resp.StatusCode != c.want {
+				t.Fatalf("CL-225 token %q answered %d, want %d", c.access, resp.StatusCode, c.want)
+			}
 		}
-	}
+	})
 }
