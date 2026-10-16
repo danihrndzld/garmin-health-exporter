@@ -19,8 +19,6 @@ export class MockBackend {
   activities(count) { return this.#set('mock_acts', String(count)); }
   packFails() { return this.#set('mock_pack_fail', '1'); }
   summaryHangs() { return this.#set('mock_summary_hangs', '1'); }
-  /** The app's developer switch: `export` runs on the Go core, which answers without summary or pack. */
-  engine(name) { return this.#set('ge_engine', name); }
 
   /** From now on, in this tab, every `summary` call fails (a later run than the first). */
   async summaryStartsFailing() {

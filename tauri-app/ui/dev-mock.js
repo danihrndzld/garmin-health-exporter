@@ -37,7 +37,7 @@
     },
     listen: (ev, cb) => window.addEventListener('mock-' + ev.replace('-connected', ''), (e) => cb(e.detail)),
     onFocus: (cb) => window.addEventListener('focus', cb),
-    run(req, onEvent, bin = 'binaries/garmin-core') {
+    run(req, onEvent, bin = 'binaries/garmin-export-core') {
       let cancelled = false;
       const ts = () => new Date().toLocaleTimeString();
       const done = (async () => {
@@ -45,8 +45,8 @@
           if (localStorage.getItem('mock_summary_fail')) return { ok: false, error: 'The summary failed.' };
           // localStorage.mock_summary_hangs = '1' keeps the summary after MyFitnessPal running until cancelled.
           while (localStorage.getItem('mock_summary_hangs')) { if (cancelled) return { ok: false, cancelled: true, error: 'Cancelled.' }; await sleep(50); }
-          // Without a jsonPath (Garmin was off) the sidecar has no Garmin summary, only the pack.
-          // The pack lists the warn lines the UI forwards, as the sidecar does.
+          // Without a jsonPath (Garmin was off) the Go core has no Garmin summary, only the pack.
+          // The pack lists the warn lines the UI forwards, as the Go core does.
           return { ok: true, summary: req.jsonPath ? fakeSummary() : null, pack: fakePack(req.warnings ?? []) };
         }
         if (req.cmd === 'pack') {
@@ -115,11 +115,8 @@
         say('success', 'CSVs written to /Users/you/Documents/GarminExport/csv_2026-10-13');
         say('success', `Done. ${nDays} days | ${nActs} activities`);
         const path = '/Users/you/Documents/GarminExport/csv_2026-10-13';
-        // The Go core answers with file names only; the UI asks Bun's summary for the rest.
-        if (bin === 'binaries/garmin-export-core') {
-          return { ok: true, path, jsonPath: '/Users/you/x.json', startDate: '2026-09-14', endDate: '2026-10-13', days: nDays, activities: nActs, files: fakePack().files.map((f) => f.name) };
-        }
-        return { ok: true, path, jsonPath: '/Users/you/x.json', summary: fakeSummary(), pack: fakePack() };
+        // The Go core answers with file names only; the UI asks `summary` for the rest.
+        return { ok: true, path, jsonPath: '/Users/you/x.json', startDate: '2026-09-14', endDate: '2026-10-13', days: nDays, activities: nActs, files: fakePack().files.map((f) => f.name) };
       })();
       return { done, cancel: () => { cancelled = true; } };
     },

@@ -10,7 +10,7 @@
   };
 
   // ── Platform bridge ─────────────────────────────────────────────────────
-  // Every Garmin call goes to the bundled `garmin-core` sidecar; in a plain
+  // Every backend call goes to the bundled Go core `garmin-export-core`; in a plain
   // browser (design preview) dev-mock.js stands in for it.
   const platform = T ? {
     async defaults() {
@@ -28,7 +28,7 @@
     invoke: (cmd, args) => T.core.invoke(cmd, args),
     listen: (ev, cb) => T.event.listen(ev, (e) => cb(e.payload)),
     onFocus: (cb) => T.window.getCurrentWindow().onFocusChanged(({ payload }) => payload && cb()),
-    run(req, onEvent, bin = 'binaries/garmin-core') {
+    run(req, onEvent, bin = 'binaries/garmin-export-core') {
       let child = null;
       let killed = false;
       const done = new Promise((resolve) => {
@@ -213,7 +213,7 @@
       return;
     }
     disarm();
-    const res = await platform.run({ cmd: 'clear-cache', dataDir: paths.dataDir }, () => {}, 'binaries/garmin-export-core').done;
+    const res = await platform.run({ cmd: 'clear-cache', dataDir: paths.dataDir }, () => {}).done;
     toast(res.ok ? 'Cache cleared.' : res.error);
   });
   function disarm() { clearTimeout(armTimer); clearCacheBtn.classList.remove('armed'); clearCacheBtn.textContent = 'clear cache'; }
@@ -405,7 +405,7 @@
     arrangeCtas(res.ok);
   }
 
-  // Garmin on: the engine pulls Garmin, then MyFitnessPal runs; an MFP failure is only a warning row.
+  // Garmin on: the Go core pulls Garmin, then MyFitnessPal runs; an MFP failure is only a warning row.
   async function runGarmin(req, n) {
     enterPhase('auth');
     const warnings = []; // the pack's "Missing data and warnings" section
@@ -414,11 +414,11 @@
       if (e.kind !== 'log') return;
       if (e.type === 'warn') warnings.push(e.msg);
       onLog(e);
-    }, engine() === 'go' ? GO : 'binaries/garmin-core');
+    });
     running.cancel = job.cancel;
     const res = await job.done;
     if (!res.ok) return res;
-    const files = res.pack?.files || res.files; // Bun answers with the pack, Go with the file names
+    const files = res.files;
     if (running.phases.csv && files) running.phases.csv.files = files.length;
     finishPhase(running.phase);
     PHASES.forEach((p) => {
@@ -434,24 +434,19 @@
     store.set('last_out', res.path);
     if (res.jsonPath) store.set('last_json', res.jsonPath);
     openOut.hidden = false;
-    if (res.summary) renderSummary(res.summary);
-    pack = res.pack || null;
     // The hero stays "Running" (and the clock ticks) until MyFitnessPal is done too.
     if (mfpOn.checked) setHeadline(`${n} days`, 'reading diary.');
     let m = null;
-    try { m = await runMfp(res.path, { startDate: res.startDate ?? res.summary?.range?.start, endDate: res.endDate ?? res.summary?.range?.end }); } catch (e) {
+    try { m = await runMfp(res.path, { startDate: res.startDate, endDate: res.endDate }); } catch (e) {
       finishPhase('mfp');
       setRow('mfp', 'warn', 'Skipped: ' + (e?.message || e));
       $('lg-mfp').textContent = 'skipped';
       log('warn', 'MyFitnessPal skipped: ' + (e?.message || e));
     }
-    // The Go engine answers without summary and pack; new MyFitnessPal files need a new pack.
-    if (!res.summary || (m?.ok && !m.skipped)) {
-      // Go: the previews keep the last run's data until this summary paints them; a failed or cancelled one leaves them empty.
-      if (!res.summary) document.querySelectorAll('.preview').forEach((el) => el.setAttribute('data-empty', ''));
-      const s = await refreshPack({ csvDir: res.path, jsonPath: res.jsonPath, warnings });
-      if (s.ok && s.summary && !res.summary) renderSummary(s.summary);
-    }
+    // The Go core answers without summary and pack: the previews stay empty until this summary paints them.
+    document.querySelectorAll('.preview').forEach((el) => el.setAttribute('data-empty', ''));
+    const s = await refreshPack({ csvDir: res.path, jsonPath: res.jsonPath, warnings });
+    if (s.ok && s.summary) renderSummary(s.summary);
     return res;
   }
 
@@ -462,7 +457,7 @@
       setRow('auth', 'warn', 'Skipped: the Garmin session expired. Reconnect Garmin.', '—');
       log('warn', 'Garmin skipped: the session expired.');
     } else ['auth', ...PHASES].forEach((p) => setRow(p, null, 'Off', '—'));
-    const job = platform.run({ ...req, garmin: false }, () => {}, GO);
+    const job = platform.run({ ...req, garmin: false }, () => {});
     running.cancel = job.cancel;
     const res = await job.done;
     if (!res.ok) return res;
@@ -554,7 +549,7 @@
   }
 
   // ── LLM pack ────────────────────────────────────────────────────────────
-  // Export writes nothing extra. Each button asks the sidecar to build ONE language
+  // Export writes nothing extra. Each button asks the Go core to build ONE language
   // into its own subfolder (llm-<lang>/ or llm-<lang>-one-file/) and opens it, so
   // dragging the whole folder never sends the same data twice.
   const STR = {
@@ -651,7 +646,7 @@
   }
 
   // Build → open. The button holds a "building" state for at least MIN_BUILD_MS so
-  // the motion reads as feedback even when the sidecar answers in 50 ms.
+  // the motion reads as feedback even when the Go core answers in 50 ms.
   const MIN_BUILD_MS = 700;
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const calm = matchMedia('(prefers-reduced-motion: reduce)');
@@ -708,7 +703,7 @@
   $('sheet-x').addEventListener('click', closeSheet);
 
   // ── Bug report ──────────────────────────────────────────────────────────
-  // The sidecar scrubs secrets / emails / home paths and builds both links.
+  // The Go core scrubs secrets / emails / home paths and builds both links.
   let reportLinks = null;
   async function showReport(error) {
     const res = await platform.run({
@@ -774,8 +769,7 @@
       setRow('mfp', undefined, `${current} of ${total} days`);
     };
     const job = platform.run({ cmd: 'mfp-export', ...range, dataDir: paths.dataDir, csvDir },
-      (e) => (e.kind === 'progress' ? onMfpProgress(e) : e.kind === 'log' && onLog(e)),
-      'binaries/garmin-export-core');
+      (e) => (e.kind === 'progress' ? onMfpProgress(e) : e.kind === 'log' && onLog(e)));
     running.cancel = job.cancel;
     const res = await job.done;
     if (res.ok) {
@@ -795,7 +789,7 @@
     return res;
   }
 
-  // Asks Bun's `summary` for the pack (and, from the Garmin JSON, the summary) of a finished csv folder.
+  // Asks the Go core's `summary` for the pack (and, from the Garmin JSON, the summary) of a finished csv folder.
   // Esc here cancels only the pack refresh: the files are written and the run ends Done.
   async function refreshPack(req) {
     const job = platform.run({ cmd: 'summary', ...req }, () => {});
@@ -807,15 +801,11 @@
 
   // ── Garmin ──────────────────────────────────────────────────────────────
   // The Go core signs in once and keeps tokens.json; every export runs from it without a password.
-  const GO = 'binaries/garmin-export-core';
-  // Which binary runs `export`; ge_engine is a developer switch with no UI. Every other command has a fixed binary.
-  const DEFAULT_ENGINE = 'go';
-  const engine = () => store.get('engine', DEFAULT_ENGINE);
   const garminState = $('garmin-state'), garminBtn = $('garmin-btn'), garminOn = $('garmin-on');
   const garminForm = $('garmin-form'), garminErr = $('garmin-err'), signInBtn = $('garmin-signin'), cancelBtn = $('garmin-cancel');
   let garmin = { connected: false, expired: false };
   const usable = (s, sw) => sw.checked && s.connected && !s.expired;
-  const goRun = (req) => platform.run(req, () => {}, GO).done.catch((e) => ({ ok: false, error: String(e?.message || e) }));
+  const goRun = (req) => platform.run(req, () => {}).done.catch((e) => ({ ok: false, error: String(e?.message || e) }));
   function renderGarmin() {
     garminState.textContent = garmin.expired ? 'Session expired' : garmin.connected ? 'Connected' : 'Not connected';
     garminBtn.textContent = garmin.expired ? 'reconnect' : garmin.connected ? 'disconnect' : 'connect';
