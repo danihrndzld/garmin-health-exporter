@@ -590,6 +590,12 @@ func TestBinaryStage3Commands(t *testing.T) {
 		if res := result(t, runBinary(t, "", line(map[string]any{"cmd": "summary", "csvDir": csvDir, "startDate": "2026-01-01", "endDate": "x/../../y"}))); res["error"] != "startDate and endDate must be YYYY-MM-DD." {
 			t.Errorf("summary dates: %v", res)
 		}
+		// A date_range that is not YYYY-MM-DD never reaches the pack: summary yes, pack null.
+		slash := filepath.Join(root, "slash.json")
+		os.WriteFile(slash, []byte(`{"date_range":{"start":"2024/02/17","end":"2024-02-21"},"daily":{}}`), 0o644)
+		if res := result(t, runBinary(t, "", line(map[string]any{"cmd": "summary", "jsonPath": slash, "csvDir": csvDir}))); res["ok"] != true || res["summary"] == nil || res["pack"] != nil {
+			t.Errorf("file range: %v", res)
+		}
 		// No version and no os read "?", as report.js defaulted them.
 		if res := result(t, runBinary(t, "", line(map[string]any{"cmd": "report", "error": "x"}))); !strings.Contains(res["issueUrl"].(string), "v%3F%20%C2%B7%20%3F") {
 			t.Errorf("report defaults: %v", res)
