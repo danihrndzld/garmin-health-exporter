@@ -1,0 +1,32 @@
+{
+  "export_date": "2026-10-15",
+  "daily": {
+    "2026-10-15": {
+      "steps": null,
+      "training_readiness": [],
+      "morning_training_readiness": {"level": "MODERATE", "recoveryTime": 0.0},
+      "training_status": {
+        "mostRecentTrainingStatus": {"latestTrainingStatusData": {
+          "abc": {"trainingStatus": "FROM_ABC"},
+          "1001": {"trainingStatus": "FROM_1001", "acuteTrainingLoadDTO": {"dailyTrainingLoadAcute": 412.0}}
+        }},
+        "mostRecentTrainingLoadBalance": {"metricsTrainingLoadBalanceDTOMap": {
+          "x": {"monthlyLoadAerobicLow": 1},
+          "7": {"primaryTrainingDevice": false, "monthlyLoadAerobicLow": 2},
+          "y": {"primaryTrainingDevice": true, "monthlyLoadAerobicLow": 3}
+        }}
+      }
+    },
+    "2026-10-14": {
+      "steps": {"dailyStepGoal": 8000, "totalSteps": 1234567},
+      "training_readiness": [{"level": "LOW"}, {"level": "HIGH", "feedbackShort": "rested, \"ready\""}],
+      "morning_training_readiness": [{"level": "POOR"}, {"level": "PRIME"}]
+    },
+    "2026-10-13": {
+      "steps": [],
+      "training_readiness": {"level": "OBJECT"},
+      "intensity_minutes": {"moderateMinutes": null},
+      "stats": {"moderateIntensityMinutes": 30, "dailyStepGoal": 7500}
+    }
+  }
+}

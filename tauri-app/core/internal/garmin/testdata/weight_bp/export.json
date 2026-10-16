@@ -1,0 +1,41 @@
+{
+  "export_date": "2026-10-15",
+  "aggregated": {
+    "body_composition": {
+      "dateWeightList": [
+        {
+          "samplePk": 1760500000000,
+          "calendarDate": "2026-10-14",
+          "weight": 72000.0,
+          "bmi": 23.5,
+          "bodyFat": null,
+          "sourceType": "INDEX_SCALE",
+          "weightDelta": 0.000001,
+          "tags": ["morning", "fasted"],
+          "device": {"name": "Index S2, \"white\"", "info": {"fw": 12.0, "7": "seven"}},
+          "3": "index key"
+        },
+        {
+          "calendarDate": "2026-10-13",
+          "weight": 72500,
+          "bmi": 23.7,
+          "timestampGMT": 1234567,
+          "isManual": true,
+          "note": "line one\nline two"
+        }
+      ]
+    },
+    "blood_pressure": {
+      "measurementSummaries": [
+        {
+          "startDate": "2026-10-14",
+          "highSystolic": 121.0,
+          "lowDiastolic": 78,
+          "category": {"id": 1, "label": "NORMAL"},
+          "measurements": [{"systolic": 121, "diastolic": 78}],
+          "1001": "device"
+        }
+      ]
+    }
+  }
+}

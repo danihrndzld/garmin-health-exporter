@@ -1,0 +1,4 @@
+date,readiness_level,readiness_feedbackShort,readiness_feedbackLong,morning_readiness_level,morning_readiness_feedback,morning_readiness_recoveryTime,morning_readiness_sleepScoreFactor,morning_readiness_recoveryTimeFactor,vo2max,trainingStatus,trainingLoad_acute,trainingLoad_chronic,trainingLoad_ratio,trainingLoad_ratioStatus,monthlyLoad_aerobicLow,monthlyLoad_aerobicHigh,monthlyLoad_anaerobic,loadBalance_feedback,enduranceScore,enduranceScore_classification
+2026-10-15,,,,MODERATE,,0,,,,FROM_1001,412,,,,3,,,,,
+2026-10-14,HIGH,"rested, ""ready""",,PRIME,,,,,,,,,,,,,,,,
+2026-10-13,OBJECT,,,,,,,,,,,,,,,,,,,

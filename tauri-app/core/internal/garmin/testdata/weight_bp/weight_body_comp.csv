@@ -1,0 +1,4 @@
+3,samplePk,calendarDate,weight,bmi,bodyFat,sourceType,weightDelta,tags,device_name,device_info_7,device_info_fw,timestampGMT,isManual,note
+index key,1760500000000,2026-10-14,72000,23.5,,INDEX_SCALE,0.000001,"[""morning"",""fasted""]","Index S2, ""white""",seven,12,,,
+,,2026-10-13,72500,23.7,,,,,,,,1234567,true,"line one
+line two"

@@ -1,0 +1,4 @@
+date,totalKilocalories,activeKilocalories,bmrKilocalories,totalSteps,totalDistanceMeters,wellnessKilocalories,remainingKilocalories,floorsAscended,floorsDescended,durationInMilliseconds,stepGoal,maxHeartRate,minHeartRate,restingHeartRate,lastSevenDaysAvgRestingHeartRate,maxStressLevel,avgStressLevel,moderateIntensityMinutes,vigorousIntensityMinutes,stepsGoal,stepsWellness,hydrationGoalMl,hydrationValueMl,hydrationSweatLossMl,hydrationActivityIntakeMl
+2026-10-15,,,,,,,,,,,,,,,,,,,,,,,,,
+2026-10-14,,,,,,,,,,,,,,,,,,,,8000,1234567,,,,
+2026-10-13,,,,,,,,,,,7500,,,,,,,30,,,,,,,
