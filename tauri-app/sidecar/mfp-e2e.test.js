@@ -19,7 +19,13 @@ beforeAll(async () => {
   if (buildFake.exitCode !== 0) throw new Error(String(buildFake.stderr));
   fake = Bun.spawn([FAKE_BIN, TESTDATA], { cwd: CORE, stdout: 'pipe' });
   const reader = fake.stdout.getReader();
-  base = new TextDecoder().decode((await reader.read()).value).trim();
+  let out = ''; // the URL line can arrive in more than one chunk
+  while (!out.includes('\n')) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    out += new TextDecoder().decode(value);
+  }
+  base = out.trim();
 });
 afterAll(() => { fake?.kill(); fs.rmSync(BIN, { force: true }); fs.rmSync(FAKE_BIN, { force: true }); for (const d of cleanup) fs.rmSync(d, { recursive: true, force: true }); });
 
