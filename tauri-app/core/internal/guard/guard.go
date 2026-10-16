@@ -81,3 +81,33 @@ func Dates(start, end string) []string {
 	}
 	return out
 }
+
+// DaysBack returns the inclusive range that ends today (local time) and spans n days.
+func DaysBack(n int, now time.Time) (start, end string, err error) {
+	if n < 1 || n > 90 {
+		return "", "", errors.New("daysBack must be an integer between 1 and 90")
+	}
+	today := now.In(time.Local)
+	return today.AddDate(0, 0, -(n - 1)).Format(layout), today.Format(layout), nil
+}
+
+func RefreshWindow(n int) error {
+	if n < 1 || n > 7 {
+		return errors.New("refreshWindow must be an integer between 1 and 7")
+	}
+	return nil
+}
+
+// Credentials checks size only. Its errors are fixed sentences: they never echo the input.
+func Credentials(email, password string) error {
+	if email == "" || password == "" {
+		return errors.New("email and password are required")
+	}
+	if len(email) > 320 {
+		return errors.New("the email can be at most 320 bytes")
+	}
+	if len(password) > 1024 {
+		return errors.New("the password can be at most 1024 bytes")
+	}
+	return nil
+}

@@ -4,7 +4,9 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
+	"time"
 )
 
 // homeTemp makes a scratch dir inside $HOME: the guard rejects everything outside it, t.TempDir() included.
@@ -127,6 +129,83 @@ func TestDates(t *testing.T) {
 			t.Parallel()
 			if got := Dates(tc.start, tc.end); !reflect.DeepEqual(got, tc.want) {
 				t.Fatalf("Dates = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestDaysBackEndsTodayInLocalTime(t *testing.T) {
+	now := time.Date(2026, 10, 15, 23, 30, 0, 0, time.Local)
+	for _, c := range []struct {
+		id    string
+		n     int
+		start string
+		ok    bool
+	}{
+		{"BVA-201 0 days is rejected", 0, "", false},
+		{"BVA-202 1 day starts and ends today", 1, "2026-10-15", true},
+		{"BVA-203 30 days starts 29 days back", 30, "2026-09-16", true},
+		{"BVA-204 90 days is the largest accepted", 90, "2026-07-18", true},
+		{"BVA-205 91 days is rejected", 91, "", false},
+		{"BVA-206 a negative count is rejected", -1, "", false},
+	} {
+		t.Run(c.id, func(t *testing.T) {
+			s, e, err := DaysBack(c.n, now)
+			if !c.ok {
+				if err == nil {
+					t.Fatalf("DaysBack(%d) accepted", c.n)
+				}
+				return
+			}
+			if err != nil || s != c.start || e != "2026-10-15" {
+				t.Fatalf("DaysBack(%d) = %s %s %v", c.n, s, e, err)
+			}
+		})
+	}
+}
+
+func TestRefreshWindow(t *testing.T) {
+	for _, c := range []struct {
+		id string
+		n  int
+		ok bool
+	}{
+		{"BVA-207 0 is rejected", 0, false},
+		{"BVA-208 1 is the smallest accepted", 1, true},
+		{"BVA-209 7 is the largest accepted", 7, true},
+		{"BVA-210 8 is rejected", 8, false},
+	} {
+		t.Run(c.id, func(t *testing.T) {
+			if err := RefreshWindow(c.n); (err == nil) != c.ok {
+				t.Fatalf("RefreshWindow(%d) = %v", c.n, err)
+			}
+		})
+	}
+}
+
+func TestCredentials(t *testing.T) {
+	secret := strings.Repeat("s3cret", 200)
+	for _, c := range []struct {
+		id, email, pw string
+		ok            bool
+	}{
+		{"EP-201 a normal pair is accepted", "a@b.c", "pw", true},
+		{"EP-202 an empty email is rejected", "", "pw", false},
+		{"EP-203 an empty password is rejected", "a@b.c", "", false},
+		{"BVA-211 an email of 320 bytes is accepted", strings.Repeat("a", 320), "pw", true},
+		{"BVA-212 an email of 321 bytes is rejected", strings.Repeat("a", 321), "pw", false},
+		{"BVA-213 a password of 1024 bytes is accepted", "a@b.c", strings.Repeat("p", 1024), true},
+		{"BVA-214 a password of 1025 bytes is rejected", "a@b.c", strings.Repeat("p", 1025), false},
+		{"EP-204 the error never contains the password", "a@b.c", secret, false},
+		{"EP-205 the error never contains the email", strings.Repeat("e@x", 200), "pw", false},
+	} {
+		t.Run(c.id, func(t *testing.T) {
+			err := Credentials(c.email, c.pw)
+			if (err == nil) != c.ok {
+				t.Fatalf("Credentials = %v", err)
+			}
+			if err != nil && (strings.Contains(err.Error(), "s3cret") || strings.Contains(err.Error(), "e@x") || strings.Contains(err.Error(), "ppp")) {
+				t.Fatalf("error leaks input: %v", err)
 			}
 		})
 	}

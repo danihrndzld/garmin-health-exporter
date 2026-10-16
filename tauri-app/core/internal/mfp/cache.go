@@ -2,6 +2,7 @@ package mfp
 
 import (
 	"encoding/json"
+	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/atomicfile"
 	"os"
 	"path/filepath"
 	"time"
@@ -56,5 +57,5 @@ func (c Cache) Put(date string, items []DiaryItem, now time.Time) error {
 	if err != nil {
 		return err
 	}
-	return writeFileAtomic(c.path(date), b)
+	return atomicfile.WriteFile(c.path(date), b)
 }

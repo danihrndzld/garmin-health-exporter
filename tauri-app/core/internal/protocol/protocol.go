@@ -29,6 +29,11 @@ func (e *Emitter) Log(kind, msg string) {
 	e.write(map[string]any{"kind": "log", "type": kind, "msg": msg, "ts": time.Now().Format("15:04:05")})
 }
 
+// Warn is a warn log line that also carries a stable errorCode for the UI.
+func (e *Emitter) Warn(msg, code string) {
+	e.write(map[string]any{"kind": "log", "type": "warn", "msg": msg, "errorCode": code, "ts": time.Now().Format("15:04:05")})
+}
+
 func (e *Emitter) Progress(phase string, current, total int) {
 	e.write(map[string]any{"kind": "progress", "phase": phase, "current": current, "total": total})
 }

@@ -2,10 +2,9 @@ package mfp
 
 import (
 	"encoding/json"
-	"errors"
+	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/atomicfile"
 	"net/http"
 	"os"
-	"path/filepath"
 	"time"
 )
 
@@ -52,7 +51,7 @@ func (s *Session) Save(path string) error {
 	if err != nil {
 		return err
 	}
-	return writeFileAtomic(path, b)
+	return atomicfile.WriteFile(path, b)
 }
 
 // Merge applies Set-Cookie headers from MFP and reports whether anything changed.
@@ -92,27 +91,4 @@ func (s *Session) Merge(set []*http.Cookie) bool {
 		}
 	}
 	return changed
-}
-
-func writeFileAtomic(path string, data []byte) error {
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".tmp-*")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(tmp.Name())
-	if err := tmp.Chmod(0o600); err != nil {
-		tmp.Close()
-		return err
-	}
-	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	if err := os.Rename(tmp.Name(), path); err != nil {
-		return errors.Join(errors.New("could not replace "+filepath.Base(path)), err)
-	}
-	return nil
 }

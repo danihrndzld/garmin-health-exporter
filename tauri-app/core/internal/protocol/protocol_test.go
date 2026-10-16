@@ -121,3 +121,21 @@ func TestEmitterConcurrentWritersNeverInterleaveLines(t *testing.T) {
 		}
 	})
 }
+
+func TestWarnCarriesTheErrorCode(t *testing.T) {
+	t.Run("CL-201 a warn line carries kind, type, msg and errorCode", func(t *testing.T) {
+		var buf bytes.Buffer
+		e := Emitter{Out: &buf}
+		e.Warn("[skip] hrv: HTTP 500", "HTTP_5XX")
+		var line map[string]any
+		if err := json.Unmarshal(buf.Bytes(), &line); err != nil {
+			t.Fatal(err)
+		}
+		if line["kind"] != "log" || line["type"] != "warn" || line["errorCode"] != "HTTP_5XX" || line["msg"] != "[skip] hrv: HTTP 500" {
+			t.Fatalf("bad warn line %v", line)
+		}
+		if _, ok := line["ts"]; !ok {
+			t.Fatal("warn line has no ts")
+		}
+	})
+}
