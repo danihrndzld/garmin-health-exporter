@@ -92,6 +92,46 @@ test('AC-07 a wrong password ends with a clear error and no CSV files', async ()
   expect(fs.readdirSync(out)).toEqual([]);
 }, 60000);
 
+const SIGN_INS = ['/mobile/api/login', '/sso/signin'];
+
+test('AC-10 export runs from a saved login without email or password', async () => {
+  const { out, data } = dirs();
+  const login = await sidecar({ cmd: 'export', email: 'e2e@example.invalid', password: 'right-password',
+    startDate: FIXTURE.date_range.start, endDate: FIXTURE.date_range.end, outputDir: out, dataDir: data });
+  expect(login.result.ok).toBe(true);
+  fake.calls.length = 0;
+  const { result } = await sidecar({ cmd: 'export', startDate: FIXTURE.date_range.start, endDate: FIXTURE.date_range.end, outputDir: out, dataDir: data });
+  expect(result.ok).toBe(true);
+  expect(fake.calls.filter((c) => SIGN_INS.includes(c.path))).toEqual([]);
+}, 60000);
+
+test('AC-11 without a saved login, export asks to connect Garmin and sends no sign in', async () => {
+  const { out, data } = dirs();
+  fake.calls.length = 0;
+  const { result } = await sidecar({ cmd: 'export', startDate: FIXTURE.date_range.start, endDate: FIXTURE.date_range.end, outputDir: out, dataDir: data });
+  expect(result).toMatchObject({ ok: false, errorCode: 'GARMIN_SESSION', error: 'Connect Garmin first.' });
+  expect(fake.calls.filter((c) => SIGN_INS.includes(c.path))).toEqual([]);
+}, 60000);
+
+test('AC-11 a failed refresh of a saved login asks to connect Garmin and sends no sign in', async () => {
+  const { out, data } = dirs();
+  const now = Math.floor(Date.now() / 1000);
+  fs.writeFileSync(path.join(data, 'tokens.json'), JSON.stringify({ di: {
+    access_token: 'old', refresh_token: 'refresh-old', client_id: 'GARMIN_CONNECT_MOBILE_ANDROID_DI_2025Q2',
+    expires_at: now + 600, refresh_token_expires_at: now + 86400,
+  } }));
+  fake.control.diauth = 'fail';
+  fake.calls.length = 0;
+  try {
+    const { result } = await sidecar({ cmd: 'export', startDate: FIXTURE.date_range.start, endDate: FIXTURE.date_range.end, outputDir: out, dataDir: data });
+    expect(result).toMatchObject({ ok: false, errorCode: 'GARMIN_SESSION', error: 'Connect Garmin first.' });
+    expect(fake.calls.some((c) => c.path.startsWith('/di-oauth2-service'))).toBe(true);
+    expect(fake.calls.filter((c) => SIGN_INS.includes(c.path))).toEqual([]);
+  } finally {
+    fake.control.diauth = 'ok';
+  }
+}, 60000);
+
 test('a Garmin export removes MyFitnessPal files left in the csv folder by an earlier run', async () => {
   const { out, data } = dirs();
   const req = {

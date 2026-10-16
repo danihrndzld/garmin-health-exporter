@@ -36,7 +36,6 @@ function resolveOutputDir(outputDir) {
 
 async function runExport(req) {
   const { email, password, daysBack, startDate, endDate, outputDir, refreshWindow } = req;
-  if (!email || !password) return fail('Email and password are required.');
 
   let range;
   if (startDate != null && endDate != null) {
@@ -66,7 +65,7 @@ async function runExport(req) {
     onProgress: (p) => emit({ kind: 'progress', ...p }),
     onLog: (l) => (l.type === 'warn' && warnings.push(l.message), emit({ kind: 'log', type: l.type, msg: l.message, ts: ts(), ...(l.errorCode && { errorCode: l.errorCode }) })),
   });
-  if (!res.ok) return fail(res.error);
+  if (!res.ok) return fail(res.error, res.errorCode ? { errorCode: res.errorCode } : {});
   const summary = summarize(res.jsonPath);
   let pack = null;
   try {

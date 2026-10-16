@@ -133,7 +133,7 @@ function generateDateRange(startDate, endDate) {
  * @param {number} [opts.requestDelayMs=500] Pause between Garmin requests (tests use 0)
  * @param {function} [opts.onProgress]     ({current, total, phase}) => void
  * @param {function} [opts.onLog]          ({type, message}) => void
- * @returns {Promise<{ok: true, jsonPath: string, csvDir: string} | {ok: false, error: string}>}
+ * @returns {Promise<{ok: true, jsonPath: string, csvDir: string} | {ok: false, error: string, errorCode?: string}>}
  */
 async function exportHealth(opts) {
   const {
@@ -159,6 +159,8 @@ async function exportHealth(opts) {
     onLog({ type: 'dim', message: 'Loaded saved tokens' });
   } else {
     // Fall back to credential login
+    // Without credentials (the Tauri UI never sends them) a sign in would only spend one of Garmin's few attempts.
+    if (!email || !password) return { ok: false, errorCode: 'GARMIN_SESSION', error: 'Connect Garmin first.' };
     onLog({ type: 'dim', message: `Token load failed (${tokenResult.error}), logging in...` });
     const loginResult = await auth.login(email, password);
     if (!loginResult.ok) {
