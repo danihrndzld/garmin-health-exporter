@@ -1,8 +1,8 @@
-// Package garmintest is a fake Garmin for tests, ported from
+// Package gconnecttest is a fake Garmin for tests, ported from
 // electron-app/garmin/__tests__/helpers/fake-garmin.js: SSO (widget and mobile login),
 // diauth, the S3 OAuth consumer file, the oauth-service OAuth1 to OAuth2 exchange and
-// connectapi. Point the code at it with GARMIN_FAKE_SERVER=URL().
-package garmintest
+// connectapi. Point a gconnect.Auth at it with Hosts().
+package gconnecttest
 
 import (
 	"encoding/base64"
@@ -15,6 +15,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/gconnect"
 )
 
 type Control struct {
@@ -41,7 +43,7 @@ type Server struct {
 	calls   []Call
 	issued  int
 	valid   map[string]bool
-	fixture []byte // the export JSON for the data routes (Task 10)
+	routes  map[string]http.HandlerFunc
 	srv     *httptest.Server
 }
 
@@ -49,14 +51,23 @@ func defaults() Control {
 	return Control{Password: "right-password", MobileLogin: "ok", DIAuth: "ok", TokenTTL: 3600, DataStatus: map[string]int{}, FailOnce: map[string]int{}}
 }
 
-func New(fixture []byte) *Server {
-	s := &Server{control: defaults(), valid: map[string]bool{}, fixture: fixture}
+func New() *Server {
+	s := &Server{control: defaults(), valid: map[string]bool{}, routes: map[string]http.HandlerFunc{}}
 	s.srv = httptest.NewServer(http.HandlerFunc(s.serve))
 	return s
 }
 
-func (s *Server) URL() string { return s.srv.URL }
-func (s *Server) Close()      { s.srv.Close() }
+func (s *Server) URL() string           { return s.srv.URL }
+func (s *Server) Hosts() gconnect.Hosts { return gconnect.SameHost(s.srv.URL) }
+func (s *Server) Close()                { s.srv.Close() }
+
+// Handle serves a connectapi data route at exactly path. The fake still answers 401 to a
+// token it did not issue, and DataStatus and FailOnce still apply.
+func (s *Server) Handle(path string, h http.HandlerFunc) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.routes[path] = h
+}
 
 // Control returns the knobs. Change them between requests, never during one.
 func (s *Server) Control() *Control {
@@ -251,6 +262,13 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 			send(w, status, obj{"message": "forced"}, retry(status)...)
 			return
 		}
+	}
+	s.mu.Lock()
+	h := s.routes[p]
+	s.mu.Unlock()
+	if h != nil {
+		h(w, r)
+		return
 	}
 	if p == "/userprofile-service/socialProfile" {
 		send(w, 200, obj{"displayName": "displayName-redacted", "id": 1})

@@ -1,4 +1,4 @@
-package garmin
+package gconnect
 
 import (
 	"context"
@@ -14,28 +14,21 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
-	"os"
-	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/atomicfile"
 )
 
 // Constants from auth.js:57-93.
 const (
-	gcModern       = "https://connect.garmin.com/modern"
-	mobileService  = "https://mobile.integration.garmin.com/gcm/ios" // the ticket is only valid for this service
-	diGrantTicket  = "https://connectapi.garmin.com/di-oauth2-service/oauth/grant/service_ticket"
-	userAgentIOS   = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148"
-	userAgentWeb   = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36"
-	userAgentApp   = "com.garmin.android.apps.connectmobile"
-	refreshMarginS = 900     // refresh this many seconds before expiry
-	ssoCooldownS   = 15 * 60 // after a 429 on a sign in, refuse new sign ins for this long
-	cooldownFile   = "sso-cooldown.json"
+	gcModern      = "https://connect.garmin.com/modern"
+	mobileService = "https://mobile.integration.garmin.com/gcm/ios" // the ticket is only valid for this service
+	diGrantTicket = "https://connectapi.garmin.com/di-oauth2-service/oauth/grant/service_ticket"
+	userAgentIOS  = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148"
+	userAgentWeb  = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36"
+	userAgentApp  = "com.garmin.android.apps.connectmobile"
 )
 
 // Tried in order; Garmin retires old ids over time.
@@ -65,45 +58,55 @@ var (
 	lockedRE = regexp.MustCompile(`var\s+status\s*=\s*"`)
 )
 
-func host(real string) string {
-	if f := FakeServer(); f != "" {
-		return f
+// Hosts names the Garmin hosts. The zero value is the real Garmin; tests set every field to one fake.
+type Hosts struct{ SSO, DIAuth, ConnectAPI, Consumer string }
+
+// SameHost points all four hosts at base.
+func SameHost(base string) Hosts { return Hosts{base, base, base, base} }
+
+func or(v, real string) string {
+	if v != "" {
+		return v
 	}
 	return real
 }
 
-// LoginError is a sign in failure the UI shows. Msg never holds the password.
-type LoginError struct{ Code, Msg string }
+func (h Hosts) sso() string        { return or(h.SSO, "https://sso.garmin.com") }
+func (h Hosts) diauth() string     { return or(h.DIAuth, "https://diauth.garmin.com") }
+func (h Hosts) connectAPI() string { return or(h.ConnectAPI, "https://connectapi.garmin.com") }
+func (h Hosts) consumer() string   { return or(h.Consumer, "https://thegarth.s3.amazonaws.com") }
+
+type LoginCode string
+
+const (
+	BadPassword LoginCode = "bad_password"
+	MFARequired LoginCode = "mfa"
+	RateLimited LoginCode = "rate_limited" // the caller should wait 15 minutes before another Login
+	Blocked     LoginCode = "blocked"      // 403 or another non 200 on both flows
+	LoginFailed LoginCode = "error"        // network, not JSON, unexpected status
+)
+
+// LoginError is a sign in failure. Msg never holds the password.
+type LoginError struct {
+	Code LoginCode
+	Msg  string
+}
 
 func (e *LoginError) Error() string { return e.Msg }
 
-// LoginResult is the garmin-connect failure result for err.
-func LoginResult(err error) map[string]any {
-	var le *LoginError
-	if !errors.As(err, &le) {
-		le = &LoginError{codeError, err.Error()}
-	}
-	return map[string]any{"ok": false, "errorCode": le.Code, "error": le.Msg}
-}
+var errRateLimited = &LoginError{RateLimited, "Garmin is rate limiting sign ins (HTTP 429). Wait 15 minutes and try again."}
 
-const (
-	codeBadPassword = "GARMIN_BAD_PASSWORD"
-	codeMFA         = "GARMIN_MFA"
-	codeRateLimited = "GARMIN_RATE_LIMITED"
-	codeBlocked     = "GARMIN_BLOCKED"
-	codeError       = "GARMIN_ERROR"
+var (
+	// ErrSessionDead means Garmin proved the saved login is dead; the caller marks it expired.
+	ErrSessionDead = errors.New("gconnect: the saved login is no longer valid")
+	ErrNoTokens    = errors.New("gconnect: the tokens hold neither a DI nor a legacy login")
 )
 
-var errRateLimited = &LoginError{codeRateLimited, "Garmin is rate limiting sign ins (HTTP 429). Wait 15 minutes and try again."}
-
-// ErrSessionDead means Garmin proved the saved login is dead; the caller writes the expired marker.
-var ErrSessionDead = errors.New("the Garmin login is no longer valid")
-
 type Auth struct {
-	DataDir string
-	HTTP    *http.Client
-	Log     func(msg string) // dim lines; never receives the password
-	Now     func() time.Time
+	Hosts Hosts
+	HTTP  *http.Client     // nil: 30 s timeout
+	Now   func() time.Time // nil: time.Now
+	Log   func(msg string) // dim lines; never receives the password
 }
 
 func (a *Auth) client() *http.Client {
@@ -198,41 +201,36 @@ func jwtClaims(token string) claims {
 	return c
 }
 
-// Headers returns the connectapi headers: the native app headers for DI, the mobile UA for legacy.
-func Headers(t *Tokens, access string) http.Header {
-	h := http.Header{}
+// Headers returns the connectapi headers with the access token: the native app headers for
+// DI, the mobile UA for legacy.
+func Headers(t *Tokens) http.Header {
+	h, access := http.Header{}, ""
 	if t.DI != nil {
 		for _, kv := range nativeHeaders {
 			h[kv[0]] = []string{kv[1]}
 		}
+		access = t.DI.AccessToken
 	} else {
 		h.Set("User-Agent", userAgentApp)
+		if t.OAuth2 != nil {
+			access = t.OAuth2.AccessToken
+		}
 	}
 	h.Set("Authorization", "Bearer "+access)
 	h.Set("Accept", "application/json")
 	return h
 }
 
-// Login ports auth.js:login and _loginChain (202-239). Every failure is a *LoginError.
+// Login ports auth.js:login and _loginChain (202-239). It returns the tokens and saves
+// nothing. Every failure is a *LoginError; after RateLimited the caller should wait 15 minutes.
 func (a *Auth) Login(ctx context.Context, email, password string) (*Tokens, error) {
-	if left := a.cooldownLeft(); left > 0 {
-		return nil, &LoginError{codeRateLimited, fmt.Sprintf("Garmin rate limited the last sign in. Wait %d more minutes before trying again.", (left+59)/60)}
-	}
 	t, err := a.chain(ctx, email, password)
-	if err == nil {
-		if err = t.Save(a.DataDir); err != nil {
-			err = fmt.Errorf("could not save the Garmin login: %w", err)
-		}
-	}
 	if err == nil {
 		return t, nil
 	}
 	var le *LoginError
 	if !errors.As(err, &le) {
-		le = &LoginError{codeError, err.Error()}
-	}
-	if le.Code == codeRateLimited {
-		a.startCooldown()
+		le = &LoginError{LoginFailed, err.Error()}
 	}
 	return nil, le
 }
@@ -242,7 +240,7 @@ func (a *Auth) chain(ctx context.Context, email, password string) (*Tokens, erro
 	// A 429 on the mobile login does not stop the chain: Garmin limits the two logins
 	// separately (measured 2026-10-14). The widget flow is tried once; a second 429 stops.
 	var le *LoginError
-	if errors.As(err, &le) && le.Code != codeRateLimited {
+	if errors.As(err, &le) && le.Code != RateLimited {
 		return nil, err
 	}
 	if err == nil {
@@ -265,34 +263,10 @@ func (a *Auth) chain(ctx context.Context, email, password string) (*Tokens, erro
 	return a.legacyFromTicket(ctx, ticket)
 }
 
-// One process per export, so the cooldown after a 429 lives in a file Bun and Go share.
-func (a *Auth) cooldownLeft() int64 {
-	var cd struct{ Until float64 }
-	b, err := os.ReadFile(filepath.Join(a.DataDir, cooldownFile))
-	if err != nil || json.Unmarshal(b, &cd) != nil {
-		return 0
-	}
-	left := int64(cd.Until) - a.now().Unix()
-	if left > ssoCooldownS {
-		// A bad clock or edit cannot block longer: write the cap back, or the JS read-time cap
-		// would block again on every later read.
-		a.startCooldown()
-		return ssoCooldownS
-	}
-	return max(0, left)
-}
-
-func (a *Auth) startCooldown() {
-	b := []byte(`{"until":` + strconv.FormatInt(a.now().Unix()+ssoCooldownS, 10) + `}`)
-	if os.MkdirAll(a.DataDir, 0o700) == nil {
-		_ = atomicfile.WriteFile(filepath.Join(a.DataDir, cooldownFile), b) // best effort
-	}
-}
-
 // loginMobile ports _loginMobile (259-287): one JSON POST, no cookies or CSRF. A plain
 // error means the login was blocked and the widget flow may try.
 func (a *Auth) loginMobile(ctx context.Context, email, password string) (string, error) {
-	sso := host("https://sso.garmin.com")
+	sso := a.Hosts.sso()
 	qs := url.Values{"clientId": {"GCM_IOS_DARK"}, "locale": {"en-US"}, "service": {mobileService}}.Encode()
 	body, _ := json.Marshal(struct {
 		Username     string `json:"username"`
@@ -327,9 +301,9 @@ func (a *Auth) loginMobile(ctx context.Context, email, password string) (string,
 	case t == "SUCCESSFUL" && r.ServiceTicketID != "":
 		return r.ServiceTicketID, nil
 	case t == "INVALID_USERNAME_PASSWORD":
-		return "", &LoginError{codeBadPassword, "Wrong email or password."}
+		return "", &LoginError{BadPassword, "Wrong email or password."}
 	case t == "MFA_REQUIRED":
-		return "", &LoginError{codeMFA, "This account uses two step verification, which Garmin Export does not support yet."}
+		return "", &LoginError{MFARequired, "This account uses two step verification, which Garmin Export does not support yet."}
 	case r.Error != nil && fmt.Sprint(r.Error["status-code"]) == "429":
 		return "", errRateLimited
 	case t != "":
@@ -358,7 +332,7 @@ func (a *Auth) exchangeTicketForDI(ctx context.Context, ticket string) (*DI, err
 
 // diTokenRequest ports _diTokenRequest (306-341). status is 0 on a network error.
 func (a *Auth) diTokenRequest(ctx context.Context, clientID string, form url.Values) (*DI, int, error) {
-	req, err := http.NewRequestWithContext(ctx, "POST", host("https://diauth.garmin.com")+"/di-oauth2-service/oauth/token", strings.NewReader(form.Encode()))
+	req, err := http.NewRequestWithContext(ctx, "POST", a.Hosts.diauth()+"/di-oauth2-service/oauth/token", strings.NewReader(form.Encode()))
 	if err != nil {
 		return nil, 0, err
 	}
@@ -421,7 +395,7 @@ func (a *Auth) loginWidget(ctx context.Context, email, password string) (string,
 	c := *a.client()
 	c.Jar = jar
 	c.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-	sso := host("https://sso.garmin.com")
+	sso := a.Hosts.sso()
 	embed, signin := sso+"/sso/embed", sso+"/sso/signin"
 	get := func(u string) ([]byte, error) {
 		req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
@@ -470,11 +444,11 @@ func (a *Auth) loginWidget(ctx context.Context, email, password string) (string,
 	case status == 429:
 		return "", errRateLimited
 	case status != 200:
-		return "", &LoginError{codeBlocked, fmt.Sprintf("Garmin blocked the sign in (HTTP %d). Try again later or from another network.", status)}
+		return "", &LoginError{Blocked, fmt.Sprintf("Garmin blocked the sign in (HTTP %d). Try again later or from another network.", status)}
 	}
 	t := ticketRE.FindSubmatch(html)
 	if t == nil {
-		return "", &LoginError{codeBadPassword, "Wrong email or password, or the account needs two step verification."}
+		return "", &LoginError{BadPassword, "Wrong email or password, or the account needs two step verification."}
 	}
 	return string(t[1]), nil
 }
@@ -482,7 +456,7 @@ func (a *Auth) loginWidget(ctx context.Context, email, password string) (string,
 // legacyFromTicket ports _legacyFromTicket (440-512): the S3 consumer, OAuth1 preauthorized,
 // then the OAuth2 exchange.
 func (a *Auth) legacyFromTicket(ctx context.Context, ticket string) (*Tokens, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", host("https://thegarth.s3.amazonaws.com")+"/oauth_consumer.json", nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", a.Hosts.consumer()+"/oauth_consumer.json", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -498,8 +472,8 @@ func (a *Auth) legacyFromTicket(ctx context.Context, ticket string) (*Tokens, er
 		return nil, fmt.Errorf("the OAuth consumer is not JSON: %w", err)
 	}
 
-	base := host("https://connectapi.garmin.com") + "/oauth-service/oauth/preauthorized"
-	query := map[string]string{"ticket": ticket, "login-url": host("https://sso.garmin.com") + "/sso/embed", "accepts-mfa-tokens": "true"}
+	base := a.Hosts.connectAPI() + "/oauth-service/oauth/preauthorized"
+	query := map[string]string{"ticket": ticket, "login-url": a.Hosts.sso() + "/sso/embed", "accepts-mfa-tokens": "true"}
 	params := map[string]string{
 		"oauth_consumer_key": consumer.Key, "oauth_nonce": nonce(), "oauth_signature_method": "HMAC-SHA1",
 		"oauth_timestamp": strconv.FormatInt(a.now().Unix(), 10), "oauth_version": "1.0",
@@ -538,7 +512,7 @@ func (a *Auth) legacyFromTicket(ctx context.Context, ticket string) (*Tokens, er
 
 // exchangeOAuth1ForOAuth2 ports _exchangeOAuth1ForOAuth2 (638-689). status is 0 on a network error.
 func (a *Auth) exchangeOAuth1ForOAuth2(ctx context.Context, consumer *Consumer, o1 *OAuth1) (*OAuth2, int, error) {
-	u := host("https://connectapi.garmin.com") + "/oauth-service/oauth/exchange/user/2.0"
+	u := a.Hosts.connectAPI() + "/oauth-service/oauth/exchange/user/2.0"
 	params := map[string]string{
 		"oauth_consumer_key": consumer.Key, "oauth_token": o1.Token, "oauth_nonce": nonce(),
 		"oauth_signature_method": "HMAC-SHA1", "oauth_timestamp": strconv.FormatInt(a.now().Unix(), 10), "oauth_version": "1.0",
@@ -578,31 +552,24 @@ func (a *Auth) exchangeOAuth1ForOAuth2(ctx context.Context, consumer *Consumer, 
 	}, status, nil
 }
 
-// Fresh ports loadTokens (518-557): load tokens.json and refresh it REFRESH_MARGIN_S before expiry.
-// A missing file or the expired marker returns ErrNoLogin.
-func (a *Auth) Fresh(ctx context.Context) (*Tokens, error) {
-	t, err := LoadTokens(a.DataDir)
-	if err != nil {
-		return nil, err
+// Fresh ports loadTokens (518-557): it refreshes t when the access token expires within
+// margin. refreshed tells the caller to store the new tokens.
+func (a *Auth) Fresh(ctx context.Context, t *Tokens, margin time.Duration) (tok *Tokens, refreshed bool, err error) {
+	if t.Kind() == KindNone {
+		return nil, false, ErrNoTokens
 	}
-	exp := int64(0)
-	if t.isDI() {
-		exp = t.DI.ExpiresAt
-	} else {
-		exp = t.OAuth2.ExpiresAt // the OAuth1 token mints new OAuth2 tokens, so its refresh expiry does not matter
+	if a.now().Unix() >= t.AccessExpiresAt()-int64(margin/time.Second) {
+		tok, err = a.Refresh(ctx, t)
+		return tok, err == nil, err
 	}
-	if a.now().Unix() >= exp-refreshMarginS {
-		return a.Refresh(ctx, t)
-	}
-	return t, nil
+	return t, false, nil
 }
 
-// Refresh ports refresh (563-586) and rewrites tokens.json, keeping saved_at. It returns
+// Refresh ports refresh (563-586) and returns the new tokens without saving them. It returns
 // ErrSessionDead only on an answer that proves the login dead (a 400 or 401 from diauth, a
-// 401 from the OAuth2 exchange, or a DI login without a refresh token); on any other
-// failure tokens.json is left as it is.
+// 401 from the OAuth2 exchange, or a DI login without a refresh token); any other error means
+// the caller keeps the old tokens.
 func (a *Auth) Refresh(ctx context.Context, t *Tokens) (*Tokens, error) {
-	var next *Tokens
 	if t.DI != nil {
 		if t.DI.RefreshToken == "" {
 			return nil, fmt.Errorf("%w: it has no refresh token", ErrSessionDead)
@@ -616,22 +583,17 @@ func (a *Auth) Refresh(ctx context.Context, t *Tokens) (*Tokens, error) {
 		if err != nil {
 			return nil, fmt.Errorf("the Garmin token refresh failed: %w", err)
 		}
-		next = &Tokens{DI: di, SavedAt: t.SavedAt}
-	} else {
-		if !t.isLegacy() {
-			return nil, ErrNoLogin
-		}
-		o2, status, err := a.exchangeOAuth1ForOAuth2(ctx, t.Consumer, t.OAuth1)
-		if status == 401 {
-			return nil, fmt.Errorf("%w (OAuth2 exchange HTTP 401)", ErrSessionDead)
-		}
-		if err != nil {
-			return nil, fmt.Errorf("the Garmin token refresh failed: %w", err)
-		}
-		next = &Tokens{OAuth1: t.OAuth1, OAuth2: o2, Consumer: t.Consumer, SavedAt: t.SavedAt}
+		return &Tokens{DI: di}, nil
 	}
-	if err := next.Save(a.DataDir); err != nil {
-		return nil, err
+	if !t.isLegacy() {
+		return nil, ErrNoTokens
 	}
-	return next, nil
+	o2, status, err := a.exchangeOAuth1ForOAuth2(ctx, t.Consumer, t.OAuth1)
+	if status == 401 {
+		return nil, fmt.Errorf("%w (OAuth2 exchange HTTP 401)", ErrSessionDead)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("the Garmin token refresh failed: %w", err)
+	}
+	return &Tokens{OAuth1: t.OAuth1, OAuth2: o2, Consumer: t.Consumer}, nil
 }

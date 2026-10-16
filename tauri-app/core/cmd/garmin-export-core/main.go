@@ -4,15 +4,28 @@ package main
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"regexp"
 	"time"
 
+	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/gconnect"
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/garmin"
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/guard"
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/mfp"
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/protocol"
 )
+
+var loopback = regexp.MustCompile(`^http://(127\.0\.0\.1|localhost):\d+$`)
+
+// garminHosts points gconnect at GARMIN_FAKE_SERVER when it is a loopback URL, else at the real Garmin.
+func garminHosts() gconnect.Hosts {
+	if v := os.Getenv("GARMIN_FAKE_SERVER"); loopback.MatchString(v) {
+		return gconnect.SameHost(v)
+	}
+	return gconnect.Hosts{}
+}
 
 func main() {
 	out := &protocol.Emitter{Out: os.Stdout}
@@ -77,12 +90,12 @@ func main() {
 			out.Result(map[string]any{"ok": false, "errorCode": "GARMIN_INPUT", "error": err.Error()})
 			return
 		}
-		a := &garmin.Auth{DataDir: dataDir, Log: func(m string) { out.Log("dim", m) }}
-		if _, err := a.Login(context.Background(), email, password); err != nil {
-			out.Result(garmin.LoginResult(err))
+		a := &gconnect.Auth{Hosts: garminHosts(), Log: func(m string) { out.Log("dim", m) }}
+		s, err := garmin.Connect(context.Background(), a, dataDir, email, password, time.Now())
+		if ce := (*garmin.CodeError)(nil); errors.As(err, &ce) {
+			out.Result(map[string]any{"ok": false, "errorCode": ce.Code, "error": ce.Msg})
 			return
 		}
-		s := garmin.StatusOf(dataDir, time.Now())
 		out.Result(map[string]any{"ok": true, "connected": s.Connected, "expired": s.Expired, "savedAt": s.SavedAt, "loginKind": s.Kind})
 	case "export":
 		bad := func(msg string) { out.Result(map[string]any{"ok": false, "errorCode": "GARMIN_INPUT", "error": msg}) }

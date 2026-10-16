@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/garmin/garmintest"
+	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/gconnect/gconnecttest"
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/mfp"
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/mfp/mfptest"
 )
@@ -223,7 +223,7 @@ func TestBinaryGarminStatusAndDisconnect(t *testing.T) {
 
 func TestBinaryGarminConnect(t *testing.T) {
 	t.Parallel()
-	fake := garmintest.New(nil)
+	fake := gconnecttest.New()
 	t.Cleanup(fake.Close)
 	home, _ := os.UserHomeDir()
 	connect := func(password string) (map[string]any, string, string) {
@@ -343,7 +343,7 @@ func TestBinaryClearCache(t *testing.T) {
 
 func TestBinaryExportWithGarminOff(t *testing.T) {
 	t.Parallel()
-	fake := garmintest.New(nil)
+	fake := gconnecttest.New()
 	t.Cleanup(fake.Close)
 	home, _ := os.UserHomeDir()
 	out, err := os.MkdirTemp(home, ".garmin-export-off-test-")

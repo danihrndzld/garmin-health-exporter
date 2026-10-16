@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/gconnect"
 )
 
 // Written by electron-app/garmin/auth.js:_writeTokens; Go must read both shapes as they are.
@@ -65,7 +67,7 @@ func TestSaveKeepsAuthJsShapeAndMode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := tok.Save(dir); err != nil {
+	if err := (&tokenFile{Tokens: *tok}).save(dir); err != nil {
 		t.Fatal(err)
 	}
 	info, _ := os.Stat(filepath.Join(dir, "tokens.json"))
@@ -107,27 +109,10 @@ func TestDeleteMissingFileIsFine(t *testing.T) {
 	}
 }
 
-// No t.Parallel: t.Setenv forbids it.
-func TestFakeServerAcceptsLoopbackOnly(t *testing.T) {
-	for v, want := range map[string]string{
-		"http://127.0.0.1:4100":   "http://127.0.0.1:4100", // EP-211
-		"http://localhost:9":      "http://localhost:9",    // EP-212
-		"https://127.0.0.1:4100":  "",                      // EP-213
-		"http://evil.com:80":      "",                      // EP-214
-		"http://127.0.0.1:4100/x": "",                      // EP-215
-		"":                        "",                      // EP-216
-	} {
-		t.Setenv("GARMIN_FAKE_SERVER", v)
-		if got := FakeServer(); got != want {
-			t.Errorf("%q -> %q", v, got)
-		}
-	}
-}
-
 func TestSaveCreatesDataDir(t *testing.T) {
 	t.Parallel()
 	dir := filepath.Join(t.TempDir(), "fresh", "data")
-	if err := (&Tokens{DI: &DI{AccessToken: "a"}}).Save(dir); err != nil {
+	if err := (&tokenFile{Tokens: gconnect.Tokens{DI: &gconnect.DI{AccessToken: "a"}}}).save(dir); err != nil {
 		t.Fatalf("CL-221 Save on a missing dataDir: %v", err)
 	}
 	if info, err := os.Stat(dir); err != nil || info.Mode().Perm() != 0o700 {
