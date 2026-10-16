@@ -1,6 +1,9 @@
 /** Garmin Connect row of the Setup card and its sign in form. */
 export class GarminConnection {
+  #page;
+
   constructor(page) {
+    this.#page = page;
     this.state = page.locator('#garmin-state');
     this.button = page.locator('#garmin-btn');
     this.include = page.locator('#garmin-on');
@@ -30,5 +33,13 @@ export class GarminConnection {
     await this.email.fill(email);
     await this.password.fill(password);
     await this.password.press('Enter');
+  }
+
+  /** Fills the open form and presses Enter twice in a row, as an impatient user would. */
+  async connectWithDoubleEnter({ email, password }) {
+    await this.email.fill(email);
+    await this.password.fill(password);
+    await this.password.press('Enter');
+    await this.#page.keyboard.press('Enter');
   }
 }

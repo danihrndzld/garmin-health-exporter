@@ -5,6 +5,7 @@
  */
 export class MockBackend {
   #keys = {};
+  #page = null;
 
   garminConnected() { return this.#set('mock_garmin', String(Date.UTC(2026, 9, 1))); }
   garminNotConnected() { delete this.#keys.mock_garmin; return this; }
@@ -15,8 +16,14 @@ export class MockBackend {
   packFails() { return this.#set('mock_pack_fail', '1'); }
   summaryHangs() { return this.#set('mock_summary_hangs', '1'); }
 
+  /** How many garmin-connect calls (sign ins) the mock has received in this tab. */
+  async garminConnectCalls() {
+    return Number(await this.#page.evaluate(() => localStorage.getItem('mock_garmin_connects') || 0));
+  }
+
   /** Seeds localStorage once per tab, before the app script runs; reloads keep what the app changed. */
   async install(page) {
+    this.#page = page;
     await page.addInitScript((keys) => {
       if (sessionStorage.getItem('e2e_seeded')) return;
       localStorage.clear();

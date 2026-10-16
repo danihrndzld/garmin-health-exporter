@@ -69,6 +69,7 @@ test.describe('state transitions: Setup row', () => {
     await app.startExport();
     await app.waitForRunEnd();
     await expect(app.hero.badge).toHaveText('Failed');
+    await expect(app.run.report).toBeHidden();
     await expect(app.garmin.state).toHaveText('Session expired');
     await expect(app.garmin.button).toHaveText('reconnect');
     await app.garmin.connect(VALID_LOGIN);
@@ -93,5 +94,14 @@ test.describe('error guessing', () => {
     await expect(app.garmin.state).toHaveText('Connected');
     await expect(app.hero.badge).toHaveText('Ready');
     await expect(app.toast).toHaveText('Garmin connected.');
+  });
+
+  test('EG-05 Enter pressed twice while signing in sends one sign in', async ({ app, scenario }) => {
+    scenario.garminNotConnected();
+    await app.open();
+    await app.garmin.pressButton();
+    await app.garmin.connectWithDoubleEnter(VALID_LOGIN);
+    await expect(app.garmin.state).toHaveText('Connected');
+    expect(await scenario.garminConnectCalls()).toBe(1);
   });
 });

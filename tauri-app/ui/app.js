@@ -421,7 +421,8 @@
       badge.textContent = res.cancelled ? 'Cancelled' : 'Failed';
       setHeadline(res.cancelled ? 'Cancelled.' : 'Stopped.', res.cancelled ? 'cache kept.' : 'see the log.');
       log('error', res.error || 'Unknown error');
-      if (!res.cancelled) { toast(res.error || 'Export failed.', 6000); showReport(res.error); }
+      // An expired login is a normal state, not a bug: no "Report it" box.
+      if (!res.cancelled) { toast(res.error || 'Export failed.', 6000); if (res.errorCode !== 'GARMIN_SESSION') showReport(res.error); }
       if (res.errorCode === 'GARMIN_SESSION') { garmin.expired = garmin.connected; renderGarmin(); }
     }
     running = null;
@@ -768,12 +769,14 @@
     if (s.ok) setGarmin({ ...s, expired: s.expired || (garmin.expired && s.connected) });
   }
   async function signIn() {
+    if (signInBtn.disabled) return; // Enter twice must not send two of Garmin's few sign ins
     const email = emailEl.value.trim(), password = passEl.value;
     if (!email || !password) { showGarminError('Enter your email and password.'); (email ? passEl : emailEl).focus(); return; }
     store.set('email', email);
-    signInBtn.disabled = true;
+    const busy = [signInBtn, emailEl, passEl];
+    busy.forEach((el) => { el.disabled = true; });
     let res;
-    try { res = await goRun({ cmd: 'garmin-connect', email, password, dataDir: paths.dataDir }); } finally { passEl.value = ''; signInBtn.disabled = false; }
+    try { res = await goRun({ cmd: 'garmin-connect', email, password, dataDir: paths.dataDir }); } finally { passEl.value = ''; busy.forEach((el) => { el.disabled = false; }); }
     if (!res.ok) { showGarminError(res.error); passEl.focus(); return; }
     showGarminError('');
     setGarmin(res);

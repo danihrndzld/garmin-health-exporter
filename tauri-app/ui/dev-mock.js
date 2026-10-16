@@ -64,6 +64,7 @@
         if (req.cmd === 'garmin-status') return garminStatus();
         if (req.cmd === 'garmin-disconnect') { localStorage.removeItem('mock_garmin'); localStorage.removeItem('mock_garmin_expired'); return garminStatus(); }
         if (req.cmd === 'garmin-connect') {
+          localStorage.setItem('mock_garmin_connects', String(Number(localStorage.getItem('mock_garmin_connects') || 0) + 1));
           await sleep(200);
           // Garmin does not trim, so an email with spaces is a wrong login.
           if (req.email === 'fail@x.com' || req.email !== req.email.trim()) return { ok: false, errorCode: 'GARMIN_BAD_PASSWORD', error: 'Wrong email or password.' };

@@ -4,14 +4,16 @@
 import { test, expect } from './fixtures.js';
 
 const WINDOWS = [
-  { name: 'default 1000×720', width: 1000, height: 720, ids: ['CL-01', 'CL-02', 'CL-03', 'CL-04', 'CL-05', 'CL-06', 'CL-07', 'CL-08'] },
-  { name: 'minimum 860×620', width: 860, height: 620, ids: ['CL-11', 'CL-12', 'CL-13', 'CL-14', 'CL-15', 'CL-16', 'CL-17', 'CL-18'] },
+  { name: 'default 1000×720', width: 1000, height: 720, ids: ['CL-01', 'CL-02', 'CL-03', 'CL-04', 'CL-05', 'CL-06', 'CL-07', 'CL-08', 'CL-09'] },
+  { name: 'minimum 860×620', width: 860, height: 620, ids: ['CL-11', 'CL-12', 'CL-13', 'CL-14', 'CL-15', 'CL-16', 'CL-17', 'CL-18', 'CL-19'] },
 ];
 
-/** Opens the app with MFP connected and runs until `moment`: idle, mfp (MFP step running) or done. */
+/** Opens the app with MFP connected and runs until `moment`: idle, form (Garmin sign in form open), mfp (MFP step running) or done. */
 async function reach(app, scenario, moment) {
   scenario.mfpConnected();
+  if (moment === 'form') scenario.garminNotConnected();
   await app.open();
+  if (moment === 'form') return app.garmin.pressButton();
   if (moment === 'idle') return;
   await app.startExport();
   if (moment === 'mfp') await app.waitForPhase('mfp');
@@ -19,7 +21,7 @@ async function reach(app, scenario, moment) {
 }
 
 for (const win of WINDOWS) {
-  const [rows, rings, center, spinner, cta, donut, stats, range] = win.ids;
+  const [rows, rings, center, spinner, cta, donut, stats, range, ctaForm] = win.ids;
 
   test.describe(win.name, () => {
     test.use({ viewport: { width: win.width, height: win.height } });
@@ -59,6 +61,14 @@ for (const win of WINDOWS) {
 
     test(`${cta} Pull CTA sits fully inside the window`, async ({ app, scenario, layout }) => {
       await reach(app, scenario, 'idle');
+      const box = await layout.box(app.hero.cta);
+      expect(box.y + box.height).toBeLessThanOrEqual(win.height);
+      await expect(app.hero.cta).toBeInViewport({ ratio: 1 });
+    });
+
+    test(`${ctaForm} Pull CTA stays fully inside the window with the Garmin form open`, async ({ app, scenario, layout }) => {
+      await reach(app, scenario, 'form');
+      await expect(app.garmin.form).toBeVisible();
       const box = await layout.box(app.hero.cta);
       expect(box.y + box.height).toBeLessThanOrEqual(win.height);
       await expect(app.hero.cta).toBeInViewport({ ratio: 1 });
