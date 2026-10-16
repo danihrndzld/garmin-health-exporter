@@ -734,7 +734,9 @@ git -c user.name="Daniel Hernández" -c user.email=danisnowman@gmail.com commit 
 - Create: `internal/report/report.go`, `internal/report/report_test.go`, `internal/report/redact_test.go`
 
 **Interfaces:**
-- Consumes: `gconnect.Redact`, `gconnect.RedactURL` (v0.1.0), `jsjson.SliceUTF16` (Task 2).
+- Consumes: `gconnect.Redact`, `gconnect.RedactURL`, `gconnect.IsSecretKey` (v0.1.2; Step 0 takes it), `jsjson.SliceUTF16` (Task 2).
+
+- [ ] **Step 0: Take gconnect v0.1.2.** Run: `cd tauri-app/core && go get github.com/danihrndzld/gconnect@v0.1.2 && go mod tidy && go test ./...` Expected: PASS. v0.1.2 adds only `IsSecretKey` and docs. Commit with the task.
 - Produces: `report.Line{TS, Type, Msg string}` (json `ts`, `type`, `msg`), `report.Result{IssueURL, MailtoURL string}` (json `issueUrl`, `mailtoUrl`), `report.Build(errText string, log []Line, version, osName string) Result`, `report.Scrub(s string) string`, `report.EncodeURIComponent(s string) string`, constants `Repo`, `Email`.
 
 - [ ] **Step 1: Write the failing tests.** `internal/report/redact_test.go`:
@@ -929,16 +931,12 @@ type Result struct {
 	MailtoURL string `json:"mailtoUrl"`
 }
 
-// isSecretKey asks the library, which keeps the one key list but does not export the check.
-// ponytail: RedactURL on a one pair query is that check; replace with gconnect.IsSecretKey when the library exports it.
-func isSecretKey(k string) bool { return strings.HasSuffix(gconnect.RedactURL("?"+k+"=x"), "=REDACTED") }
-
 // Scrub ports scrub: redaction, key=value secrets, emails, home folders.
 func Scrub(s string) string {
 	s = gconnect.Redact(s)
 	s = kvRe.ReplaceAllStringFunc(s, func(m string) string {
 		k := m[:strings.IndexByte(m, '=')]
-		if isSecretKey(k) {
+		if gconnect.IsSecretKey(k) {
 			return k + "=REDACTED"
 		}
 		return m
@@ -1748,7 +1746,7 @@ Scanned against the tree at `6d56875`: every file, function, path and ID named a
 | Task 3 → Task 5 | `pack.Options{CSVDir, StartDate, EndDate, Warnings, Now, TZ}`, `BuildPreview(o) (*Preview, error)`, `Build(o, lang, mode) (*Result, error)` | `cmd/summary.go` `packOptions` fills every field (`Now: time.Now()`, `TZ: tzName()`), `summary` and `buildPack` call them | Consistent. The old plan's `pack.TZName()` with `os.Getenv` would have failed CL-266; it is `tzName()` in `cmd/` (EG-607 moved there, no `t.Parallel`). |
 | Task 3 → Task 5 | `pack.Result{Dir, File omitempty, Count}` | AC-606 expects no `file` key in files mode and `count` 22 / 1 | Consistent: `omitempty` drops the empty `File`; `Emitter.Result` marshals the struct and merges it. |
 | Task 4 → Task 5 | `report.Build(err, log, version, os) Result`, `report.Line` json tags `ts,type,msg` | `cmd/report.go` decodes `req` into `[]report.Line` through `json.Marshal` and returns `Result` | Consistent. Defaults `?` are set before `Unmarshal`, so an absent key keeps them. |
-| Task 4 ↔ gconnect v0.1.0 | `gconnect.Redact`, `RedactURL` exported; `isSecretKey` not exported | `report.Scrub` needs the key test for `k=v` pairs | Resolved without a library change: `isSecretKey` probes `RedactURL("?"+k+"=x")`, marked `ponytail:`; AC-601 pins the library to `cases.json`. Exporting `IsSecretKey` in a gconnect v0.1.2 is the user's call (see the lead's summary). |
+| Task 4 ↔ gconnect v0.1.2 | `gconnect.Redact`, `RedactURL`, `IsSecretKey` exported (v0.1.2, tagged 2026-10-16) | `report.Scrub` needs the key test for `k=v` pairs | Resolved: Task 4 Step 0 takes v0.1.2 and `Scrub` calls `gconnect.IsSecretKey`; AC-601 pins the library to `cases.json`. |
 | Task 5 → Task 6 | `app.js` default `bin = 'binaries/garmin-export-core'`, no `GO`/`engine`; `dev-mock.js` default and one `export` shape; `engine.spec.js` without ST-T20; `mock-backend.js` without `engine()` | Task 6 removes `binaries/garmin-core` from `tauri.conf.json` and `capabilities/default.json` and the `sidecar*` scripts | Consistent: after Task 5 nothing spawns `garmin-core`; Task 6 Step 1 greps for leftovers. The old plan and spec said "dev-mock.js unchanged": wrong, its `export` answer branched on the binary name. |
 | Task 5 → Task 7 | `main_test.go` `TestBinaryStage3Commands` reads the fixture at the `electron-app` path, `summary_test.go` reads `fixturePath` | Task 7 changes `fixturePath` (csv_test.go, one place for the `garmin` package), `garmintest/fixture_test.go`, and both `main_test.go` sites | Consistent; the old plan listed two sites, the tree has four. |
 | Task 5 → Task 7 | `csv_test.go` `TestAC301CSVFilesEqualTheGoldenFilesByteForByte` (stage 2's AC-301) | Task 7 adds `UPDATE_GOLDEN` there, run with `-run AC301` | Consistent; the old plan's `-run AC01` named no test. |

@@ -63,7 +63,7 @@ The UI keeps the chain stage 2 leaves: `export`, then `mfp-export`, then `summar
 
 ### Go packages
 
-- `github.com/danihrndzld/gconnect` v0.1.0: `Redact(s)`, `RedactURL(s)`. The library does not export its key test, so `report` probes `RedactURL("?"+k+"=x")` for the `k=v` pairs of `scrub` (one list of secret keys, in the library); exporting `IsSecretKey` in a later tag is optional.
+- `github.com/danihrndzld/gconnect` v0.1.2: `Redact(s)`, `RedactURL(s)` and `IsSecretKey(k)`, which `report` uses for the `k=v` pairs of `scrub` (one list of secret keys, in the library).
 - `internal/pack`: `BuildPreview(Options) (*Preview, error)`, `Build(Options, lang, mode) (*Result, error)`, `Context(lang, Options, []File) string`. `Options{CSVDir, StartDate, EndDate string; Warnings []string; Now time.Time; TZ string}`: `Now` and `TZ` are the only inputs that change between runs, so tests inject them and `cmd/` fills them (`os.Getenv` is forbidden inside). `Result{Dir, File (omitempty), Count}`.
 - `internal/report`: `Scrub(s)`, `Build(errText string, log []Line, version, os string) Result`, `EncodeURIComponent(s)`, `Result{IssueURL, MailtoURL}`.
 - `internal/garmin/summary.go`: `Summarize(raw []byte) (*Summary, error)`, `Summary{Range json.RawMessage; Days []Day}`, `Day{Date string; Steps, RHR, SleepScore, SleepSec, HRV json.RawMessage}` (each value as the file has it, or `null`), `(*Summary).Dates()`.
@@ -226,4 +226,4 @@ Test names carry the technique ID inside a string literal (`t.Run("AC-601 ...")`
 - A8 (settled, D2): the tools and workflows are rewritten, with the same stage names and flags plus `--here`.
 - A9 (settled, D4): stage 3 ships as 4.5.0 after the 4.4.0 that carries stage 2.
 - A10 (settled, D3): Bun stays as the task runner; the README prerequisites become Bun, Rust, Go and the Xcode command line tools.
-- A11: `gconnect` v0.1.0 stays the pinned version; `isSecretKey` is reached through `RedactURL`. Exporting it (a v0.1.2 of the library) is the user's choice and not part of stage 3.
+- A11: the app takes `gconnect` v0.1.2 in Task 4, which exports `IsSecretKey` (tagged 2026-10-16).
