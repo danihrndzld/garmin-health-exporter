@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Compare two csv_* folders cell by cell. Prints added/removed files and columns,
 // and every shared column whose values differ. Exit 1 when anything differs.
-// usage: node compare-csv.js <oldDir> <newDir> [--json]
+// usage: bun tauri-app/scripts/compare-csv.js <oldDir> <newDir> [--json]
 const fs = require('fs');
 const path = require('path');
 

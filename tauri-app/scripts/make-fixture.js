@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Build the scrubbed test fixture from a real export JSON.
-//   node scripts/make-fixture.js <garmin_health_*.json> <out.json>
-// Keeps a few days and one activity per type, so the regression test sees real
+//   bun tauri-app/scripts/make-fixture.js <garmin_health_*.json> tauri-app/core/internal/garmin/testdata/fixtures/export-sample.json
+// Keeps a few days and one activity per type, so internal/garmin/csv_test.go sees real
 // Garmin response shapes. Personal data is removed or changed before anything
 // is written:
 //   - ids, names, GUIDs and URLs are replaced with fixed fake values

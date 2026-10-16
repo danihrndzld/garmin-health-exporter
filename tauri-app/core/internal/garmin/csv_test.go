@@ -13,8 +13,8 @@ import (
 )
 
 var (
-	fixturePath = filepath.Join("..", "..", "..", "..", "electron-app", "garmin", "__tests__", "fixtures", "export-sample.json")
-	goldenDir   = filepath.Join("..", "..", "..", "..", "electron-app", "garmin", "__tests__", "golden")
+	fixturePath = filepath.Join("testdata", "fixtures", "export-sample.json")
+	goldenDir   = filepath.Join("testdata", "golden")
 )
 
 // firstDiff is the index of the first byte where a and b differ, or the shorter length.
@@ -67,6 +67,12 @@ func sameFiles(t *testing.T, csvDir, wantDir string, names []string) {
 func TestAC301CSVFilesEqualTheGoldenFilesByteForByte(t *testing.T) {
 	t.Run("AC-301 ports AC-01: the 18 CSV files equal the golden files byte for byte", func(t *testing.T) {
 		csvDir, written := writeFixtureCSVs(t)
+		if os.Getenv("UPDATE_GOLDEN") != "" { // on purpose only: UPDATE_GOLDEN=1 go test ./internal/garmin -run CSVFilesEqualTheGolden
+			os.RemoveAll(goldenDir)
+			if err := os.CopyFS(goldenDir, os.DirFS(csvDir)); err != nil {
+				t.Fatal(err)
+			}
+		}
 		golden, err := os.ReadDir(goldenDir)
 		if err != nil {
 			t.Fatal(err)

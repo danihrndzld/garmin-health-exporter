@@ -437,10 +437,9 @@ func TestBinaryExportWithGarminOff(t *testing.T) {
 
 func TestBinaryGarminExport(t *testing.T) {
 	t.Parallel()
-	repo := filepath.Join("..", "..", "..", "..")
 	fake := gconnecttest.New()
 	t.Cleanup(fake.Close)
-	if err := garmintest.Serve(fake, filepath.Join(repo, "electron-app", "garmin", "__tests__", "fixtures", "export-sample.json")); err != nil {
+	if err := garmintest.Serve(fake, filepath.Join("..", "..", "internal", "garmin", "testdata", "fixtures", "export-sample.json")); err != nil {
 		t.Fatal(err)
 	}
 	home, _ := os.UserHomeDir()
@@ -477,7 +476,7 @@ func TestBinaryGarminExport(t *testing.T) {
 		if r["ok"] != true || r["path"] != filepath.Join(out, "csv_"+day) || r["days"] != 5.0 || r["activities"] != 4.0 {
 			t.Fatalf("export = %v", r)
 		}
-		golden := filepath.Join(repo, "electron-app", "garmin", "__tests__", "golden")
+		golden := filepath.Join("..", "..", "internal", "garmin", "testdata", "golden")
 		names, _ := os.ReadDir(golden)
 		if files, _ := r["files"].([]any); len(files) != len(names) {
 			t.Fatalf("files = %v, want %d", r["files"], len(names))
@@ -516,7 +515,7 @@ func TestBinaryStage3Commands(t *testing.T) {
 		t.Fatal(err)
 	}
 	jsonPath := filepath.Join(root, "garmin_health.json")
-	fx, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "electron-app", "garmin", "__tests__", "fixtures", "export-sample.json"))
+	fx, err := os.ReadFile(filepath.Join("..", "..", "internal", "garmin", "testdata", "fixtures", "export-sample.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

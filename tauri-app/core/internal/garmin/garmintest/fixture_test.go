@@ -13,7 +13,7 @@ import (
 	"github.com/danihrndzld/gconnect/gconnecttest"
 )
 
-var fixturePath = filepath.Join("..", "..", "..", "..", "..", "electron-app", "garmin", "__tests__", "fixtures", "export-sample.json")
+var fixturePath = filepath.Join("..", "testdata", "fixtures", "export-sample.json")
 
 func TestServeFixture(t *testing.T) {
 	ctx := context.Background()
