@@ -6,7 +6,7 @@ Date: 2026-10-16. Baseline: worktree `.worktrees/go-core-garmin`, branch `feat/g
 
 ## 0. Summary
 
-1. Pattern: **Hexagonal (Ports and Adapters)**, with "strict" defined as three mechanical rules (section 1.2) and a 70 line `go test` that fails the build on a forbidden import (section 1.8). Three interfaces in total; everything else stays a struct.
+1. Pattern: **Hexagonal (Ports and Adapters)**, with "strict" defined as three mechanical rules (section 1.2) and a `go test` checker, with a self-test for each rule, that fails the build on a forbidden edge (section 1.8). Three interfaces in total; everything else stays a struct.
 2. Library: `github.com/danihrndzld/gconnect`, MIT, stdlib only, **never touches the disk or the environment**, raw `json.RawMessage` responses, ships `gconnecttest` (the fake Garmin). The app keeps `tokens.json`, the cooldown file, the cache, `jsjson`, the CSV writer, the LLM pack, the protocol, `guard`, and all of MyFitnessPal.
 3. Sequence: option (c). Right after Tasks 6 and 7 land, move `auth.go`, the token types and `garmintest` into an in-tree, non-internal package `tauri-app/core/gconnect/` and make them disk free (about 200 lines rewritten, 1,324 moved by `git mv`). Tasks 8 and 9 run in parallel with that move. Task 10 writes `endpoints.go`, `client.go`, `redact.go` straight into `gconnect/`. Tasks 11 to 13 unchanged. Extract to the public repo **after** the Task 13 live compare, with `git subtree split` and one import path `sed`.
 4. Size: about 1,300 lines move unchanged, about 400 lines change, 0 bytes of protocol, `tokens.json`, UI or CSV output change. Medium refactor, 1 day, pinned by `cmd/garmin-export-core/main_test.go` (282 lines, runs the real binary) and the Bun end to end tests.
@@ -195,87 +195,36 @@ func (e *Emitter) Result(v any)
 
 ### 1.8 Mechanical enforcement
 
-`tauri-app/core/arch_test.go`, package `core`, standard library only (`go/parser` with `parser.ImportsOnly` for imports; full parse for the `os.*` selector rule). `bun run test:core` already runs `go test ./...`, which includes `.`; the stage 3 draft adds `go vet ./...`.
+`tauri-app/core/arch_test.go`, package `core`, standard library only. `bun run test:core` runs `go vet ./...` and `go test ./...`, which includes `.`.
 
-```go
-package core
+The first version of this section held a 70 line test that matched the identifier `os` and checked 5 of the 9 items in section 1.7. The Task 7A review got 3 bypasses past it: an alias import (`xos "os"`), a dot import (`. "os"`) and `syscall.Getenv`. It also found that `os.ExpandEnv` and `io/ioutil` were not covered. Ruling R15 replaced that test with the checker described below.
 
-import (
-	"go/ast"
-	"go/parser"
-	"go/token"
-	"io/fs"
-	"path/filepath"
-	"strings"
-	"testing"
-)
+`checkTree(root, modPrefix) ([]string, error)` walks a module, skipping `testdata`. It parses every `.go` file in full and returns one line per violation:
 
-const mod = "github.com/danihrndzld/garmin-health-exporter/tauri-app/core/"
+| Rule | Where it applies | What fails |
+| --- | --- | --- |
+| Library is standard library only | `gconnect/**`, test files included | any import outside the standard library except `gconnect/...` itself |
+| Library cannot reach the disk or the process | `gconnect/**`, non-test | importing `os`, `os/exec`, `os/signal`, `path/filepath`, `io/fs`, `io/ioutil`, `syscall` or `unsafe`, under any name. This rule also covers "no writes from gconnect" in section 1.7. |
+| Only `cmd` speaks the protocol | everything but `cmd/**` and `internal/protocol`, test files included | importing `internal/protocol`, under any name |
+| No lateral edge | `internal/garmin/**` and `internal/mfp/**` | either one importing the other |
+| Leaf packages | `internal/jsjson`, `internal/atomicfile`, `internal/guard`, `internal/protocol`, non-test | any import outside the standard library |
+| The environment and the standard streams enter through `cmd` | outside `cmd/**`, non-test | a selector `X.Getenv`, `LookupEnv`, `Environ`, `Args`, `Stdin`, `Stdout`, `Stderr`, `ExpandEnv`, `Expand`, `Setenv` or `Unsetenv`, where `X` is whatever local name the file gave `os` or `syscall` (the default name or an alias). A method value such as `var f = os.Getenv` counts. A dot import of `os` or `syscall` fails on its own. |
+| No `io/ioutil` | outside `cmd/**`, non-test | importing it, under any name |
+| The wire shape belongs to `cmd` | `internal/garmin/**`, `internal/mfp/**`, `gconnect/**`, non-test | an exported func or method whose parameters or results hold `map[string]any` or `map[string]interface{}` at any depth (slices, func types) |
+| No `replace` | `go.mod` | a `replace` line or block |
+| No third party module | `go.mod` | a `require` of a module that is not in `allowedRequires`. The list is empty today. The extraction (section 2.5) adds exactly one module, `github.com/danihrndzld/gconnect`, to that list. |
 
-func isStd(path string) bool { first, _, _ := strings.Cut(path, "/"); return !strings.Contains(first, ".") }
+The rule "no `*protocol.Emitter` parameter outside `cmd`" follows from the protocol import rule.
 
-// TestArchitectureRules fails on the first import edge that section 1.2 forbids.
-func TestArchitectureRules(t *testing.T) {
-	fset := token.NewFileSet()
-	err := filepath.WalkDir(".", func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") {
-			return err
-		}
-		dir, isTest := filepath.ToSlash(filepath.Dir(path)), strings.HasSuffix(path, "_test.go")
-		f, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
-		if err != nil {
-			return err
-		}
-		for _, imp := range f.Imports {
-			p := strings.Trim(imp.Path.Value, `"`)
-			local := strings.TrimPrefix(p, mod)
-			switch {
-			case strings.HasPrefix(dir, "gconnect") && !isStd(p) && !strings.HasPrefix(p, mod+"gconnect"):
-				t.Errorf("%s: the library imports %s; gconnect is standard library only", path, p)
-			case strings.HasPrefix(dir, "gconnect") && (p == "os" || p == "os/exec" || p == "path/filepath" || p == "io/fs"):
-				t.Errorf("%s: the library must not touch the disk (%s)", path, p)
-			case local == "internal/protocol" && !strings.HasPrefix(dir, "cmd/") && dir != "internal/protocol":
-				t.Errorf("%s: only cmd imports internal/protocol", path)
-			case strings.HasPrefix(dir, "internal/garmin") && local == "internal/mfp",
-				strings.HasPrefix(dir, "internal/mfp") && local == "internal/garmin":
-				t.Errorf("%s: internal/garmin and internal/mfp must not import each other", path)
-			case (dir == "internal/jsjson" || dir == "internal/atomicfile" || dir == "internal/guard" || dir == "internal/protocol") && !isStd(p) && !isTest:
-				t.Errorf("%s: %s is a leaf package; it imports %s", path, dir, p)
-			}
-		}
-		if strings.HasPrefix(dir, "cmd/") || isTest {
-			return nil
-		}
-		full, err := parser.ParseFile(fset, path, nil, 0)
-		if err != nil {
-			return err
-		}
-		ast.Inspect(full, func(n ast.Node) bool {
-			if s, ok := n.(*ast.SelectorExpr); ok {
-				if x, ok := s.X.(*ast.Ident); ok && x.Name == "os" {
-					switch s.Sel.Name {
-					case "Getenv", "LookupEnv", "Environ", "Args", "Stdin", "Stdout":
-						t.Errorf("%s: os.%s outside cmd/", path, s.Sel.Name)
-					}
-				}
-			}
-			return true
-		})
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-}
-```
+Two tests use the checker:
+- `TestArchitectureRules` runs it on the real module and fails on every line it returns.
+- `TestArchitectureCheckerCatchesEachRule` proves each rule can fail. CL-261 to CL-270 write one small module per rule with `t.TempDir()` and the module path `example.com/fake`, and each module breaks that rule. The tests include the alias, dot import, `syscall`, method value and `io/ioutil` bypasses, and they assert that the reported line names that rule. CL-271 is a clean module, in which `cmd` and test files read the environment and every allowed edge is used, and it must pass. The fixture lists of banned imports and names are written out in the test rather than read from the checker's maps, so dropping a name from a map fails the test. Removing alias resolution, a ban, the `replace` case or the `any` match each made a fixture fail, which was checked by mutation on 2026-10-16.
 
-Verified on 2026-10-16 against a scratch copy of `tauri-app/core` (`scratchpad/arch/archcheck/`, `go vet . && go test .`): the test compiles and fails on exactly 4 lines, `internal/mfp/export.go` (imports `protocol`), `internal/mfp/helpers_test.go` (imports `protocol`; a test file, fixed by the signature change), `internal/mfp/client.go:33` and `internal/garmin/fake.go:13` (`os.Getenv`). That is the whole hexagonal debt of the tree; the stage 1 `guard` and `atomicfile` packages already obey the rules.
-
-After the extraction the library repo carries the same test with the `gconnect` rules only (stdlib only, no disk), plus a `TestMain` transport guard (section 2.6) so no test can reach the real Garmin.
+After the extraction, the library repo carries only the two `gconnect` rules, plus a `TestMain` transport guard (section 2.6) so that no test can reach the real Garmin.
 
 ### 1.9 GoF inside the hexagon: used and not used
 
-- **Command**: `cmd/garmin-export-core/main.go` gets `var commands = map[string]func(ctx context.Context, req map[string]any, out *protocol.Emitter) (any, error)`; `main` looks the command up, calls it, and writes `{ok:true, ...}` from the value or `{ok:false, errorCode, error}` from the error (`coded` interface, else `GARMIN_ERROR` / `MFP_ERROR` by command prefix). A func type, not an interface.
+- **Command**: `cmd/garmin-export-core/main.go` has `type handler func(ctx context.Context, req map[string]any, out *protocol.Emitter) (any, error)` and `var commands = map[string]handler`, with 6 entries: `garmin-status`, `garmin-disconnect`, `garmin-connect`, `clear-cache` and `export` in `garmin.go`, and `mfp-export` in `mfp.go`. `main` reads one line. If the line is not JSON it writes `{ok:false, error:"Invalid request."}`. If the command is not in the map it writes `{ok:false, error:"Unknown command."}`. Otherwise it calls the handler. On success it writes `Result({ok:true}, value)`. On an error it writes `{ok:false, error: err.Error()}` and adds `errorCode` only when the error satisfies `coded` (`interface{ ErrorCode() string }`, found with `errors.As`). There is no fallback code by command name: `clear-cache` failures have carried no `errorCode` since stage 1, and every failure the UI names is a `*garmin.CodeError` or a `*mfp.CodeError` (`GARMIN_INPUT`, `GARMIN_ERROR`, the sign in codes, `MFP_INPUT`, `MFP_SESSION`, `MFP_RATE_LIMITED`, `MFP_ERROR`). `garmin-disconnect` wraps a failed delete in `CodeError{GARMIN_ERROR}`. `garmin.Connect` maps a `LoginCode` that the app does not know to `GARMIN_ERROR`, never to an empty code. Before `mfp.Export`, `cmd` runs `guard` (`ValidateRange`, then `InsideHome` on `dataDir` and on `csvDir`) and passes the resolved dirs. `mfp.Export` runs the same checks again, with the same messages. The handler type is a func type, not an interface.
 - **Adapter**: `protocol.Emitter` satisfies the two `Reporter` ports; `gconnecttest.Server` stands in for four Garmin hosts.
 - **Strategy for sources**: not used (section 1.1).
 - **Template Method**: not used.
