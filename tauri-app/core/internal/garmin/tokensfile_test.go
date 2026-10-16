@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -76,7 +77,7 @@ func TestSaveKeepsAuthJsShapeAndMode(t *testing.T) {
 			t.Fatalf("mode %v", info.Mode().Perm())
 		}
 	})
-	t.Run("CL-212 a Go save keeps every DI key of auth.js", func(t *testing.T) {
+	t.Run("CL-212 a Go save keeps every DI and legacy key of auth.js, and a null refresh_token_expires_at stays null", func(t *testing.T) {
 		var back map[string]map[string]any
 		b, _ := os.ReadFile(filepath.Join(dir, "tokens.json"))
 		_ = json.Unmarshal(b, &back)
@@ -84,6 +85,36 @@ func TestSaveKeepsAuthJsShapeAndMode(t *testing.T) {
 			if _, ok := back["di"][k]; !ok {
 				t.Errorf("di.%s missing after a Go save", k)
 			}
+		}
+		// auth.js writes null when Garmin sends no refresh lifetime; the key must stay, as null.
+		roundTrip := func(body string) map[string]map[string]any {
+			d := t.TempDir()
+			write(t, d, body)
+			tok, err := LoadTokens(d)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := (&tokenFile{Tokens: *tok}).save(d); err != nil {
+				t.Fatal(err)
+			}
+			var out map[string]map[string]any
+			_ = json.Unmarshal(tokensFileOf(t, d), &out)
+			return out
+		}
+		di := roundTrip(strings.Replace(bunDI, `"refresh_token_expires_at":1763132000`, `"refresh_token_expires_at":null`, 1))["di"]
+		if v, ok := di["refresh_token_expires_at"]; !ok || v != nil {
+			t.Errorf("di.refresh_token_expires_at = %v (present %v), want null", v, ok)
+		}
+		legacy := roundTrip(bunLegacy)
+		var want map[string]map[string]any
+		_ = json.Unmarshal([]byte(bunLegacy), &want)
+		for _, part := range []string{"oauth1", "oauth2", "consumer"} {
+			if !reflect.DeepEqual(legacy[part], want[part]) {
+				t.Errorf("%s = %v after a Go save, want %v", part, legacy[part], want[part])
+			}
+		}
+		if _, ok := legacy["di"]; ok {
+			t.Error("a legacy save wrote a di key")
 		}
 	})
 }

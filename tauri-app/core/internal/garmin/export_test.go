@@ -433,3 +433,73 @@ func TestExportStopsOnTheLogin(t *testing.T) {
 		}
 	})
 }
+
+// The user's own login is legacy (oauth1, oauth2, consumer), written by Bun: the first Go
+// export runs on that file with an expired OAuth2.
+func TestExportOnABunLegacyLoginWithAnExpiredOAuth2(t *testing.T) {
+	srv, r := exportScenario(t)
+	if err := os.WriteFile(filepath.Join(r.DataDir, "tokens.json"), []byte(strings.Replace(bunLegacy, `"expires_at":1760540000`, `"expires_at":1`, 1)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	res, err := Export(context.Background(), r, &recorder{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	saved, err := LoadTokens(r.DataDir)
+	if err != nil || saved.OAuth2 == nil || !strings.HasPrefix(saved.OAuth2.AccessToken, "legacy-") {
+		t.Fatalf("saved tokens = %+v %v", saved, err)
+	}
+	t.Run("AC-363 a legacy login exports CSV files equal to the golden files", func(t *testing.T) {
+		sameFiles(t, res.Path, goldenDir, goldenNames(t))
+	})
+	t.Run("EG-375 the expired OAuth2 is renewed by one OAuth1 to OAuth2 exchange, with no sign in", func(t *testing.T) {
+		if n := len(srv.Calls("/oauth-service/oauth/exchange/user/2.0")); n != 1 {
+			t.Fatalf("%d exchange calls, want 1", n)
+		}
+		for _, c := range srv.Calls("") {
+			if strings.HasPrefix(c.Path, "/sso/") || strings.HasPrefix(c.Path, "/di-oauth2-service/") || c.Path == "/oauth-service/oauth/preauthorized" {
+				t.Errorf("the export signed in: %s", c.Path)
+			}
+		}
+	})
+	t.Run("EG-376 every data request carries the mobile app User-Agent and none of the DI native headers", func(t *testing.T) {
+		n := 0
+		for _, c := range srv.Calls("") {
+			if strings.HasPrefix(c.Path, "/oauth-service/") {
+				continue
+			}
+			n++
+			if ua := c.Header.Get("User-Agent"); ua != "com.garmin.android.apps.connectmobile" || c.Header.Get("X-Garmin-User-Agent") != "" {
+				t.Fatalf("%s: User-Agent %q, X-Garmin-User-Agent %q", c.Path, ua, c.Header.Get("X-Garmin-User-Agent"))
+			}
+			if c.Header.Get("Authorization") != "Bearer "+saved.OAuth2.AccessToken {
+				t.Fatalf("%s: Authorization %q", c.Path, c.Header.Get("Authorization"))
+			}
+		}
+		if n == 0 {
+			t.Fatal("no data request")
+		}
+	})
+	t.Run("CL-280 tokens.json keeps the legacy shape of auth.js after the save", func(t *testing.T) {
+		var back map[string]json.RawMessage
+		if err := json.Unmarshal(tokensFileOf(t, r.DataDir), &back); err != nil {
+			t.Fatal(err)
+		}
+		if got := slices.Sorted(maps.Keys(back)); !slices.Equal(got, []string{"consumer", "oauth1", "oauth2", "saved_at"}) {
+			t.Fatalf("keys = %v", got)
+		}
+		var o2 map[string]any
+		_ = json.Unmarshal(back["oauth2"], &o2)
+		if o2["access_token"] != saved.OAuth2.AccessToken || o2["token_type"] != "Bearer" || o2["expires_at"].(float64) <= 1 {
+			t.Fatalf("oauth2 = %v", o2)
+		}
+		for _, k := range []string{"refresh_token", "refresh_token_expires_at"} {
+			if _, ok := o2[k]; !ok {
+				t.Errorf("oauth2.%s missing", k)
+			}
+		}
+		if string(back["oauth1"]) == "" || !strings.Contains(string(back["oauth1"]), `"ot"`) || !strings.Contains(string(back["consumer"]), `"ck"`) {
+			t.Fatalf("oauth1 or consumer changed: %s %s", back["oauth1"], back["consumer"])
+		}
+	})
+}

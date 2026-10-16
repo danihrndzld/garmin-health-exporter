@@ -72,3 +72,28 @@ test('AC-16 a tokens.json written by Go loads in Bun, and one written by Bun loa
   const { result } = await core({ cmd: 'garmin-status', dataDir: data });
   expect(result).toMatchObject({ ok: true, connected: true, expired: false, loginKind: 'di' });
 }, 120000);
+
+test('AC-17 a legacy tokens.json written by Bun runs a Go export, and the file Go saves after the OAuth2 renewal loads in Bun', async () => {
+  const { out, data } = dirs();
+  // The shape of auth.js:_writeTokens for a legacy login, with the OAuth2 token expired.
+  const legacy = { oauth1: { oauth_token: 'ot', oauth_token_secret: 'os' }, oauth2: { access_token: 'stale', token_type: 'Bearer', refresh_token: 'lr', expires_at: 1, refresh_token_expires_at: 1 }, consumer: { consumer_key: 'ck', consumer_secret: 'cs' } };
+  fs.writeFileSync(path.join(data, 'tokens.json'), JSON.stringify(legacy), { mode: 0o600 });
+  const exchanges = () => fake.calls.filter((c) => c.path === '/oauth-service/oauth/exchange/user/2.0').length;
+  const before = exchanges();
+  const { result } = await core({ cmd: 'export', garmin: true, ...range, outputDir: out, dataDir: data, refreshWindow: 3 });
+  expect(result.ok).toBe(true);
+  expect(exchanges()).toBe(before + 1);
+  const saved = JSON.parse(fs.readFileSync(path.join(data, 'tokens.json'), 'utf8'));
+  expect(Object.keys(saved).sort()).toEqual(['consumer', 'oauth1', 'oauth2', 'saved_at']);
+  expect(saved.oauth2.access_token).toMatch(/^legacy-/);
+  // Bun must take the file as it is: a fresh OAuth2 needs no refresh, so it sends nothing.
+  process.env.GARMIN_FAKE_SERVER = fake.base;
+  try {
+    const loaded = await auth.createClient(data).loadTokens();
+    expect(loaded.ok).toBe(true);
+    expect(loaded.tokens.oauth2.access_token).toBe(saved.oauth2.access_token);
+  } finally {
+    delete process.env.GARMIN_FAKE_SERVER;
+  }
+  expect(exchanges()).toBe(before + 1);
+}, 120000);
