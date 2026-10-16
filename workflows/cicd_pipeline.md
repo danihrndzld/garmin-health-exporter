@@ -1,63 +1,74 @@
-# Workflow: CI/CD Pipeline for Electron App
+# Workflow: CI/CD Pipeline for the Tauri App
 
 ## Objective
-Produce a fresh, testable build of the Garmin Data Exporter Electron app by running the full clean → install → test → build → launch cycle. Use this whenever the user says "rebuild", "ship a fresh DMG", "run the pipeline", or after any non-trivial change to `electron-app/`.
+Produce a fresh, tested universal build of Garmin Export (`tauri-app/`) by running clean, install, test, build and open in order. The build runs in a separate git worktree, so it never touches the checkout the user runs the app from. Use this workflow when the user says "rebuild", "make a fresh DMG" or "run the pipeline", or after a change to `tauri-app/` that needs a real build.
 
 ## Required Inputs
-None. The tool infers everything from the repo layout.
+None. The tool reads everything from the repo layout.
 
 Optional context from the user:
-- **Stage subset**: "just run tests", "skip install", "build but don't open" — translates to `--skip-*` flags or `--stages=...`.
-- **Target platform**: currently macOS only (DMG + `.app`). If the user asks for Windows/Linux, stop and flag it — the tool does not handle that yet.
+- **Stage subset**: "just run tests", "skip install" or "build but don't open" become `--skip-*` flags or `--stages=...`.
+- **Rust toolchain**: the universal build needs rustup with the `aarch64-apple-darwin` and `x86_64-apple-darwin` targets. Pass `--rustup-home` and `--cargo-home`, or set `RUSTUP_HOME` and `CARGO_HOME`. If the user has not said where that rustup lives, ask.
+- **Build here**: `--here` builds in this checkout instead of a worktree. Use it only when the user says the app is closed.
+- **Platform**: macOS only (universal DMG and `.app`). If the user asks for Windows or Linux, stop and say the tool does not build them.
 
 ## Tool
 `tools/ci_pipeline.py`
 
 ### Stage contract
 
-| Stage   | What it does                                                   | Failure means                          |
-| ------- | -------------------------------------------------------------- | -------------------------------------- |
-| clean   | `rm -rf electron-app/dist/` (old DMGs, blockmaps, unpacked)    | FS permissions issue — usually fatal   |
-| install | `npm install` in `electron-app/`                               | network / registry / lockfile mismatch |
-| test    | `node --test <file>` for each `**/__tests__/*.test.js`         | real test regression — do NOT proceed  |
-| build   | `npm run dist` (electron-builder, mac arm64 + x64 DMG)         | codesign / icon / asarUnpack issue     |
-| open    | Launch the `.app` matching host arch (`mac-arm64/` on Apple Silicon, `mac/` on Intel). `xattr -cr` to clear all xattrs, then `codesign --force --deep --sign -` to ad-hoc re-sign (rewrites CodeResources), `codesign --verify`, then `open -n -a`. | electron-builder skipped its own signing pass (no Developer ID) AND the ad-hoc re-sign also failed — inspect the `codesign` output. |
+| Stage   | What it does | Failure means |
+| ------- | ------------ | ------------- |
+| clean   | `rm -rf tauri-app/dist tauri-app/src-tauri/binaries` and every `tauri-app/src-tauri/target/*/release/bundle`. It never removes the cargo cache. | File permissions. |
+| install | `bun install` in `tauri-app/`. | Registry or lockfile problem. |
+| test    | `bun run test` (test IDs, Go vet and tests, `ui/__tests__`, Playwright), then `bun run core` and `cargo test` in `src-tauri/`. `bun run core` builds the host sidecar, because tauri-build refuses to compile without it and clean removed it. | A real regression. Stop. |
+| build   | Checks `rustup target list --installed` for both targets. Then `git worktree add --detach .worktrees/build-<sha> HEAD`, `bun install` and `bun run release` there, copies `Garmin Export_<ver>_universal.dmg` and `Garmin Export.app` from `src-tauri/target/universal-apple-darwin/release/bundle/` to `tauri-app/dist/` (`cp` and `ditto`), and runs `git worktree remove --force`. With `--here`, the same `bun install`, `bun run release` and copy run in this checkout. | A missing rust target, or a Go, Rust or bundler error. |
+| open    | `codesign --verify --deep --strict "tauri-app/dist/Garmin Export.app"`, then `open -n` on it. | A broken signature or a launch failure. |
+
+### Flags
+
+`--stages`, `--skip-clean`, `--skip-install`, `--skip-tests`, `--skip-build`, `--no-open`, `--here`, `--dry-run`, `--rustup-home`, `--cargo-home`. `--stages` overrides the `--skip-*` flags. `--dry-run` prints every command and runs none of them; it still reads `git status`, `git rev-parse` and `rustup target list`, which change nothing. `--cargo-home` also puts `$CARGO_HOME/bin` first on `PATH`, so the rustup `cargo` wins over Homebrew's.
+
+Exit codes: 0 success, 1 stage failure, 2 bad arguments or no `tauri-app/`.
 
 ### Invocation patterns
 
 ```bash
-# Full pipeline
-uv run tools/ci_pipeline.py
+# Full pipeline with an isolated rustup
+uv run tools/ci_pipeline.py --rustup-home "$RUST/rustup" --cargo-home "$RUST/cargo"
 
-# Fast inner loop — tests only
+# Fast inner loop: tests only
 uv run tools/ci_pipeline.py --stages test
 
-# Rebuild without reinstalling deps
-uv run tools/ci_pipeline.py --skip-install
+# Build a DMG without reinstalling, testing or launching
+uv run tools/ci_pipeline.py --skip-install --skip-tests --no-open
 
-# CI-style: clean, install, test, build, but don't launch
-uv run tools/ci_pipeline.py --no-open
+# Build in this checkout (the app must be closed)
+uv run tools/ci_pipeline.py --here --no-open
+
+# See every command without running anything
+uv run tools/ci_pipeline.py --dry-run
 ```
 
 ## Expected Outputs
-- `electron-app/dist/Garmin Data Exporter-<ver>-arm64.dmg`
-- `electron-app/dist/Garmin Data Exporter-<ver>.dmg` (x64)
-- `electron-app/dist/mac-arm64/Garmin Data Exporter.app/`
-- `electron-app/dist/mac/Garmin Data Exporter.app/`
-- On success, exit 0 and the newest `.app` opens in Finder (unless `--no-open`).
+- `tauri-app/dist/Garmin Export_<ver>_universal.dmg`
+- `tauri-app/dist/Garmin Export.app` (universal: `arm64` and `x86_64`)
+- No `.worktrees/build-<sha>` left behind, also when the build fails.
+- Exit 0, and the app opens unless `--no-open` was given.
+
+`tauri-app/dist/` is gitignored.
 
 ## Edge Cases & Known Quirks
 
-- **Linker-only signatures silently block launch.** If electron-builder can't find a "Developer ID Application" cert, it skips its own signing pass and leaves the executable with only the compiler/linker's ad-hoc signature (`flags=0x20002(adhoc,linker-signed)` in `codesign -dv`) and an *empty* `CodeResources`. `spctl --assess` rejects this with `code has no resources but signature indicates they must be present`, and Launch Services refuses to exec the bundle — even though `open -n -a` returns 0. The pipeline's `open` stage handles this by ad-hoc re-signing (`codesign --force --deep --sign -`), which rewrites `CodeResources` and makes the signature internally consistent. `spctl` will still reject (no Apple notarization), but Launch Services honors the valid internal signature.
-- **Mixed test styles.** Some tests use `node:test` (`util/__tests__/redact.test.js`), others are plain scripts with a `main()` at the bottom (`garmin/__tests__/client.test.js`). Running `node --test <file>` handles both correctly — it picks up `node:test` registrations AND executes top-level code.
-- **electron-builder signing prompts.** First build after a macOS update may prompt for keychain access. If the pipeline appears to hang during `build`, check Finder for a system dialog.
-- **`asarUnpack` for sql-wasm.** `package.json` unpacks `node_modules/sql.js/dist/sql-wasm.wasm`. If tests pass but the built `.app` crashes on load, suspect this path first.
-- **node_modules freshness.** `--skip-install` is fine between successive runs but NOT after a `package.json` / lockfile change. If you skipped and got weird build errors, drop the flag and retry.
-- **Quarantine flag.** `Remove Quarantine.command` ships inside the DMG. Not run by the pipeline itself — only matters for end-users opening the DMG on a new machine.
+- **The worktree build is cold.** A fresh worktree has no `node_modules` and no cargo `target/`, so `bun install` and the universal Rust build take several minutes. That is expected. Run the tool in the background.
+- **The worktree builds HEAD.** Uncommitted changes are not in the build. The tool prints a warning when the tree is dirty. Commit first if the change must be in the DMG.
+- **`--here` only when the app is closed.** The user often runs the app from `tauri-app/src-tauri/target/release/bundle` in this checkout. A build here rewrites `target/` under the running app. Clean only removes the `bundle/` folders, but use `--here` only when the user says the app is closed.
+- **Two rust targets.** `bun run release` is `tauri build --target universal-apple-darwin`, which needs both `aarch64-apple-darwin` and `x86_64-apple-darwin`. Homebrew's Rust has no `x86_64-apple-darwin`, so v4.0.0 and later were built with an isolated rustup (`RUSTUP_HOME` and `CARGO_HOME` in a scratch folder, installed with `rustup-init`). The build stage stops before the worktree is created when a target is missing.
+- **A stale build worktree.** If an earlier run was killed, `.worktrees/build-<sha>` can still exist. The build stage removes it with `git worktree remove --force` before it adds a new one.
+- **Ad hoc signature.** `tauri.conf.json` sets `signingIdentity: "-"`. The app is signed ad hoc, not with a Developer ID, so `codesign --verify` passes but Gatekeeper asks on the first open on another Mac (right click, Open). The release notes say so.
+- **The host sidecar for `cargo test`.** tauri-build checks that `src-tauri/binaries/garmin-export-core-<host triple>` exists. The test stage runs `bun run core` before `cargo test` for that reason.
 
 ## Self-Improvement Log
-When a run fails, record the diagnosis here before moving on. Keep entries short (date + symptom + fix).
+When a run fails, record the diagnosis here before moving on. Keep entries short (date, symptom, fix).
 
-- 2026-04-22: `open` stage launched the x64 bundle on an arm64 host because both bundles shared an mtime and the sort was order-dependent. Fixed by detecting `platform.machine()` and preferring `dist/mac-arm64/*.app` on Apple Silicon, with fallback to the other arch.
-- 2026-04-22: `open` returned exit 0 but the app never appeared — first guess was Gatekeeper quarantine. Fix attempt: strip `com.apple.quarantine` via `xattr -dr` before `open -n -a`. This did NOT resolve the issue.
-- 2026-04-22: Deeper diagnosis with `codesign -dv` and `spctl --assess` revealed the real cause: electron-builder skipped signing (no Developer ID cert), leaving a linker-only signature with empty `CodeResources`. `spctl` rejection: "code has no resources but signature indicates they must be present". Real fix: `xattr -cr` (clear all xattrs) + `codesign --force --deep --sign -` (ad-hoc re-sign) before `open -n -a`. Verified: `codesign --verify` now reports "valid on disk / satisfies its Designated Requirement" and the app launches.
+- 2026-10-16: rewritten for `tauri-app/`; the electron-builder entries live in git history before this date.

@@ -21,3 +21,4 @@ reportes-pruebas/
 # local Go workspace for working on gconnect and the app together
 tauri-app/core/go.work
 tauri-app/core/go.work.sum
+__pycache__/
