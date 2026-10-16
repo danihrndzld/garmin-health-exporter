@@ -12,7 +12,6 @@ token.json
 .agents/
 .claude/
 .omc/
-electron-app/.omc/
 skills-lock.json
 .playwright-mcp/
 reportes-pruebas/
