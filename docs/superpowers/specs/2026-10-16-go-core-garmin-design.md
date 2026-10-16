@@ -346,3 +346,16 @@ The tests keep the trophy shape and the technique IDs of the existing suites.
 - A5: no import of the sql.js cache; the first Go export downloads again.
 - A6: the Garmin connect form lives inside the Setup card, not in a separate window. Garmin has no web login that works in a webview for this flow (the DI login is a JSON API), so the app still sees the password once; MFP's "the app never sees your password" does not apply to Garmin, and the README must say so.
 - A7: the `ge_engine` switch has no UI. Rollback is a release with the default changed back.
+
+## Spike results (Go), 2026-10-16, partial
+
+Task 0's live token renewal was not run: the permission classifier blocked writing the user's real `tokens.json`. Instead, one unauthenticated GET per host was sent from Go's `net/http` and from Node's `fetch`, with the same User-Agent and no credentials, one second apart:
+
+| Host and path | Go | Node |
+| --- | --- | --- |
+| `connectapi.garmin.com/userprofile-service/socialProfile` | 403, no challenge page | 403, no challenge page |
+| `diauth.garmin.com/di-oauth2-service/oauth/token` | 405 | 405 |
+| `sso.garmin.com/mobile/api/login` | 400 | 429 (the second GET on this path within seconds) |
+| `sso.garmin.com/sso/embed` | 200 | 200 |
+
+Every answer came from Cloudflare (`Server: cloudflare`), and neither client got a JavaScript challenge page, so Cloudflare does not block Go's TLS fingerprint at the edge for these hosts. Two questions stay open until the user's first `garmin-connect` and export: a sign in from Go, and DI refresh token rotation. `/mobile/api/login` rate limits unauthenticated GETs by IP within seconds, so the user's first connect should wait about 15 minutes after any probe.
