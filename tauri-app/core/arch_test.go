@@ -43,7 +43,7 @@ var hostNames = map[string]bool{
 }
 
 // wirePackages may not hold map[string]any in an exported signature or type: the wire shape belongs to cmd.
-var wirePackages = []string{"internal/garmin", "internal/mfp", "gconnect"}
+var wirePackages = []string{"internal/garmin", "internal/mfp", "internal/pack", "internal/report", "gconnect"}
 
 var leafPackages = map[string]bool{"internal/jsjson": true, "internal/atomicfile": true, "internal/guard": true, "internal/protocol": true}
 
@@ -382,6 +382,7 @@ func TestArchitectureCheckerCatchesEachRule(t *testing.T) {
 		{"CL-268 no exported function of the inside takes or returns map[string]any", "takes or returns map[string]any", []fixture{
 			{"a parameter", map[string]string{"internal/mfp/a.go": src("mfp", `"context"`, "func Export(ctx context.Context, req map[string]any) {}")}},
 			{"a result", map[string]string{"internal/garmin/a.go": src("garmin", `"errors"`, "var _ = errors.New\nfunc Status() map[string]interface{} { return nil }")}},
+			{"a stage 3 package", map[string]string{"internal/pack/a.go": src("pack", `"errors"`, "var _ = errors.New\nfunc Build(req map[string]any) {}")}},
 			{"a method", map[string]string{"gconnect/a.go": src("gconnect", `"errors"`, "var _ = errors.New\ntype A struct{}\nfunc (A) Do(x []map[string]any) {}")}},
 			{"a func parameter", map[string]string{"internal/mfp/a.go": src("mfp", `"errors"`, "var _ = errors.New\nfunc Run(f func(map[string]any)) {}")}},
 		}},
@@ -405,6 +406,7 @@ func TestArchitectureCheckerCatchesEachRule(t *testing.T) {
 			{"a defined type", map[string]string{"internal/garmin/a.go": "package garmin\n\ntype Wire map[string]interface{}\n"}},
 			{"a field of an exported struct", map[string]string{"internal/mfp/a.go": "package mfp\n\ntype ExportRequest struct{ Extra map[string]any }\n"}},
 			{"a chain of unexported types behind an exported func", map[string]string{"gconnect/a.go": "package gconnect\n\ntype raw = map[string]any\ntype box struct{ r []raw }\n\nfunc Open() *box { return nil }\n"}},
+			{"a field of an exported struct in report", map[string]string{"internal/report/a.go": "package report\n\ntype Input struct{ Extra map[string]any }\n"}},
 			{"a method on an exported type", map[string]string{"internal/garmin/a.go": "package garmin\n\ntype opts struct{ m map[string]any }\ntype C struct{}\n\nfunc (C) Set(o opts) {}\n"}},
 		}},
 		{"CL-275 the other host reads of os and syscall happen only in cmd, and UserHomeDir only in guard", "outside cmd/", func() []fixture {

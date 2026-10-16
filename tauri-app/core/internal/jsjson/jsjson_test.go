@@ -209,3 +209,22 @@ func TestCellMatchesJavaScriptString(t *testing.T) {
 		})
 	}
 }
+
+// Expected strings come from node -e 'console.log("héllo".slice(0,2))' and its siblings.
+func TestSliceUTF16CountsCodeUnits(t *testing.T) {
+	t.Run("BVA-602 s.slice(0, n) counts UTF-16 code units: 2 of héllo, 5 of ab, and half an astral pair", func(t *testing.T) {
+		if got := SliceUTF16("héllo", 2); got != "hé" {
+			t.Errorf("got %q", got)
+		}
+		if got := SliceUTF16("ab", 5); got != "ab" {
+			t.Errorf("got %q", got)
+		}
+		// An astral character is two code units; cutting it in half gives U+FFFD, where JavaScript would keep a lone surrogate.
+		if got := SliceUTF16("a😀b", 2); got != "a�" {
+			t.Errorf("got %q", got)
+		}
+		if got := SliceUTF16("", 3); got != "" {
+			t.Errorf("got %q", got)
+		}
+	})
+}

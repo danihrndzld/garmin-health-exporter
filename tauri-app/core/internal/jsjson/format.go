@@ -4,6 +4,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"unicode/utf16"
 )
 
 // FormatNumber prints f as JavaScript's String(n) does.
@@ -159,4 +160,14 @@ func Cell(v Value) string {
 		return "[object Object]"
 	}
 	return ""
+}
+
+// SliceUTF16 is JavaScript's s.slice(0, n): n UTF-16 code units. A surrogate pair cut in half
+// decodes to U+FFFD, where JavaScript keeps a lone surrogate; nothing here encodes such a string again.
+func SliceUTF16(s string, n int) string {
+	u := utf16.Encode([]rune(s))
+	if n < len(u) {
+		u = u[:n]
+	}
+	return string(utf16.Decode(u))
 }
