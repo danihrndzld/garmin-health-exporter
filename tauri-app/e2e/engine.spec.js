@@ -29,3 +29,16 @@ test('ST-T21 go engine with MyFitnessPal: the diary runs on the Go range, then t
   await expect(app.stepsBars).toHaveCount(14);
   await expect(app.hero.llmButton).toBeVisible();
 });
+
+test('EG-11 go engine: when the summary of a later run fails, the previews drop the earlier run\'s data', async ({ app, scenario }) => {
+  scenario.engine('go');
+  await app.open();
+  await app.startExport();
+  await app.waitForRunEnd();
+  await expect(app.stepsBars).toHaveCount(14);
+  await scenario.summaryStartsFailing();
+  await app.startExport();
+  await app.waitForRunEnd();
+  await expect(app.hero.badge).toHaveText('Done');
+  for (const preview of await app.previews.all()) await expect(preview).toHaveAttribute('data-empty', '');
+});

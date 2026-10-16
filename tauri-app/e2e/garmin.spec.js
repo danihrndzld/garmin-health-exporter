@@ -33,6 +33,18 @@ test.describe('decision table: can a run start', () => {
     await expect(app.hero.llmButton).toBeVisible();
   });
 
+  test('DT-R12 Garmin on but expired, MFP on: Garmin is skipped with the reason, MFP logs 17 of 30 days, the run is Done', async ({ app, scenario }) => {
+    scenario.garminExpiredAtStart().mfpConnected();
+    await app.open();
+    await app.startExport();
+    await app.waitForRunEnd();
+    await expect(app.hero.badge).toHaveText('Done');
+    await expect(app.run.row('auth').detail).toHaveText('Skipped: the Garmin session expired. Reconnect Garmin.');
+    for (const phase of ['daily', 'aggregated', 'activities', 'csv']) await expect(app.run.row(phase).detail).toHaveText('Skipped');
+    await expect(app.run.row('mfp').detail).toHaveText('Food logged on 17 of 30 days');
+    await expect(app.garmin.state).toHaveText('Session expired');
+  });
+
   test('DT-R8 Garmin off, MFP not connected: Pull asks to switch on a source and the app stays Ready', async ({ app }) => {
     await app.open();
     await app.garmin.include.uncheck();
@@ -101,6 +113,15 @@ test.describe('state transitions: Setup row', () => {
     await expect(app.garmin.button).toHaveText('disconnect');
   });
 
+  test('ST-T22 start with the expired marker: Session expired, reconnect, Include on', async ({ app, scenario }) => {
+    scenario.garminExpiredAtStart();
+    await app.open();
+    await expect(app.garmin.state).toHaveText('Session expired');
+    await expect(app.garmin.button).toHaveText('reconnect');
+    await expect(app.garmin.include).toBeEnabled();
+    await expect(app.garmin.include).toBeChecked();
+  });
+
   test('ST-I10 Running: the Garmin button and Include switch are disabled', async ({ app }) => {
     await app.open();
     await app.startExport();
@@ -128,4 +149,21 @@ test.describe('error guessing', () => {
     await expect(app.garmin.state).toHaveText('Connected');
     expect(await scenario.garminConnectCalls()).toBe(1);
   });
+
+  // The spec's error table gives the "Report it" box to GARMIN_ERROR only: a 429 or a 403 is Garmin's normal answer.
+  for (const [id, code, error] of [
+    ['EG-09', 'GARMIN_RATE_LIMITED', 'try again in an hour'],
+    ['EG-10', 'GARMIN_BLOCKED', 'Garmin refused the profile request'],
+  ]) {
+    test(`${id} a run that ends with ${code}: the error shows, no "Report it" box, the login stays`, async ({ app, scenario }) => {
+      scenario[code === 'GARMIN_BLOCKED' ? 'garminExportBlocked' : 'garminExportRateLimited']();
+      await app.open();
+      await app.startExport();
+      await app.waitForRunEnd();
+      await expect(app.hero.badge).toHaveText('Failed');
+      await expect(app.toast).toContainText(error);
+      await expect(app.run.report).toBeHidden();
+      await expect(app.garmin.state).toHaveText('Connected');
+    });
+  }
 });

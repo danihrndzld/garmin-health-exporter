@@ -42,6 +42,7 @@
       const ts = () => new Date().toLocaleTimeString();
       const done = (async () => {
         if (req.cmd === 'summary') {
+          if (localStorage.getItem('mock_summary_fail')) return { ok: false, error: 'The summary failed.' };
           // localStorage.mock_summary_hangs = '1' keeps the summary after MyFitnessPal running until cancelled.
           while (localStorage.getItem('mock_summary_hangs')) { if (cancelled) return { ok: false, cancelled: true, error: 'Cancelled.' }; await sleep(50); }
           // Without a jsonPath (Garmin was off) the sidecar has no Garmin summary, only the pack.
@@ -62,10 +63,11 @@
         }
         if (req.cmd === 'report') return { ok: true, issueUrl: 'https://github.com/x/issues/new', mailtoUrl: 'mailto:x' };
         // Garmin login, as the Go core answers it. localStorage.mock_garmin holds the save time;
-        // mock_garmin_expired makes the next export end with GARMIN_SESSION.
-        const garminStatus = () => ({ ok: true, connected: !!localStorage.getItem('mock_garmin'), expired: false, savedAt: Number(localStorage.getItem('mock_garmin')) || 0, loginKind: 'di' });
+        // mock_garmin_expired makes the next export end with GARMIN_SESSION; mock_garmin_marker is
+        // tokens.json already holding the expired marker, so garmin-status answers expired.
+        const garminStatus = () => ({ ok: true, connected: !!localStorage.getItem('mock_garmin'), expired: !!localStorage.getItem('mock_garmin_marker'), savedAt: Number(localStorage.getItem('mock_garmin')) || 0, loginKind: 'di' });
         if (req.cmd === 'garmin-status') return garminStatus();
-        if (req.cmd === 'garmin-disconnect') { localStorage.removeItem('mock_garmin'); localStorage.removeItem('mock_garmin_expired'); return garminStatus(); }
+        if (req.cmd === 'garmin-disconnect') { ['mock_garmin', 'mock_garmin_expired', 'mock_garmin_marker'].forEach((k) => localStorage.removeItem(k)); return garminStatus(); }
         if (req.cmd === 'garmin-connect') {
           localStorage.setItem('mock_garmin_connects', String(Number(localStorage.getItem('mock_garmin_connects') || 0) + 1));
           await sleep(200);
@@ -74,6 +76,7 @@
           if (req.email === 'mfa@x.com') return { ok: false, errorCode: 'GARMIN_MFA', error: 'This account uses two step verification, which Garmin Export does not support yet.' };
           localStorage.setItem('mock_garmin', String(Date.now()));
           localStorage.removeItem('mock_garmin_expired');
+          localStorage.removeItem('mock_garmin_marker');
           return garminStatus();
         }
         if (req.cmd !== 'export') return { ok: true };
@@ -82,10 +85,14 @@
           const r = req.daysBack ? window.DateRange.defaultCustomRange({ daysBack: req.daysBack }) : req;
           return { ok: true, path: `/Users/you/Documents/GarminExport/csv_${r.endDate}`, jsonPath: null, startDate: r.startDate, endDate: r.endDate };
         }
-        if (!localStorage.getItem('mock_garmin') || localStorage.getItem('mock_garmin_expired')) {
+        if (!localStorage.getItem('mock_garmin') || localStorage.getItem('mock_garmin_expired') || localStorage.getItem('mock_garmin_marker')) {
           await sleep(300);
           return { ok: false, errorCode: 'GARMIN_SESSION', error: 'Connect Garmin first.' };
         }
+        // mock_garmin_export_code ends the export with Garmin's 429 or 403 stop, as the Go core words it.
+        const stop = { GARMIN_RATE_LIMITED: 'Garmin is rate limiting requests (HTTP 429). The data so far is cached; try again in an hour.',
+          GARMIN_BLOCKED: 'Garmin refused the profile request (HTTP 403). The saved login was kept.' }[localStorage.getItem('mock_garmin_export_code')];
+        if (stop) { await sleep(300); return { ok: false, errorCode: localStorage.getItem('mock_garmin_export_code'), error: stop }; }
         onEvent({ kind: 'log', type: 'dim', msg: 'Loaded saved tokens', ts: ts() });
         await sleep(300);
         onEvent({ kind: 'log', type: 'warn', msg: '[skip] endurance_score: Empty response body [endurance_score] — Garmin returned HTTP 204 with no content. Usually no data for that day yet (the watch has not synced) or a metric this device does not record.', ts: ts() });

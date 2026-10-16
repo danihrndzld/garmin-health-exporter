@@ -10,6 +10,10 @@ export class MockBackend {
   garminConnected() { return this.#set('mock_garmin', String(Date.UTC(2026, 9, 1))); }
   garminNotConnected() { delete this.#keys.mock_garmin; return this; }
   garminSessionExpired() { return this.#set('mock_garmin_expired', '1'); }
+  /** tokens.json is already the expired marker at start: garmin-status answers expired. */
+  garminExpiredAtStart() { return this.#set('mock_garmin_marker', '1'); }
+  garminExportRateLimited() { return this.#set('mock_garmin_export_code', 'GARMIN_RATE_LIMITED'); }
+  garminExportBlocked() { return this.#set('mock_garmin_export_code', 'GARMIN_BLOCKED'); }
   mfpConnected() { return this.#set('mock_mfp', String(Date.UTC(2026, 9, 1))); }
   mfpSessionExpired() { return this.#set('mock_mfp_expired', '1'); }
   activities(count) { return this.#set('mock_acts', String(count)); }
@@ -17,6 +21,11 @@ export class MockBackend {
   summaryHangs() { return this.#set('mock_summary_hangs', '1'); }
   /** The app's developer switch: `export` runs on the Go core, which answers without summary or pack. */
   engine(name) { return this.#set('ge_engine', name); }
+
+  /** From now on, in this tab, every `summary` call fails (a later run than the first). */
+  async summaryStartsFailing() {
+    await this.#page.evaluate(() => localStorage.setItem('mock_summary_fail', '1'));
+  }
 
   /** How many garmin-connect calls (sign ins) the mock has received in this tab. */
   async garminConnectCalls() {

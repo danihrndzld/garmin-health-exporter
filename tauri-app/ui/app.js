@@ -393,9 +393,9 @@
       badge.textContent = res.cancelled ? 'Cancelled' : 'Failed';
       setHeadline(res.cancelled ? 'Cancelled.' : 'Stopped.', res.cancelled ? 'cache kept.' : 'see the log.');
       log('error', res.error || 'Unknown error');
-      // An expired login is a normal state, not a bug: no "Report it" box.
-      const expired = res.errorCode === 'GARMIN_SESSION' || res.errorCode === 'MFP_SESSION';
-      if (!res.cancelled) { toast(res.error || 'Export failed.', 6000); if (!expired) showReport(res.error); }
+      // Only an unexpected failure is a bug: an expired login, a 429 or a 403 is Garmin's normal answer.
+      const reportable = !res.errorCode || res.errorCode === 'GARMIN_ERROR' || res.errorCode === 'MFP_ERROR';
+      if (!res.cancelled) { toast(res.error || 'Export failed.', 6000); if (reportable) showReport(res.error); }
       if (res.errorCode === 'GARMIN_SESSION') { garmin.expired = garmin.connected; renderGarmin(); }
     }
     running = null;
@@ -447,15 +447,21 @@
     }
     // The Go engine answers without summary and pack; new MyFitnessPal files need a new pack.
     if (!res.summary || (m?.ok && !m.skipped)) {
+      // Go: the previews keep the last run's data until this summary paints them; a failed or cancelled one leaves them empty.
+      if (!res.summary) document.querySelectorAll('.preview').forEach((el) => el.setAttribute('data-empty', ''));
       const s = await refreshPack({ csvDir: res.path, jsonPath: res.jsonPath, warnings });
       if (s.ok && s.summary && !res.summary) renderSummary(s.summary);
     }
     return res;
   }
 
-  // Garmin off: the Go core only makes the csv folder. MyFitnessPal is the whole run, so its failure fails the run.
+  // Garmin off or expired: the Go core only makes the csv folder. MyFitnessPal is the whole run, so its failure fails the run.
   async function runWithoutGarmin(req) {
-    ['auth', ...PHASES].forEach((p) => setRow(p, null, 'Off', '—'));
+    if (garminOn.checked) { // switched on but expired: skipped without a request, as runMfp does
+      PHASES.forEach((p) => setRow(p, null, 'Skipped', '—'));
+      setRow('auth', 'warn', 'Skipped: the Garmin session expired. Reconnect Garmin.', '—');
+      log('warn', 'Garmin skipped: the session expired.');
+    } else ['auth', ...PHASES].forEach((p) => setRow(p, null, 'Off', '—'));
     const job = platform.run({ ...req, garmin: false }, () => {}, GO);
     running.cancel = job.cancel;
     const res = await job.done;

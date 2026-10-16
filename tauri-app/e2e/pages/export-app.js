@@ -33,6 +33,8 @@ export class ExportApp {
     this.toast = page.locator('#toast');
     /** One bar per day in the steps preview card, drawn from the export summary. */
     this.stepsBars = page.locator('#steps-bars > div');
+    /** The steps and sleep preview cards; data-empty means they show no data. */
+    this.previews = page.locator('.preview');
   }
 
   async open() {
