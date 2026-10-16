@@ -280,3 +280,63 @@ func TestBinaryGarminConnect(t *testing.T) {
 		}
 	})
 }
+
+func TestBinaryClearCache(t *testing.T) {
+	t.Parallel()
+	home, _ := os.UserHomeDir()
+	dir, err := os.MkdirTemp(home, ".clear-cache-test-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(dir) })
+	run := func(dataDir string) map[string]any {
+		b, _ := json.Marshal(map[string]any{"cmd": "clear-cache", "dataDir": dataDir})
+		c := exec.Command(binary)
+		c.Stdin = strings.NewReader(string(b) + "\n")
+		out, _ := c.Output()
+		var m map[string]any
+		if err := json.Unmarshal([]byte(strings.TrimSpace(string(out))), &m); err != nil {
+			t.Fatalf("stdout %q: %v", out, err)
+		}
+		return m
+	}
+	exists := func(name string) bool { _, err := os.Stat(filepath.Join(dir, name)); return err == nil }
+	t.Run("CL-231 ports the Bun clear-cache test: the three caches go, tokens.json and mfp_session.json stay", func(t *testing.T) {
+		for name, body := range map[string]string{
+			"garmin_cache.db":                    "db",
+			"garmin-cache/daily/2026-10-01.json": "{}",
+			"mfp-cache/2026-10-01.json":          "{}",
+			"tokens.json":                        "{}",
+			"mfp_session.json":                   "{}",
+		} {
+			p := filepath.Join(dir, name)
+			os.MkdirAll(filepath.Dir(p), 0o755)
+			if err := os.WriteFile(p, []byte(body), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if r := run(dir); r["ok"] != true {
+			t.Fatalf("result = %v", r)
+		}
+		for _, gone := range []string{"garmin_cache.db", "garmin-cache", "mfp-cache"} {
+			if exists(gone) {
+				t.Errorf("%s still exists", gone)
+			}
+		}
+		for _, kept := range []string{"tokens.json", "mfp_session.json"} {
+			if !exists(kept) {
+				t.Errorf("%s was removed", kept)
+			}
+		}
+	})
+	t.Run("CL-232 a missing cache is ok", func(t *testing.T) {
+		if r := run(dir); r["ok"] != true {
+			t.Errorf("result = %v", r)
+		}
+	})
+	t.Run("CL-233 a dataDir outside home is rejected", func(t *testing.T) {
+		if r := run("/etc"); r["ok"] != false || r["errorCode"] != "GARMIN_INPUT" {
+			t.Errorf("result = %v", r)
+		}
+	})
+}

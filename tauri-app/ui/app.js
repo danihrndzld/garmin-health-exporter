@@ -213,7 +213,7 @@
       return;
     }
     disarm();
-    const res = await platform.run({ cmd: 'clear-cache', dataDir: paths.dataDir }, () => {}).done;
+    const res = await platform.run({ cmd: 'clear-cache', dataDir: paths.dataDir }, () => {}, 'binaries/garmin-export-core').done;
     toast(res.ok ? 'Cache cleared.' : res.error);
   });
   function disarm() { clearTimeout(armTimer); clearCacheBtn.classList.remove('armed'); clearCacheBtn.textContent = 'clear cache'; }

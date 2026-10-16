@@ -12,7 +12,6 @@ import wasmPath from '../../electron-app/node_modules/sql.js/dist/sql-wasm.wasm'
 process.env.GARMIN_SQL_WASM ||= wasmPath;
 
 const { exportHealth } = require('../../electron-app/garmin/exporter');
-const { initCache } = require('../../electron-app/garmin/cache');
 const { validateRange } = require('../../electron-app/renderer/date-range');
 
 const emit = (o) => process.stdout.write(JSON.stringify(o) + '\n');
@@ -124,17 +123,7 @@ async function pack(req) {
   return { ok: true, ...buildPack({ csvDir, startDate: req.startDate, endDate: req.endDate, warnings: cleanWarnings(req.warnings), lang: req.lang, mode: req.mode }) };
 }
 
-async function clearCache(req) {
-  const cache = await initCache(path.join(resolveDataDir(req.dataDir), 'garmin_cache.db'));
-  cache.clearAll();
-  cache.save();
-  cache.close();
-  // The Go core keeps MyFitnessPal days as JSON files next to the Garmin cache.
-  fs.rmSync(path.join(resolveDataDir(req.dataDir), 'mfp-cache'), { recursive: true, force: true });
-  return { ok: true };
-}
-
-const COMMANDS = { export: runExport, 'clear-cache': clearCache, summary, pack, report: async (req) => ({ ok: true, ...buildReport(req) }) };
+const COMMANDS = { export: runExport, summary, pack, report: async (req) => ({ ok: true, ...buildReport(req) }) };
 
 async function main() {
   // First line only: Tauri's shell Child can write() but cannot close stdin.
