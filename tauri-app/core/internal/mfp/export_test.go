@@ -102,7 +102,7 @@ func TestExportDecisionTable(t *testing.T) {
 		{name: "DT-R114 C3 yes on auth_token, so MFP_RATE_LIMITED before any diary request",
 			setup: func(t *testing.T, e *exportEnv) { e.srv.AuthStatus = 429 }, start: "2026-10-04", end: "2026-10-07",
 			wantCode: "MFP_RATE_LIMITED", authCalls: 1},
-		{name: "DT-R115 C5 no (goals are not JSON), so the export still succeeds with empty goals",
+		{name: "DT-R115 C5 no (goals are not JSON), so the export still succeeds with empty goals and logs a warning",
 			setup: func(t *testing.T, e *exportEnv) {
 				dir := t.TempDir()
 				if err := os.CopyFS(dir, os.DirFS("testdata")); err != nil {
@@ -112,7 +112,7 @@ func TestExportDecisionTable(t *testing.T) {
 				e.srv.Close()
 				e.srv = mfptest.NewServer(dir)
 				t.Cleanup(e.srv.Close)
-			}, start: "2026-10-04", end: "2026-10-07", wantOK: true, diaryCalls: 4, authCalls: 1},
+			}, start: "2026-10-04", end: "2026-10-07", wantOK: true, wantLog: "goals unavailable", diaryCalls: 4, authCalls: 1},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

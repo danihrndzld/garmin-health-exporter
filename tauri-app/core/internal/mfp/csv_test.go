@@ -48,13 +48,19 @@ func TestWriteFilesMatchesGolden(t *testing.T) {
 		}[f]
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			got, _ := os.ReadFile(filepath.Join(dir, f))
+			got, err := os.ReadFile(filepath.Join(dir, f))
+			if err != nil {
+				t.Fatal(err)
+			}
 			golden := filepath.Join("testdata", "golden", f)
 			if os.Getenv("UPDATE_GOLDEN") != "" {
 				os.MkdirAll(filepath.Dir(golden), 0o755)
 				os.WriteFile(golden, got, 0o644)
 			}
-			want, _ := os.ReadFile(golden)
+			want, err := os.ReadFile(golden)
+			if err != nil {
+				t.Fatal(err)
+			}
 			if !bytes.Equal(got, want) {
 				t.Errorf("%s differs from the golden file:\n%s", f, got)
 			}
