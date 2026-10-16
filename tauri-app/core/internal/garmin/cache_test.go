@@ -30,6 +30,21 @@ func TestTrust(t *testing.T) {
 			}
 		}
 	})
+	t.Run("EG-328 Trust counts elapsed hours across DST, as JS does", func(t *testing.T) {
+		ny, err := time.LoadLocation("America/New_York")
+		if err != nil {
+			t.Skip("no tz database")
+		}
+		old := time.Local
+		time.Local = ny
+		t.Cleanup(func() { time.Local = old })
+		// Spring forward 2026-03-08: midnight to midnight 7 calendar days later is 6d23h
+		// (node: TZ=America/New_York gives 6.958 days).
+		f := time.Date(2026, 3, 15, 0, 0, 0, 0, ny).UTC().Format(time.RFC3339)
+		if Trust(Entry{FetchedAt: f, Data: data}, "2026-03-08") {
+			t.Fatal("6d23h elapsed must not be trusted")
+		}
+	})
 	t.Run("EG-325 an unreadable timestamp or date is not trusted", func(t *testing.T) {
 		if Trust(Entry{FetchedAt: "yesterday", Data: data}, day) || Trust(Entry{FetchedAt: at(30 * 24 * time.Hour), Data: data}, "bad") {
 			t.Fatal("trusted bad input")
@@ -144,6 +159,43 @@ func TestCache(t *testing.T) {
 		}
 		if _, err := os.Stat(c.Dir); err == nil {
 			t.Error("cache dir created by a rejected date")
+		}
+	})
+	t.Run("EG-329 a null splits answer is neither stored nor served", func(t *testing.T) {
+		c := newCache(t)
+		for _, d := range []json.RawMessage{nil, json.RawMessage(`null`), json.RawMessage(" null\n")} {
+			if c.PutSplits("7", d) == nil {
+				t.Errorf("PutSplits accepted %q", d)
+			}
+		}
+		if _, err := os.Stat(filepath.Join(c.Dir, "activity", "7.json")); err == nil {
+			t.Error("a file was written")
+		}
+		os.MkdirAll(filepath.Join(c.Dir, "activity"), 0o700)
+		os.WriteFile(filepath.Join(c.Dir, "activity", "8.json"), []byte(`{"splits":{"fetched_at":"x","data":null}}`), 0o600)
+		if _, ok := c.Splits("8"); ok {
+			t.Error("hand-written null splits served")
+		}
+	})
+	t.Run("EG-330 PutDay stores only the non-null entries", func(t *testing.T) {
+		c := newCache(t)
+		err := c.PutDay("2026-10-01", map[string]Entry{
+			"hrv":   {FetchedAt: "2026-10-09T00:00:00Z", Data: json.RawMessage(`{"a":1}`)},
+			"sleep": {FetchedAt: "2026-10-09T00:00:00Z", Data: json.RawMessage(`null`)},
+			"none":  {FetchedAt: "2026-10-09T00:00:00Z"},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, _ := os.ReadFile(filepath.Join(c.Dir, "daily", "2026-10-01.json"))
+		var m map[string]Entry
+		json.Unmarshal(b, &m)
+		if len(m) != 1 || m["hrv"].Data == nil {
+			t.Fatalf("stored %s", b)
+		}
+		os.WriteFile(filepath.Join(c.Dir, "daily", "2026-10-02.json"), []byte(`{"x":{"fetched_at":"y","data":null}}`), 0o600)
+		if len(c.Day("2026-10-02")) != 0 {
+			t.Error("stored null served from Day")
 		}
 	})
 }

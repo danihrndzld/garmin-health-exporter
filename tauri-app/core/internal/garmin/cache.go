@@ -1,6 +1,7 @@
 package garmin
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -28,6 +29,11 @@ type Entry struct {
 	Data      json.RawMessage `json:"data"`
 }
 
+func isNull(d json.RawMessage) bool {
+	d = bytes.TrimSpace(d)
+	return len(d) == 0 || string(d) == "null"
+}
+
 func (c Cache) dayPath(date string) (string, error) {
 	if !dateRe.MatchString(date) {
 		return "", fmt.Errorf("invalid cache date %q", date)
@@ -53,6 +59,11 @@ func (c Cache) Day(date string) map[string]Entry {
 	if err != nil || json.Unmarshal(b, &out) != nil || out == nil {
 		return map[string]Entry{}
 	}
+	for k, e := range out {
+		if isNull(e.Data) {
+			delete(out, k)
+		}
+	}
 	return out
 }
 
@@ -61,7 +72,13 @@ func (c Cache) PutDay(date string, entries map[string]Entry) error {
 	if err != nil {
 		return err
 	}
-	return c.write(p, entries)
+	good := map[string]Entry{}
+	for k, e := range entries {
+		if !isNull(e.Data) { // a null answer is never stored
+			good[k] = e
+		}
+	}
+	return c.write(p, good)
 }
 
 func (c Cache) Splits(activityID string) (json.RawMessage, bool) {
@@ -78,7 +95,7 @@ func (c Cache) Splits(activityID string) (json.RawMessage, bool) {
 		return nil, false
 	}
 	e, ok := m["splits"]
-	if !ok || len(e.Data) == 0 {
+	if !ok || isNull(e.Data) {
 		return nil, false
 	}
 	return e.Data, true
@@ -88,6 +105,9 @@ func (c Cache) PutSplits(activityID string, data json.RawMessage) error {
 	p, err := c.activityPath(activityID)
 	if err != nil {
 		return err
+	}
+	if isNull(data) {
+		return fmt.Errorf("refusing to cache a null answer for activity %s", activityID)
 	}
 	return c.write(p, map[string]Entry{"splits": {FetchedAt: time.Now().UTC().Format(time.RFC3339), Data: data}})
 }
@@ -104,9 +124,10 @@ func (c Cache) write(path string, v any) error {
 }
 
 // Trust reports whether a cached day answer may be used: fetched FinalAfterDays or more
-// after the day (local midnight), and not null.
+// after the day (local midnight), and not null. Elapsed hours, not calendar days, as in
+// exporter.js: across a DST change a fetch 7 calendar days later can read 6d23h.
 func Trust(e Entry, date string) bool {
-	if len(e.Data) == 0 || string(e.Data) == "null" {
+	if isNull(e.Data) {
 		return false
 	}
 	day, err := time.ParseInLocation("2006-01-02", date, time.Local)
