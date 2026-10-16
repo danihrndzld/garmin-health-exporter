@@ -803,7 +803,7 @@
   // The Go core signs in once and keeps tokens.json; every export runs from it without a password.
   const GO = 'binaries/garmin-export-core';
   // Which binary runs `export`; ge_engine is a developer switch with no UI. Every other command has a fixed binary.
-  const DEFAULT_ENGINE = 'bun';
+  const DEFAULT_ENGINE = 'go';
   const engine = () => store.get('engine', DEFAULT_ENGINE);
   const garminState = $('garmin-state'), garminBtn = $('garmin-btn'), garminOn = $('garmin-on');
   const garminForm = $('garmin-form'), garminErr = $('garmin-err'), signInBtn = $('garmin-signin'), cancelBtn = $('garmin-cancel');

@@ -24,7 +24,7 @@
 
 Garmin Export signs in to Garmin Connect with your account, downloads each day in the range you pick, and writes one CSV file per kind of data. The files are plain text with a header row, so you can open them in Numbers, Excel, or pandas, or upload them to a chat with an LLM.
 
-Garmin Export is for personal use with your own account. It isn't affiliated with Garmin.
+Garmin Export is for personal use with your own account. It isn't affiliated with Garmin. It reads your data through the unofficial API that Garmin's own phone app uses, so it can stop working when Garmin changes that API.
 
 ---
 
@@ -63,11 +63,17 @@ You only do this once for each version. To check for a new version, click the ve
 
 ## First export
 
-1. Type your Garmin Connect email and password in the Setup card. The app remembers your email, and it doesn't save your password.
+1. In the Setup card, click connect on the Garmin row, type your Garmin Connect email and password, and click sign in. You only do this once. The app remembers your email.
 2. Pick a range at the top of the window. You can choose the last 7, 30, or 90 days, or choose Custom and set a start and end date.
 3. Click the Pull button, or press Command and Return. The Run card shows each step, and you can press Escape to cancel.
 
-After the first sign in, the app keeps the Garmin login tokens in its Application Support folder, so later exports reuse the tokens and don't sign in to Garmin again. The app renews the tokens 15 minutes before they expire, so a long export doesn't stop halfway. The password field still has to be filled in for each export. Downloaded days are also kept in a local cache, so a second export of the same range only asks Garmin for the newest days.
+The app sends your password to Garmin once, when you connect, and it never saves the password. Garmin answers with a login token, and the app saves that token, not the password, in a file in its Application Support folder that only your user can read. Every later export uses the token, so you don't type the password again. The app renews the token before it expires, so a long export doesn't stop halfway. Unlike MyFitnessPal, the app does see your Garmin password, once, because Garmin's sign in is an API and not a web page that the app could show you.
+
+When Garmin ends the login, the Garmin row says Session expired and its button changes to reconnect. Click reconnect and sign in again. The disconnect button deletes the saved token.
+
+Each source in the Setup card has an Include switch that turns it on or off for the next exports. When you switch Garmin off, MyFitnessPal runs alone, and the folder holds only the MyFitnessPal files.
+
+Downloaded days are also kept in a local cache, so a second export of the same range only asks Garmin for the newest days.
 
 <div align="center">
 <img src="docs/images/export-done.png" alt="The main Garmin Export window, with progress rings on the left, the setup and run cards in the middle, and step and sleep charts on the right" width="900">
@@ -131,7 +137,7 @@ Version 4 is a new app named Garmin Export built with Tauri instead of Electron.
 <details>
 <summary>Why can't I sign in?</summary>
 
-Since version 4.2, the app signs in the same way as Garmin's own phone app, through a sign in service that Garmin introduced in 2026. When Garmin blocks that service, e.g., from some VPNs or office networks, the app tries the older sign in once. The message in the Run card says which case you hit.
+Since version 4.2, the app signs in the same way as Garmin's own phone app, through a sign in service that Garmin introduced in 2026. When Garmin blocks that service, e.g., from some VPNs or office networks, the app tries the older sign in once. The message under the Garmin row says which case you hit.
 
 - Wrong email or password: check them on connect.garmin.com.
 - Two-step verification: Garmin Export can't sign in to accounts with two-step verification yet.
@@ -167,7 +173,7 @@ bun run dev
 
 `bun run build` makes an app and a DMG for your own Mac. `bun run release` makes a universal app and DMG, and it needs the `aarch64-apple-darwin` and `x86_64-apple-darwin` Rust targets, which you can add with `rustup target add`.
 
-To run the tests, use the commands below. Most tests run the real sign in, client, cache and CSV code against a local server that imitates Garmin, so they never contact Garmin. The CSV output is compared byte by byte with the files in `electron-app/garmin/__tests__/golden`, and `tauri-app/sidecar/e2e.test.js` runs the sidecar the way the app does. The Go tests in `tauri-app/core` run against a local server that imitates MyFitnessPal.
+To run the tests, use the commands below. Most tests run the real sign in, client, cache and CSV code against a local server that imitates Garmin, so they never contact Garmin. The CSV output of the JavaScript and of the Go code is compared byte by byte with the files in `electron-app/garmin/__tests__/golden`, and `tauri-app/sidecar/e2e.test.js` runs the sidecar the way the app does. The Go tests in `tauri-app/core` run against local servers that imitate Garmin and MyFitnessPal. The window tests run in Chromium and WebKit with fake data, through `bunx playwright test` in `tauri-app`.
 
 ```sh
 (cd electron-app && npm test)
@@ -183,9 +189,9 @@ When a change to the CSV files is intended, rebuild the golden files with `UPDAT
 <summary>Project layout</summary>
 
 - `tauri-app/ui` holds the window, written in plain HTML, CSS, and JavaScript with no build step. `ui/dev-mock.js` lets you open `index.html` in a browser with fake data.
-- `tauri-app/sidecar` holds `garmin-core`, a small program compiled with `bun build --compile`. The window starts it for each export and sends one JSON request on its standard input, so your password never appears in the process list. `garmin-core` checks the range, the refresh window, and the output folder before it does anything.
-- `tauri-app/core` holds `garmin-export-core`, a Go program that the window starts after the Garmin export to download the MyFitnessPal diary. It uses the session file that the window saved, and it never opens the Garmin cache.
-- `electron-app/garmin` holds the Garmin sign in, the API client, the SQLite cache, and the CSV writer. The 3.x Electron app in `electron-app` still uses the same code.
+- `tauri-app/core` holds `garmin-export-core`, a Go program that connects Garmin, keeps the login token, downloads the Garmin data, writes the CSV files, and downloads the MyFitnessPal diary. The window starts it for each command and sends one JSON request on its standard input, so your password never appears in the process list. It checks the range, the refresh window, and the folders before it does anything. `tauri-app/core/gconnect` is the Garmin sign in and API client, as a library that never touches the disk.
+- `tauri-app/sidecar` holds `garmin-core`, a small program compiled with `bun build --compile`. It builds the summary, the LLM pack, and the bug report. It can still run the older JavaScript Garmin export, which the app uses only when a developer switches the engine back.
+- `electron-app/garmin` holds the JavaScript Garmin sign in, the API client, the SQLite cache, and the CSV writer. The 3.x Electron app in `electron-app` still uses the same code.
 - `garmin_health_export.py`, `json_to_csv.py`, and `download_activity_details.py` are the original Python scripts, which you can run with `uv run`. The app doesn't use them.
 
 </details>
