@@ -21,9 +21,15 @@ type Server struct {
 	SetCookie    string // Set-Cookie header sent with auth_token, to test rotation
 	AuthStatus   int    // when set, answer auth_token with this status and an HTML body (e.g. a 403 challenge)
 	UserID       string // JSON value of user_id in the auth_token answer; default "42" (a string)
-	mu           sync.Mutex
-	userAgents   []string
-	srv          *httptest.Server
+	AuthRaw      string // when set, answer auth_token with this application/json body instead of a token
+	DiaryStatus  int    // when set, answer every diary request with this status and no body
+	// RateLimitAfter answers diary requests with 429 once this many were served (0 = never).
+	RateLimitAfter int
+	mu             sync.Mutex
+	userAgents     []string
+	cookies        []string
+	diaryServed    int
+	srv            *httptest.Server
 }
 
 var day = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
@@ -40,6 +46,11 @@ func NewServer(dir string) *Server {
 			w.Header().Set("Content-Type", "text/html")
 			w.WriteHeader(s.AuthStatus)
 			w.Write([]byte("<html>Just a moment...</html>"))
+			return
+		}
+		if s.AuthRaw != "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(s.AuthRaw))
 			return
 		}
 		if s.AuthHTML || !hasSession(r) {
@@ -76,6 +87,20 @@ func NewServer(dir string) *Server {
 			return
 		}
 		if s.Diary429 {
+			w.WriteHeader(429)
+			return
+		}
+		if s.DiaryStatus != 0 {
+			w.WriteHeader(s.DiaryStatus)
+			return
+		}
+		s.mu.Lock()
+		limited := s.RateLimitAfter > 0 && s.diaryServed >= s.RateLimitAfter
+		if !limited {
+			s.diaryServed++
+		}
+		s.mu.Unlock()
+		if limited {
 			w.WriteHeader(429)
 			return
 		}
@@ -117,6 +142,14 @@ func (s *Server) record(r *http.Request) {
 	defer s.mu.Unlock()
 	s.Calls = append(s.Calls, r.URL.Path+"?"+r.URL.RawQuery)
 	s.userAgents = append(s.userAgents, r.UserAgent())
+	s.cookies = append(s.cookies, r.Header.Get("Cookie"))
+}
+
+// CookieHeaders returns the Cookie header of every request, in order.
+func (s *Server) CookieHeaders() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.cookies...)
 }
 
 // Agents returns the User-Agent of every request, in order.
