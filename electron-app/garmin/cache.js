@@ -84,7 +84,7 @@ class GarminCache {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const diffMs = today.getTime() - target.getTime();
-    const diffDays = diffMs / (1000 * 60 * 60 * 24);
+    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24)); // a DST day is 23 or 25 hours
     return diffDays < refreshDays;
   }
 

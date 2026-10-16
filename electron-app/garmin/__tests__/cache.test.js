@@ -60,18 +60,18 @@ async function testIsWithinRefreshWindow() {
   try {
     const cache = await initCache(dbPath);
     const today = new Date();
-    const todayStr = today.toISOString().slice(0, 10);
+    const todayStr = today.toLocaleDateString('sv-SE'); // local YYYY-MM-DD, like Garmin's calendar dates
     assert.strictEqual(cache.isWithinRefreshWindow(todayStr, 3), true);
 
     const tenDaysAgo = new Date(today);
     tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
-    const tenDaysAgoStr = tenDaysAgo.toISOString().slice(0, 10);
+    const tenDaysAgoStr = tenDaysAgo.toLocaleDateString('sv-SE');
     assert.strictEqual(cache.isWithinRefreshWindow(tenDaysAgoStr, 3), false);
 
     // boundary: exactly 3 days ago should NOT be within window (diffDays == 3, not < 3)
     const threeDaysAgo = new Date(today);
     threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-    const threeDaysAgoStr = threeDaysAgo.toISOString().slice(0, 10);
+    const threeDaysAgoStr = threeDaysAgo.toLocaleDateString('sv-SE');
     assert.strictEqual(cache.isWithinRefreshWindow(threeDaysAgoStr, 3), false);
 
     cache.close();
