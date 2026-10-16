@@ -116,4 +116,17 @@ test.describe('state transitions: Setup row', () => {
     await expect(app.mfp.include).toBeDisabled();
     await expect(app.mfp.button).toBeDisabled();
   });
+
+  test('ST-I9 Esc while the pack refreshes after MFP: the run ends Done and MFP stays ok', async ({ app, scenario }) => {
+    scenario.mfpConnected().summaryHangs();
+    await app.open();
+    await app.startExport(VALID_LOGIN);
+    await app.waitForPhase('mfp', 'ok');
+    await expect(app.hero.badge).toHaveText('Running');
+    await app.pressEscape();
+    await app.waitForRunEnd();
+    await expect(app.hero.badge).toHaveText('Done');
+    await expect(app.run.row('mfp').detail).toHaveText('Food logged on 17 of 30 days');
+    await expect(app.hero.legend('mfp')).toHaveText('17/30');
+  });
 });

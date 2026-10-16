@@ -724,7 +724,10 @@
       setRow('mfp', 'ok', `Food logged on ${res.loggedDays} of ${res.days} days`);
       setRing('mfp', 1);
       $('lg-mfp').textContent = `${res.loggedDays}/${res.days}`;
-      const s = await platform.run({ cmd: 'summary', jsonPath: store.get('last_json'), csvDir, warnings: pack?.warnings || [] }, () => {}).done;
+      // Esc here cancels only the pack refresh: the MFP files are written and the run ends Done.
+      const job = platform.run({ cmd: 'summary', jsonPath: store.get('last_json'), csvDir, warnings: pack?.warnings || [] }, () => {});
+      running.cancel = job.cancel;
+      const s = await job.done;
       if (s.ok) pack = s.pack || pack;
     } else {
       const msg = res.cancelled ? 'Cancelled.' : 'Skipped: ' + (res.error || 'unknown error');

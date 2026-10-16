@@ -41,7 +41,11 @@
       let cancelled = false;
       const ts = () => new Date().toLocaleTimeString();
       const done = (async () => {
-        if (req.cmd === 'summary') return { ok: true, summary: fakeSummary(), pack: fakePack() };
+        if (req.cmd === 'summary') {
+          // localStorage.mock_summary_hangs = '1' keeps the summary after MyFitnessPal running until cancelled.
+          while (localStorage.getItem('mock_summary_hangs')) { if (cancelled) return { ok: false, cancelled: true, error: 'Cancelled.' }; await sleep(50); }
+          return { ok: true, summary: fakeSummary(), pack: fakePack() };
+        }
         if (req.cmd === 'pack') {
           await sleep(180);
           if (localStorage.getItem('mock_pack_fail')) return { ok: false, error: 'EACCES: permission denied' };

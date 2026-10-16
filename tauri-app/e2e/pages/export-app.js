@@ -59,8 +59,8 @@ export class ExportApp {
     await this.#page.waitForFunction(() => document.getElementById('hero').dataset.state !== 'running', null, { timeout: LONGEST_RUN_MS });
   }
 
-  /** Waits until the Run row of `phase` shows the running spinner. */
-  async waitForPhase(phase) {
-    await this.#page.waitForFunction((p) => document.querySelector(`#rows li[data-phase="${p}"]`).dataset.st === 'run', phase, { timeout: LONGEST_RUN_MS });
+  /** Waits until the Run row of `phase` shows `status`: the running spinner by default. */
+  async waitForPhase(phase, status = 'run') {
+    await this.#page.waitForFunction(([p, st]) => document.querySelector(`#rows li[data-phase="${p}"]`).dataset.st === st, [phase, status], { timeout: LONGEST_RUN_MS });
   }
 }

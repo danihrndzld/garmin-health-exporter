@@ -10,6 +10,7 @@ export class MockBackend {
   mfpSessionExpired() { return this.#set('mock_mfp_expired', '1'); }
   activities(count) { return this.#set('mock_acts', String(count)); }
   packFails() { return this.#set('mock_pack_fail', '1'); }
+  summaryHangs() { return this.#set('mock_summary_hangs', '1'); }
 
   /** Seeds localStorage once per tab, before the app script runs; reloads keep what the app changed. */
   async install(page) {
