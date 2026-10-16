@@ -84,20 +84,20 @@ Every command reads one JSON line on stdin and ends with one `{kind:"result", ok
 
 Request: `{"cmd":"garmin-status","dataDir":"<abs>"}`
 
-Result: `{"ok":true,"connected":true,"expired":false,"savedAt":"2026-10-15T14:02:11Z","kind":"di"}`
+Result: `{"ok":true,"connected":true,"expired":false,"savedAt":"2026-10-15T14:02:11Z","loginKind":"di"}`
 
 - No network call, ever. The UI calls it on start and after focus.
 - `connected` is true when `tokens.json` exists and parses as a DI login, a legacy login, or an expired marker.
 - `expired` is true when the file is an expired marker, or when it is a DI login whose `refresh_token` is missing or whose `refresh_token_expires_at` is in the past.
 - A legacy login is never expired by date. Its OAuth1 token lasts about a year and Garmin gives no expiry; only a failed run marks it.
 - `savedAt` is the `saved_at` field when present, else `null`. Bun's refresh drops unknown fields, so `savedAt` can go back to `null` while Bun is the engine (assumption A2, harmless: the UI shows it only as a tooltip).
-- `kind` is `"di"`, `"legacy"` or `null`.
+- `loginKind` is `"di"`, `"legacy"` or `null`. The field is not called `kind` because `protocol.Result` sets `kind` to `"result"` on every result line.
 
 ### garmin-connect
 
 Request: `{"cmd":"garmin-connect","dataDir":"<abs>","email":"...","password":"..."}`
 
-Result on success: `{"ok":true,"connected":true,"expired":false,"savedAt":"...","kind":"di"}`, the same shape as `garmin-status`.
+Result on success: `{"ok":true,"connected":true,"expired":false,"savedAt":"...","loginKind":"di"}`, the same shape as `garmin-status`.
 
 Steps, ported from `auth.js:login` and `_loginChain`:
 1. If `sso-cooldown.json` says a cooldown is running, stop with `GARMIN_RATE_LIMITED` and the minutes left. No request is sent.

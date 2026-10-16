@@ -90,7 +90,8 @@ func exportScenario(t *testing.T) (*gconnecttest.Server, ExportRequest) {
 	}
 	t.Cleanup(func() { os.RemoveAll(root) })
 	r := ExportRequest{StartDate: "2024-02-17", EndDate: "2024-02-21", RefreshWindow: 3,
-		OutputDir: filepath.Join(root, "out"), DataDir: filepath.Join(root, "data"), Hosts: srv.Hosts(), Gap: -1, Now: time.Now}
+		OutputDir: filepath.Join(root, "out"), DataDir: filepath.Join(root, "data"), Hosts: srv.Hosts(), Gap: -1,
+		Now: func() time.Time { return time.Date(2026, 10, 7, 12, 0, 0, 0, time.Local) }} // pinned: no test may cross midnight
 	if err := connect(a, r.DataDir, time.Now()); err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +127,7 @@ func TestExportWritesTheGoldenFiles(t *testing.T) {
 			t.Fatalf("files = %v, want %v", got, names)
 		}
 		sameFiles(t, res.Path, goldenDir, names)
-		if res.Path != filepath.Join(r.OutputDir, "csv_"+time.Now().Format("2006-01-02")) || res.Days != 5 || res.Activities != 4 ||
+		if res.Path != filepath.Join(r.OutputDir, "csv_2026-10-07") || res.Days != 5 || res.Activities != 4 ||
 			res.StartDate != r.StartDate || res.EndDate != r.EndDate {
 			t.Fatalf("result = %+v", res)
 		}
@@ -353,7 +354,7 @@ func TestExportRefresh(t *testing.T) {
 func TestExportDropsStaleMfpFiles(t *testing.T) {
 	t.Run("EG-370 stale mfp_*.csv files in the csv folder are deleted", func(t *testing.T) {
 		_, r := exportScenario(t)
-		dir := filepath.Join(r.OutputDir, "csv_"+time.Now().Format("2006-01-02"))
+		dir := filepath.Join(r.OutputDir, "csv_2026-10-07")
 		os.MkdirAll(dir, 0o755)
 		for _, f := range mfpFiles {
 			os.WriteFile(filepath.Join(dir, f), []byte("old\n"), 0o644)
@@ -365,6 +366,70 @@ func TestExportDropsStaleMfpFiles(t *testing.T) {
 			if _, err := os.Stat(filepath.Join(dir, f)); !os.IsNotExist(err) {
 				t.Errorf("%s kept", f)
 			}
+		}
+	})
+}
+
+func TestExportStopsOnTheLogin(t *testing.T) {
+	t.Run("EG-371 a 403 on social_profile ends with GARMIN_BLOCKED and keeps tokens.json", func(t *testing.T) {
+		srv, r := exportScenario(t)
+		before := tokensFileOf(t, r.DataDir)
+		srv.Set(func(c *gconnecttest.Control) { c.DataStatus = map[string]int{"/userprofile-service": 403} })
+		_, err := Export(context.Background(), r, &recorder{})
+		if codeOf(err) != "GARMIN_BLOCKED" {
+			t.Fatalf("err = %v", err)
+		}
+		if !bytes.Equal(tokensFileOf(t, r.DataDir), before) {
+			t.Fatal("tokens.json changed")
+		}
+	})
+	t.Run("EG-372 a second 401 on data after a refresh writes the expired marker and ends with GARMIN_SESSION", func(t *testing.T) {
+		srv, r := exportScenario(t)
+		srv.Set(func(c *gconnecttest.Control) { c.DataStatus = map[string]int{"/userprofile-service": 401} })
+		_, err := Export(context.Background(), r, &recorder{})
+		if codeOf(err) != "GARMIN_SESSION" || err.Error() != "The Garmin session expired. Reconnect Garmin." {
+			t.Fatalf("err = %v", err)
+		}
+		if len(srv.Calls("/di-oauth2-service/oauth/token")) == 0 {
+			t.Fatal("no refresh before the second 401")
+		}
+		if s := StatusOf(r.DataDir, time.Now()); !s.Expired || s.Kind != nil {
+			t.Fatalf("status = %+v", s)
+		}
+	})
+	t.Run("EG-373 a marker that cannot be written logs a SAVE_FAILED warning and still ends with GARMIN_SESSION", func(t *testing.T) {
+		srv, r := exportScenario(t)
+		srv.Set(func(c *gconnecttest.Control) { c.DataStatus = map[string]int{"/userprofile-service": 401} })
+		if err := os.Chmod(r.DataDir, 0o500); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { os.Chmod(r.DataDir, 0o700) })
+		rec := &recorder{}
+		_, err := Export(context.Background(), r, rec)
+		if codeOf(err) != "GARMIN_SESSION" {
+			t.Fatalf("err = %v", err)
+		}
+		if !slices.ContainsFunc(rec.warns, func(w string) bool {
+			return strings.HasPrefix(w, "SAVE_FAILED Could not mark the Garmin login as expired")
+		}) {
+			t.Fatalf("warnings: %q", rec.warns)
+		}
+	})
+	t.Run("EG-374 a 429 on a daily answer of the second date keeps both started days on disk", func(t *testing.T) {
+		srv, r := exportScenario(t)
+		srv.Set(func(c *gconnecttest.Control) { c.DataStatus = map[string]int{"/hrv-service/hrv/2024-02-20": 429} })
+		_, err := Export(context.Background(), r, &recorder{})
+		if codeOf(err) != "GARMIN_RATE_LIMITED" {
+			t.Fatalf("err = %v", err)
+		}
+		dir := filepath.Join(r.DataDir, "garmin-cache", "daily")
+		for date, want := range map[string]bool{"2024-02-21": true, "2024-02-20": true, "2024-02-19": false} {
+			if _, err := os.Stat(filepath.Join(dir, date+".json")); (err == nil) != want {
+				t.Errorf("%s on disk = %v, want %v", date, err == nil, want)
+			}
+		}
+		if e := (Cache{Dir: filepath.Join(r.DataDir, "garmin-cache")}).Day("2024-02-20"); e["stats"].Data == nil || e["hrv"].Data != nil {
+			t.Fatalf("2024-02-20 holds %v", slices.Collect(maps.Keys(e)))
 		}
 	})
 }

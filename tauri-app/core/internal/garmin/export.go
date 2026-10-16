@@ -74,14 +74,16 @@ func PrepareDir(outputDir, endDate string) (string, error) {
 
 // stopErr maps the client's stop to the code the UI shows. A dead login is marked expired;
 // a refresh that failed without proving it dead keeps tokens.json.
-func stopErr(c *gconnect.Client, dataDir string) error {
+func stopErr(c *gconnect.Client, dataDir string, out Reporter) error {
 	s := c.Stopped()
 	if s == nil {
 		return nil
 	}
 	switch s.Reason {
 	case gconnect.StopSessionDead:
-		_ = MarkExpired(dataDir, time.Now()) // best effort: the next run finds the login dead again
+		if err := MarkExpired(dataDir, time.Now()); err != nil { // the next run finds the login dead again
+			out.Warn("Could not mark the Garmin login as expired: "+err.Error(), "SAVE_FAILED")
+		}
 		return &CodeError{"GARMIN_SESSION", expiredMsg}
 	case gconnect.StopRateLimited:
 		return &CodeError{"GARMIN_RATE_LIMITED", s.Msg}
@@ -181,7 +183,7 @@ func Export(ctx context.Context, r ExportRequest, out Reporter) (*ExportResult, 
 	displayName, err := c.Profile(ctx)
 	if err != nil {
 		out.Log("warn", "Could not get display name: "+err.Error())
-		if err := stopErr(c, r.DataDir); err != nil {
+		if err := stopErr(c, r.DataDir, out); err != nil {
 			return nil, err
 		}
 	}
@@ -218,7 +220,7 @@ func Export(ctx context.Context, r ExportRequest, out Reporter) (*ExportResult, 
 		daily.Set(date, obj(day))
 		out.Progress("daily", i+1, len(dates))
 		out.Log("dim", "  "+date)
-		if err := stopErr(c, r.DataDir); err != nil {
+		if err := stopErr(c, r.DataDir, out); err != nil {
 			return nil, err
 		}
 	}
@@ -233,7 +235,7 @@ func Export(ctx context.Context, r ExportRequest, out Reporter) (*ExportResult, 
 			aggregated.Set(ep.Name, parse(c.Safe(ctx, ep, gconnect.Params{Start: r.StartDate, End: r.EndDate, DisplayName: displayName})))
 		}
 		out.Progress("aggregated", i+1, len(gconnect.Aggregated))
-		if err := stopErr(c, r.DataDir); err != nil {
+		if err := stopErr(c, r.DataDir, out); err != nil {
 			return nil, err
 		}
 	}
@@ -252,7 +254,7 @@ func Export(ctx context.Context, r ExportRequest, out Reporter) (*ExportResult, 
 			break
 		}
 	}
-	if err := stopErr(c, r.DataDir); err != nil {
+	if err := stopErr(c, r.DataDir, out); err != nil {
 		return nil, err
 	}
 	out.Log("info", fmt.Sprintf("Found %d activities", len(acts)))
@@ -286,7 +288,7 @@ func Export(ctx context.Context, r ExportRequest, out Reporter) (*ExportResult, 
 			act.O.Set("splits", parse(splits))
 		}
 		out.Progress("activities", i+1, len(acts))
-		if err := stopErr(c, r.DataDir); err != nil {
+		if err := stopErr(c, r.DataDir, out); err != nil {
 			return nil, err
 		}
 	}
@@ -296,7 +298,7 @@ func Export(ctx context.Context, r ExportRequest, out Reporter) (*ExportResult, 
 	if goals.Kind != jsjson.Array {
 		goals = jsjson.Value{Kind: jsjson.Array, A: []jsjson.Value{}}
 	}
-	if err := stopErr(c, r.DataDir); err != nil {
+	if err := stopErr(c, r.DataDir, out); err != nil {
 		return nil, err
 	}
 

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -443,7 +444,10 @@ func TestBinaryGarminExport(t *testing.T) {
 			t.Fatalf("connect = %v", r)
 		}
 		r := run(map[string]any{"cmd": "export", "garmin": true, "startDate": "2024-02-17", "endDate": "2024-02-21", "refreshWindow": 3, "outputDir": out, "dataDir": data})
-		if r["ok"] != true || r["path"] != filepath.Join(out, "csv_"+time.Now().Format("2006-01-02")) || r["days"] != 5.0 || r["activities"] != 4.0 {
+		// The folder and the JSON name come from one clock read, so they name the same day even across midnight.
+		day := strings.TrimPrefix(filepath.Base(fmt.Sprint(r["jsonPath"])), "garmin_health_")
+		day = day[:min(10, len(day))]
+		if r["ok"] != true || r["path"] != filepath.Join(out, "csv_"+day) || r["days"] != 5.0 || r["activities"] != 4.0 {
 			t.Fatalf("export = %v", r)
 		}
 		golden := filepath.Join(repo, "electron-app", "garmin", "__tests__", "golden")
