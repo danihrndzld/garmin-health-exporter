@@ -18,7 +18,10 @@ type Emitter struct {
 func (e *Emitter) write(v map[string]any) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	b, _ := json.Marshal(v)
+	b, err := json.Marshal(v)
+	if err != nil { // a NaN would otherwise drop the line, and a lost result reads as a crash
+		b, _ = json.Marshal(map[string]any{"kind": v["kind"], "ok": false, "error": "Could not encode the answer: " + err.Error()})
+	}
 	e.Out.Write(append(b, '\n'))
 }
 
@@ -31,10 +34,11 @@ func (e *Emitter) Progress(phase string, current, total int) {
 }
 
 func (e *Emitter) Result(v map[string]any) {
-	out := map[string]any{"kind": "result"}
+	out := map[string]any{}
 	for k, x := range v {
 		out[k] = x
 	}
+	out["kind"] = "result" // a payload key must never turn the result into another kind
 	e.write(out)
 }
 

@@ -3,6 +3,7 @@ package protocol
 import (
 	"bytes"
 	"encoding/json"
+	"math"
 	"strings"
 	"sync"
 	"testing"
@@ -41,6 +42,16 @@ func TestEmitterLineShapes(t *testing.T) {
 		}},
 		{"CL-103 a result line carries kind result plus the payload", func(e *Emitter) { e.Result(map[string]any{"ok": true, "days": 4}) }, func(t *testing.T, m map[string]any) {
 			if m["kind"] != "result" || m["ok"] != true || m["days"] != float64(4) {
+				t.Fatalf("result line = %v", m)
+			}
+		}},
+		{"EG-178 a result that JSON cannot encode (NaN) still ends with a failed result line", func(e *Emitter) { e.Result(map[string]any{"ok": true, "x": math.NaN()}) }, func(t *testing.T, m map[string]any) {
+			if m["kind"] != "result" || m["ok"] != false || m["error"] == nil {
+				t.Fatalf("result line = %v", m)
+			}
+		}},
+		{"EG-179 a payload key named kind cannot overwrite the result kind", func(e *Emitter) { e.Result(map[string]any{"ok": true, "kind": "log"}) }, func(t *testing.T, m map[string]any) {
+			if m["kind"] != "result" || m["ok"] != true {
 				t.Fatalf("result line = %v", m)
 			}
 		}},
