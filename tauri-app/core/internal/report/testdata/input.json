@@ -1,0 +1,1507 @@
+{
+  "error": "Auth failed for a@b.com: Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.sig password=hunter2 in /Users/dani/Library",
+  "log": [
+    {
+      "ts": "10:00:00",
+      "type": "dim",
+      "msg": "line 0 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t0 user0@example.com /Users/dani/Documents/x0"
+    },
+    {
+      "ts": "10:00:01",
+      "type": "warn",
+      "msg": "line 1 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t1 user1@example.com /Users/dani/Documents/x1"
+    },
+    {
+      "ts": "10:00:02",
+      "type": "dim",
+      "msg": "line 2 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t2 user2@example.com /Users/dani/Documents/x2"
+    },
+    {
+      "ts": "10:00:03",
+      "type": "warn",
+      "msg": "line 3 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t3 user3@example.com /Users/dani/Documents/x3"
+    },
+    {
+      "ts": "10:00:04",
+      "type": "dim",
+      "msg": "line 4 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t4 user4@example.com /Users/dani/Documents/x4"
+    },
+    {
+      "ts": "10:00:05",
+      "type": "warn",
+      "msg": "line 5 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t5 user5@example.com /Users/dani/Documents/x5"
+    },
+    {
+      "ts": "10:00:06",
+      "type": "dim",
+      "msg": "line 6 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t6 user6@example.com /Users/dani/Documents/x6"
+    },
+    {
+      "ts": "10:00:07",
+      "type": "warn",
+      "msg": "line 7 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t7 user7@example.com /Users/dani/Documents/x7"
+    },
+    {
+      "ts": "10:00:08",
+      "type": "dim",
+      "msg": "line 8 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t8 user8@example.com /Users/dani/Documents/x8"
+    },
+    {
+      "ts": "10:00:09",
+      "type": "warn",
+      "msg": "line 9 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t9 user9@example.com /Users/dani/Documents/x9"
+    },
+    {
+      "ts": "10:00:10",
+      "type": "dim",
+      "msg": "line 10 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t10 user10@example.com /Users/dani/Documents/x10"
+    },
+    {
+      "ts": "10:00:11",
+      "type": "warn",
+      "msg": "line 11 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t11 user11@example.com /Users/dani/Documents/x11"
+    },
+    {
+      "ts": "10:00:12",
+      "type": "dim",
+      "msg": "line 12 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t12 user12@example.com /Users/dani/Documents/x12"
+    },
+    {
+      "ts": "10:00:13",
+      "type": "warn",
+      "msg": "line 13 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t13 user13@example.com /Users/dani/Documents/x13"
+    },
+    {
+      "ts": "10:00:14",
+      "type": "dim",
+      "msg": "line 14 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t14 user14@example.com /Users/dani/Documents/x14"
+    },
+    {
+      "ts": "10:00:15",
+      "type": "warn",
+      "msg": "line 15 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t15 user15@example.com /Users/dani/Documents/x15"
+    },
+    {
+      "ts": "10:00:16",
+      "type": "dim",
+      "msg": "line 16 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t16 user16@example.com /Users/dani/Documents/x16"
+    },
+    {
+      "ts": "10:00:17",
+      "type": "warn",
+      "msg": "line 17 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t17 user17@example.com /Users/dani/Documents/x17"
+    },
+    {
+      "ts": "10:00:18",
+      "type": "dim",
+      "msg": "line 18 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t18 user18@example.com /Users/dani/Documents/x18"
+    },
+    {
+      "ts": "10:00:19",
+      "type": "warn",
+      "msg": "line 19 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t19 user19@example.com /Users/dani/Documents/x19"
+    },
+    {
+      "ts": "10:00:20",
+      "type": "dim",
+      "msg": "line 20 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t20 user20@example.com /Users/dani/Documents/x20"
+    },
+    {
+      "ts": "10:00:21",
+      "type": "warn",
+      "msg": "line 21 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t21 user21@example.com /Users/dani/Documents/x21"
+    },
+    {
+      "ts": "10:00:22",
+      "type": "dim",
+      "msg": "line 22 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t22 user22@example.com /Users/dani/Documents/x22"
+    },
+    {
+      "ts": "10:00:23",
+      "type": "warn",
+      "msg": "line 23 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t23 user23@example.com /Users/dani/Documents/x23"
+    },
+    {
+      "ts": "10:00:24",
+      "type": "dim",
+      "msg": "line 24 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t24 user24@example.com /Users/dani/Documents/x24"
+    },
+    {
+      "ts": "10:00:25",
+      "type": "warn",
+      "msg": "line 25 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t25 user25@example.com /Users/dani/Documents/x25"
+    },
+    {
+      "ts": "10:00:26",
+      "type": "dim",
+      "msg": "line 26 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t26 user26@example.com /Users/dani/Documents/x26"
+    },
+    {
+      "ts": "10:00:27",
+      "type": "warn",
+      "msg": "line 27 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t27 user27@example.com /Users/dani/Documents/x27"
+    },
+    {
+      "ts": "10:00:28",
+      "type": "dim",
+      "msg": "line 28 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t28 user28@example.com /Users/dani/Documents/x28"
+    },
+    {
+      "ts": "10:00:29",
+      "type": "warn",
+      "msg": "line 29 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t29 user29@example.com /Users/dani/Documents/x29"
+    },
+    {
+      "ts": "10:00:30",
+      "type": "dim",
+      "msg": "line 30 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t30 user30@example.com /Users/dani/Documents/x30"
+    },
+    {
+      "ts": "10:00:31",
+      "type": "warn",
+      "msg": "line 31 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t31 user31@example.com /Users/dani/Documents/x31"
+    },
+    {
+      "ts": "10:00:32",
+      "type": "dim",
+      "msg": "line 32 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t32 user32@example.com /Users/dani/Documents/x32"
+    },
+    {
+      "ts": "10:00:33",
+      "type": "warn",
+      "msg": "line 33 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t33 user33@example.com /Users/dani/Documents/x33"
+    },
+    {
+      "ts": "10:00:34",
+      "type": "dim",
+      "msg": "line 34 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t34 user34@example.com /Users/dani/Documents/x34"
+    },
+    {
+      "ts": "10:00:35",
+      "type": "warn",
+      "msg": "line 35 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t35 user35@example.com /Users/dani/Documents/x35"
+    },
+    {
+      "ts": "10:00:36",
+      "type": "dim",
+      "msg": "line 36 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t36 user36@example.com /Users/dani/Documents/x36"
+    },
+    {
+      "ts": "10:00:37",
+      "type": "warn",
+      "msg": "line 37 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t37 user37@example.com /Users/dani/Documents/x37"
+    },
+    {
+      "ts": "10:00:38",
+      "type": "dim",
+      "msg": "line 38 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t38 user38@example.com /Users/dani/Documents/x38"
+    },
+    {
+      "ts": "10:00:39",
+      "type": "warn",
+      "msg": "line 39 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t39 user39@example.com /Users/dani/Documents/x39"
+    },
+    {
+      "ts": "10:00:40",
+      "type": "dim",
+      "msg": "line 40 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t40 user40@example.com /Users/dani/Documents/x40"
+    },
+    {
+      "ts": "10:00:41",
+      "type": "warn",
+      "msg": "line 41 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t41 user41@example.com /Users/dani/Documents/x41"
+    },
+    {
+      "ts": "10:00:42",
+      "type": "dim",
+      "msg": "line 42 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t42 user42@example.com /Users/dani/Documents/x42"
+    },
+    {
+      "ts": "10:00:43",
+      "type": "warn",
+      "msg": "line 43 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t43 user43@example.com /Users/dani/Documents/x43"
+    },
+    {
+      "ts": "10:00:44",
+      "type": "dim",
+      "msg": "line 44 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t44 user44@example.com /Users/dani/Documents/x44"
+    },
+    {
+      "ts": "10:00:45",
+      "type": "warn",
+      "msg": "line 45 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t45 user45@example.com /Users/dani/Documents/x45"
+    },
+    {
+      "ts": "10:00:46",
+      "type": "dim",
+      "msg": "line 46 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t46 user46@example.com /Users/dani/Documents/x46"
+    },
+    {
+      "ts": "10:00:47",
+      "type": "warn",
+      "msg": "line 47 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t47 user47@example.com /Users/dani/Documents/x47"
+    },
+    {
+      "ts": "10:00:48",
+      "type": "dim",
+      "msg": "line 48 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t48 user48@example.com /Users/dani/Documents/x48"
+    },
+    {
+      "ts": "10:00:49",
+      "type": "warn",
+      "msg": "line 49 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t49 user49@example.com /Users/dani/Documents/x49"
+    },
+    {
+      "ts": "10:00:50",
+      "type": "dim",
+      "msg": "line 50 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t50 user50@example.com /Users/dani/Documents/x50"
+    },
+    {
+      "ts": "10:00:51",
+      "type": "warn",
+      "msg": "line 51 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t51 user51@example.com /Users/dani/Documents/x51"
+    },
+    {
+      "ts": "10:00:52",
+      "type": "dim",
+      "msg": "line 52 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t52 user52@example.com /Users/dani/Documents/x52"
+    },
+    {
+      "ts": "10:00:53",
+      "type": "warn",
+      "msg": "line 53 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t53 user53@example.com /Users/dani/Documents/x53"
+    },
+    {
+      "ts": "10:00:54",
+      "type": "dim",
+      "msg": "line 54 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t54 user54@example.com /Users/dani/Documents/x54"
+    },
+    {
+      "ts": "10:00:55",
+      "type": "warn",
+      "msg": "line 55 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t55 user55@example.com /Users/dani/Documents/x55"
+    },
+    {
+      "ts": "10:00:56",
+      "type": "dim",
+      "msg": "line 56 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t56 user56@example.com /Users/dani/Documents/x56"
+    },
+    {
+      "ts": "10:00:57",
+      "type": "warn",
+      "msg": "line 57 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t57 user57@example.com /Users/dani/Documents/x57"
+    },
+    {
+      "ts": "10:00:58",
+      "type": "dim",
+      "msg": "line 58 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t58 user58@example.com /Users/dani/Documents/x58"
+    },
+    {
+      "ts": "10:00:59",
+      "type": "warn",
+      "msg": "line 59 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t59 user59@example.com /Users/dani/Documents/x59"
+    },
+    {
+      "ts": "10:00:00",
+      "type": "dim",
+      "msg": "line 60 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t60 user60@example.com /Users/dani/Documents/x60"
+    },
+    {
+      "ts": "10:00:01",
+      "type": "warn",
+      "msg": "line 61 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t61 user61@example.com /Users/dani/Documents/x61"
+    },
+    {
+      "ts": "10:00:02",
+      "type": "dim",
+      "msg": "line 62 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t62 user62@example.com /Users/dani/Documents/x62"
+    },
+    {
+      "ts": "10:00:03",
+      "type": "warn",
+      "msg": "line 63 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t63 user63@example.com /Users/dani/Documents/x63"
+    },
+    {
+      "ts": "10:00:04",
+      "type": "dim",
+      "msg": "line 64 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t64 user64@example.com /Users/dani/Documents/x64"
+    },
+    {
+      "ts": "10:00:05",
+      "type": "warn",
+      "msg": "line 65 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t65 user65@example.com /Users/dani/Documents/x65"
+    },
+    {
+      "ts": "10:00:06",
+      "type": "dim",
+      "msg": "line 66 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t66 user66@example.com /Users/dani/Documents/x66"
+    },
+    {
+      "ts": "10:00:07",
+      "type": "warn",
+      "msg": "line 67 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t67 user67@example.com /Users/dani/Documents/x67"
+    },
+    {
+      "ts": "10:00:08",
+      "type": "dim",
+      "msg": "line 68 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t68 user68@example.com /Users/dani/Documents/x68"
+    },
+    {
+      "ts": "10:00:09",
+      "type": "warn",
+      "msg": "line 69 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t69 user69@example.com /Users/dani/Documents/x69"
+    },
+    {
+      "ts": "10:00:10",
+      "type": "dim",
+      "msg": "line 70 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t70 user70@example.com /Users/dani/Documents/x70"
+    },
+    {
+      "ts": "10:00:11",
+      "type": "warn",
+      "msg": "line 71 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t71 user71@example.com /Users/dani/Documents/x71"
+    },
+    {
+      "ts": "10:00:12",
+      "type": "dim",
+      "msg": "line 72 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t72 user72@example.com /Users/dani/Documents/x72"
+    },
+    {
+      "ts": "10:00:13",
+      "type": "warn",
+      "msg": "line 73 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t73 user73@example.com /Users/dani/Documents/x73"
+    },
+    {
+      "ts": "10:00:14",
+      "type": "dim",
+      "msg": "line 74 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t74 user74@example.com /Users/dani/Documents/x74"
+    },
+    {
+      "ts": "10:00:15",
+      "type": "warn",
+      "msg": "line 75 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t75 user75@example.com /Users/dani/Documents/x75"
+    },
+    {
+      "ts": "10:00:16",
+      "type": "dim",
+      "msg": "line 76 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t76 user76@example.com /Users/dani/Documents/x76"
+    },
+    {
+      "ts": "10:00:17",
+      "type": "warn",
+      "msg": "line 77 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t77 user77@example.com /Users/dani/Documents/x77"
+    },
+    {
+      "ts": "10:00:18",
+      "type": "dim",
+      "msg": "line 78 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t78 user78@example.com /Users/dani/Documents/x78"
+    },
+    {
+      "ts": "10:00:19",
+      "type": "warn",
+      "msg": "line 79 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t79 user79@example.com /Users/dani/Documents/x79"
+    },
+    {
+      "ts": "10:00:20",
+      "type": "dim",
+      "msg": "line 80 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t80 user80@example.com /Users/dani/Documents/x80"
+    },
+    {
+      "ts": "10:00:21",
+      "type": "warn",
+      "msg": "line 81 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t81 user81@example.com /Users/dani/Documents/x81"
+    },
+    {
+      "ts": "10:00:22",
+      "type": "dim",
+      "msg": "line 82 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t82 user82@example.com /Users/dani/Documents/x82"
+    },
+    {
+      "ts": "10:00:23",
+      "type": "warn",
+      "msg": "line 83 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t83 user83@example.com /Users/dani/Documents/x83"
+    },
+    {
+      "ts": "10:00:24",
+      "type": "dim",
+      "msg": "line 84 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t84 user84@example.com /Users/dani/Documents/x84"
+    },
+    {
+      "ts": "10:00:25",
+      "type": "warn",
+      "msg": "line 85 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t85 user85@example.com /Users/dani/Documents/x85"
+    },
+    {
+      "ts": "10:00:26",
+      "type": "dim",
+      "msg": "line 86 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t86 user86@example.com /Users/dani/Documents/x86"
+    },
+    {
+      "ts": "10:00:27",
+      "type": "warn",
+      "msg": "line 87 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t87 user87@example.com /Users/dani/Documents/x87"
+    },
+    {
+      "ts": "10:00:28",
+      "type": "dim",
+      "msg": "line 88 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t88 user88@example.com /Users/dani/Documents/x88"
+    },
+    {
+      "ts": "10:00:29",
+      "type": "warn",
+      "msg": "line 89 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t89 user89@example.com /Users/dani/Documents/x89"
+    },
+    {
+      "ts": "10:00:30",
+      "type": "dim",
+      "msg": "line 90 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t90 user90@example.com /Users/dani/Documents/x90"
+    },
+    {
+      "ts": "10:00:31",
+      "type": "warn",
+      "msg": "line 91 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t91 user91@example.com /Users/dani/Documents/x91"
+    },
+    {
+      "ts": "10:00:32",
+      "type": "dim",
+      "msg": "line 92 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t92 user92@example.com /Users/dani/Documents/x92"
+    },
+    {
+      "ts": "10:00:33",
+      "type": "warn",
+      "msg": "line 93 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t93 user93@example.com /Users/dani/Documents/x93"
+    },
+    {
+      "ts": "10:00:34",
+      "type": "dim",
+      "msg": "line 94 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t94 user94@example.com /Users/dani/Documents/x94"
+    },
+    {
+      "ts": "10:00:35",
+      "type": "warn",
+      "msg": "line 95 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t95 user95@example.com /Users/dani/Documents/x95"
+    },
+    {
+      "ts": "10:00:36",
+      "type": "dim",
+      "msg": "line 96 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t96 user96@example.com /Users/dani/Documents/x96"
+    },
+    {
+      "ts": "10:00:37",
+      "type": "warn",
+      "msg": "line 97 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t97 user97@example.com /Users/dani/Documents/x97"
+    },
+    {
+      "ts": "10:00:38",
+      "type": "dim",
+      "msg": "line 98 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t98 user98@example.com /Users/dani/Documents/x98"
+    },
+    {
+      "ts": "10:00:39",
+      "type": "warn",
+      "msg": "line 99 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t99 user99@example.com /Users/dani/Documents/x99"
+    },
+    {
+      "ts": "10:00:40",
+      "type": "dim",
+      "msg": "line 100 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t100 user100@example.com /Users/dani/Documents/x100"
+    },
+    {
+      "ts": "10:00:41",
+      "type": "warn",
+      "msg": "line 101 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t101 user101@example.com /Users/dani/Documents/x101"
+    },
+    {
+      "ts": "10:00:42",
+      "type": "dim",
+      "msg": "line 102 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t102 user102@example.com /Users/dani/Documents/x102"
+    },
+    {
+      "ts": "10:00:43",
+      "type": "warn",
+      "msg": "line 103 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t103 user103@example.com /Users/dani/Documents/x103"
+    },
+    {
+      "ts": "10:00:44",
+      "type": "dim",
+      "msg": "line 104 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t104 user104@example.com /Users/dani/Documents/x104"
+    },
+    {
+      "ts": "10:00:45",
+      "type": "warn",
+      "msg": "line 105 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t105 user105@example.com /Users/dani/Documents/x105"
+    },
+    {
+      "ts": "10:00:46",
+      "type": "dim",
+      "msg": "line 106 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t106 user106@example.com /Users/dani/Documents/x106"
+    },
+    {
+      "ts": "10:00:47",
+      "type": "warn",
+      "msg": "line 107 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t107 user107@example.com /Users/dani/Documents/x107"
+    },
+    {
+      "ts": "10:00:48",
+      "type": "dim",
+      "msg": "line 108 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t108 user108@example.com /Users/dani/Documents/x108"
+    },
+    {
+      "ts": "10:00:49",
+      "type": "warn",
+      "msg": "line 109 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t109 user109@example.com /Users/dani/Documents/x109"
+    },
+    {
+      "ts": "10:00:50",
+      "type": "dim",
+      "msg": "line 110 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t110 user110@example.com /Users/dani/Documents/x110"
+    },
+    {
+      "ts": "10:00:51",
+      "type": "warn",
+      "msg": "line 111 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t111 user111@example.com /Users/dani/Documents/x111"
+    },
+    {
+      "ts": "10:00:52",
+      "type": "dim",
+      "msg": "line 112 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t112 user112@example.com /Users/dani/Documents/x112"
+    },
+    {
+      "ts": "10:00:53",
+      "type": "warn",
+      "msg": "line 113 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t113 user113@example.com /Users/dani/Documents/x113"
+    },
+    {
+      "ts": "10:00:54",
+      "type": "dim",
+      "msg": "line 114 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t114 user114@example.com /Users/dani/Documents/x114"
+    },
+    {
+      "ts": "10:00:55",
+      "type": "warn",
+      "msg": "line 115 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t115 user115@example.com /Users/dani/Documents/x115"
+    },
+    {
+      "ts": "10:00:56",
+      "type": "dim",
+      "msg": "line 116 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t116 user116@example.com /Users/dani/Documents/x116"
+    },
+    {
+      "ts": "10:00:57",
+      "type": "warn",
+      "msg": "line 117 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t117 user117@example.com /Users/dani/Documents/x117"
+    },
+    {
+      "ts": "10:00:58",
+      "type": "dim",
+      "msg": "line 118 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t118 user118@example.com /Users/dani/Documents/x118"
+    },
+    {
+      "ts": "10:00:59",
+      "type": "warn",
+      "msg": "line 119 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t119 user119@example.com /Users/dani/Documents/x119"
+    },
+    {
+      "ts": "10:00:00",
+      "type": "dim",
+      "msg": "line 120 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t120 user120@example.com /Users/dani/Documents/x120"
+    },
+    {
+      "ts": "10:00:01",
+      "type": "warn",
+      "msg": "line 121 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t121 user121@example.com /Users/dani/Documents/x121"
+    },
+    {
+      "ts": "10:00:02",
+      "type": "dim",
+      "msg": "line 122 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t122 user122@example.com /Users/dani/Documents/x122"
+    },
+    {
+      "ts": "10:00:03",
+      "type": "warn",
+      "msg": "line 123 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t123 user123@example.com /Users/dani/Documents/x123"
+    },
+    {
+      "ts": "10:00:04",
+      "type": "dim",
+      "msg": "line 124 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t124 user124@example.com /Users/dani/Documents/x124"
+    },
+    {
+      "ts": "10:00:05",
+      "type": "warn",
+      "msg": "line 125 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t125 user125@example.com /Users/dani/Documents/x125"
+    },
+    {
+      "ts": "10:00:06",
+      "type": "dim",
+      "msg": "line 126 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t126 user126@example.com /Users/dani/Documents/x126"
+    },
+    {
+      "ts": "10:00:07",
+      "type": "warn",
+      "msg": "line 127 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t127 user127@example.com /Users/dani/Documents/x127"
+    },
+    {
+      "ts": "10:00:08",
+      "type": "dim",
+      "msg": "line 128 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t128 user128@example.com /Users/dani/Documents/x128"
+    },
+    {
+      "ts": "10:00:09",
+      "type": "warn",
+      "msg": "line 129 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t129 user129@example.com /Users/dani/Documents/x129"
+    },
+    {
+      "ts": "10:00:10",
+      "type": "dim",
+      "msg": "line 130 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t130 user130@example.com /Users/dani/Documents/x130"
+    },
+    {
+      "ts": "10:00:11",
+      "type": "warn",
+      "msg": "line 131 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t131 user131@example.com /Users/dani/Documents/x131"
+    },
+    {
+      "ts": "10:00:12",
+      "type": "dim",
+      "msg": "line 132 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t132 user132@example.com /Users/dani/Documents/x132"
+    },
+    {
+      "ts": "10:00:13",
+      "type": "warn",
+      "msg": "line 133 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t133 user133@example.com /Users/dani/Documents/x133"
+    },
+    {
+      "ts": "10:00:14",
+      "type": "dim",
+      "msg": "line 134 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t134 user134@example.com /Users/dani/Documents/x134"
+    },
+    {
+      "ts": "10:00:15",
+      "type": "warn",
+      "msg": "line 135 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t135 user135@example.com /Users/dani/Documents/x135"
+    },
+    {
+      "ts": "10:00:16",
+      "type": "dim",
+      "msg": "line 136 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t136 user136@example.com /Users/dani/Documents/x136"
+    },
+    {
+      "ts": "10:00:17",
+      "type": "warn",
+      "msg": "line 137 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t137 user137@example.com /Users/dani/Documents/x137"
+    },
+    {
+      "ts": "10:00:18",
+      "type": "dim",
+      "msg": "line 138 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t138 user138@example.com /Users/dani/Documents/x138"
+    },
+    {
+      "ts": "10:00:19",
+      "type": "warn",
+      "msg": "line 139 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t139 user139@example.com /Users/dani/Documents/x139"
+    },
+    {
+      "ts": "10:00:20",
+      "type": "dim",
+      "msg": "line 140 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t140 user140@example.com /Users/dani/Documents/x140"
+    },
+    {
+      "ts": "10:00:21",
+      "type": "warn",
+      "msg": "line 141 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t141 user141@example.com /Users/dani/Documents/x141"
+    },
+    {
+      "ts": "10:00:22",
+      "type": "dim",
+      "msg": "line 142 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t142 user142@example.com /Users/dani/Documents/x142"
+    },
+    {
+      "ts": "10:00:23",
+      "type": "warn",
+      "msg": "line 143 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t143 user143@example.com /Users/dani/Documents/x143"
+    },
+    {
+      "ts": "10:00:24",
+      "type": "dim",
+      "msg": "line 144 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t144 user144@example.com /Users/dani/Documents/x144"
+    },
+    {
+      "ts": "10:00:25",
+      "type": "warn",
+      "msg": "line 145 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t145 user145@example.com /Users/dani/Documents/x145"
+    },
+    {
+      "ts": "10:00:26",
+      "type": "dim",
+      "msg": "line 146 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t146 user146@example.com /Users/dani/Documents/x146"
+    },
+    {
+      "ts": "10:00:27",
+      "type": "warn",
+      "msg": "line 147 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t147 user147@example.com /Users/dani/Documents/x147"
+    },
+    {
+      "ts": "10:00:28",
+      "type": "dim",
+      "msg": "line 148 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t148 user148@example.com /Users/dani/Documents/x148"
+    },
+    {
+      "ts": "10:00:29",
+      "type": "warn",
+      "msg": "line 149 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t149 user149@example.com /Users/dani/Documents/x149"
+    },
+    {
+      "ts": "10:00:30",
+      "type": "dim",
+      "msg": "line 150 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t150 user150@example.com /Users/dani/Documents/x150"
+    },
+    {
+      "ts": "10:00:31",
+      "type": "warn",
+      "msg": "line 151 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t151 user151@example.com /Users/dani/Documents/x151"
+    },
+    {
+      "ts": "10:00:32",
+      "type": "dim",
+      "msg": "line 152 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t152 user152@example.com /Users/dani/Documents/x152"
+    },
+    {
+      "ts": "10:00:33",
+      "type": "warn",
+      "msg": "line 153 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t153 user153@example.com /Users/dani/Documents/x153"
+    },
+    {
+      "ts": "10:00:34",
+      "type": "dim",
+      "msg": "line 154 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t154 user154@example.com /Users/dani/Documents/x154"
+    },
+    {
+      "ts": "10:00:35",
+      "type": "warn",
+      "msg": "line 155 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t155 user155@example.com /Users/dani/Documents/x155"
+    },
+    {
+      "ts": "10:00:36",
+      "type": "dim",
+      "msg": "line 156 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t156 user156@example.com /Users/dani/Documents/x156"
+    },
+    {
+      "ts": "10:00:37",
+      "type": "warn",
+      "msg": "line 157 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t157 user157@example.com /Users/dani/Documents/x157"
+    },
+    {
+      "ts": "10:00:38",
+      "type": "dim",
+      "msg": "line 158 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t158 user158@example.com /Users/dani/Documents/x158"
+    },
+    {
+      "ts": "10:00:39",
+      "type": "warn",
+      "msg": "line 159 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t159 user159@example.com /Users/dani/Documents/x159"
+    },
+    {
+      "ts": "10:00:40",
+      "type": "dim",
+      "msg": "line 160 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t160 user160@example.com /Users/dani/Documents/x160"
+    },
+    {
+      "ts": "10:00:41",
+      "type": "warn",
+      "msg": "line 161 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t161 user161@example.com /Users/dani/Documents/x161"
+    },
+    {
+      "ts": "10:00:42",
+      "type": "dim",
+      "msg": "line 162 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t162 user162@example.com /Users/dani/Documents/x162"
+    },
+    {
+      "ts": "10:00:43",
+      "type": "warn",
+      "msg": "line 163 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t163 user163@example.com /Users/dani/Documents/x163"
+    },
+    {
+      "ts": "10:00:44",
+      "type": "dim",
+      "msg": "line 164 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t164 user164@example.com /Users/dani/Documents/x164"
+    },
+    {
+      "ts": "10:00:45",
+      "type": "warn",
+      "msg": "line 165 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t165 user165@example.com /Users/dani/Documents/x165"
+    },
+    {
+      "ts": "10:00:46",
+      "type": "dim",
+      "msg": "line 166 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t166 user166@example.com /Users/dani/Documents/x166"
+    },
+    {
+      "ts": "10:00:47",
+      "type": "warn",
+      "msg": "line 167 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t167 user167@example.com /Users/dani/Documents/x167"
+    },
+    {
+      "ts": "10:00:48",
+      "type": "dim",
+      "msg": "line 168 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t168 user168@example.com /Users/dani/Documents/x168"
+    },
+    {
+      "ts": "10:00:49",
+      "type": "warn",
+      "msg": "line 169 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t169 user169@example.com /Users/dani/Documents/x169"
+    },
+    {
+      "ts": "10:00:50",
+      "type": "dim",
+      "msg": "line 170 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t170 user170@example.com /Users/dani/Documents/x170"
+    },
+    {
+      "ts": "10:00:51",
+      "type": "warn",
+      "msg": "line 171 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t171 user171@example.com /Users/dani/Documents/x171"
+    },
+    {
+      "ts": "10:00:52",
+      "type": "dim",
+      "msg": "line 172 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t172 user172@example.com /Users/dani/Documents/x172"
+    },
+    {
+      "ts": "10:00:53",
+      "type": "warn",
+      "msg": "line 173 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t173 user173@example.com /Users/dani/Documents/x173"
+    },
+    {
+      "ts": "10:00:54",
+      "type": "dim",
+      "msg": "line 174 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t174 user174@example.com /Users/dani/Documents/x174"
+    },
+    {
+      "ts": "10:00:55",
+      "type": "warn",
+      "msg": "line 175 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t175 user175@example.com /Users/dani/Documents/x175"
+    },
+    {
+      "ts": "10:00:56",
+      "type": "dim",
+      "msg": "line 176 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t176 user176@example.com /Users/dani/Documents/x176"
+    },
+    {
+      "ts": "10:00:57",
+      "type": "warn",
+      "msg": "line 177 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t177 user177@example.com /Users/dani/Documents/x177"
+    },
+    {
+      "ts": "10:00:58",
+      "type": "dim",
+      "msg": "line 178 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t178 user178@example.com /Users/dani/Documents/x178"
+    },
+    {
+      "ts": "10:00:59",
+      "type": "warn",
+      "msg": "line 179 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t179 user179@example.com /Users/dani/Documents/x179"
+    },
+    {
+      "ts": "10:00:00",
+      "type": "dim",
+      "msg": "line 180 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t180 user180@example.com /Users/dani/Documents/x180"
+    },
+    {
+      "ts": "10:00:01",
+      "type": "warn",
+      "msg": "line 181 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t181 user181@example.com /Users/dani/Documents/x181"
+    },
+    {
+      "ts": "10:00:02",
+      "type": "dim",
+      "msg": "line 182 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t182 user182@example.com /Users/dani/Documents/x182"
+    },
+    {
+      "ts": "10:00:03",
+      "type": "warn",
+      "msg": "line 183 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t183 user183@example.com /Users/dani/Documents/x183"
+    },
+    {
+      "ts": "10:00:04",
+      "type": "dim",
+      "msg": "line 184 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t184 user184@example.com /Users/dani/Documents/x184"
+    },
+    {
+      "ts": "10:00:05",
+      "type": "warn",
+      "msg": "line 185 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t185 user185@example.com /Users/dani/Documents/x185"
+    },
+    {
+      "ts": "10:00:06",
+      "type": "dim",
+      "msg": "line 186 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t186 user186@example.com /Users/dani/Documents/x186"
+    },
+    {
+      "ts": "10:00:07",
+      "type": "warn",
+      "msg": "line 187 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t187 user187@example.com /Users/dani/Documents/x187"
+    },
+    {
+      "ts": "10:00:08",
+      "type": "dim",
+      "msg": "line 188 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t188 user188@example.com /Users/dani/Documents/x188"
+    },
+    {
+      "ts": "10:00:09",
+      "type": "warn",
+      "msg": "line 189 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t189 user189@example.com /Users/dani/Documents/x189"
+    },
+    {
+      "ts": "10:00:10",
+      "type": "dim",
+      "msg": "line 190 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t190 user190@example.com /Users/dani/Documents/x190"
+    },
+    {
+      "ts": "10:00:11",
+      "type": "warn",
+      "msg": "line 191 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t191 user191@example.com /Users/dani/Documents/x191"
+    },
+    {
+      "ts": "10:00:12",
+      "type": "dim",
+      "msg": "line 192 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t192 user192@example.com /Users/dani/Documents/x192"
+    },
+    {
+      "ts": "10:00:13",
+      "type": "warn",
+      "msg": "line 193 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t193 user193@example.com /Users/dani/Documents/x193"
+    },
+    {
+      "ts": "10:00:14",
+      "type": "dim",
+      "msg": "line 194 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t194 user194@example.com /Users/dani/Documents/x194"
+    },
+    {
+      "ts": "10:00:15",
+      "type": "warn",
+      "msg": "line 195 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t195 user195@example.com /Users/dani/Documents/x195"
+    },
+    {
+      "ts": "10:00:16",
+      "type": "dim",
+      "msg": "line 196 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t196 user196@example.com /Users/dani/Documents/x196"
+    },
+    {
+      "ts": "10:00:17",
+      "type": "warn",
+      "msg": "line 197 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t197 user197@example.com /Users/dani/Documents/x197"
+    },
+    {
+      "ts": "10:00:18",
+      "type": "dim",
+      "msg": "line 198 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t198 user198@example.com /Users/dani/Documents/x198"
+    },
+    {
+      "ts": "10:00:19",
+      "type": "warn",
+      "msg": "line 199 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t199 user199@example.com /Users/dani/Documents/x199"
+    },
+    {
+      "ts": "10:00:20",
+      "type": "dim",
+      "msg": "line 200 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t200 user200@example.com /Users/dani/Documents/x200"
+    },
+    {
+      "ts": "10:00:21",
+      "type": "warn",
+      "msg": "line 201 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t201 user201@example.com /Users/dani/Documents/x201"
+    },
+    {
+      "ts": "10:00:22",
+      "type": "dim",
+      "msg": "line 202 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t202 user202@example.com /Users/dani/Documents/x202"
+    },
+    {
+      "ts": "10:00:23",
+      "type": "warn",
+      "msg": "line 203 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t203 user203@example.com /Users/dani/Documents/x203"
+    },
+    {
+      "ts": "10:00:24",
+      "type": "dim",
+      "msg": "line 204 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t204 user204@example.com /Users/dani/Documents/x204"
+    },
+    {
+      "ts": "10:00:25",
+      "type": "warn",
+      "msg": "line 205 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t205 user205@example.com /Users/dani/Documents/x205"
+    },
+    {
+      "ts": "10:00:26",
+      "type": "dim",
+      "msg": "line 206 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t206 user206@example.com /Users/dani/Documents/x206"
+    },
+    {
+      "ts": "10:00:27",
+      "type": "warn",
+      "msg": "line 207 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t207 user207@example.com /Users/dani/Documents/x207"
+    },
+    {
+      "ts": "10:00:28",
+      "type": "dim",
+      "msg": "line 208 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t208 user208@example.com /Users/dani/Documents/x208"
+    },
+    {
+      "ts": "10:00:29",
+      "type": "warn",
+      "msg": "line 209 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t209 user209@example.com /Users/dani/Documents/x209"
+    },
+    {
+      "ts": "10:00:30",
+      "type": "dim",
+      "msg": "line 210 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t210 user210@example.com /Users/dani/Documents/x210"
+    },
+    {
+      "ts": "10:00:31",
+      "type": "warn",
+      "msg": "line 211 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t211 user211@example.com /Users/dani/Documents/x211"
+    },
+    {
+      "ts": "10:00:32",
+      "type": "dim",
+      "msg": "line 212 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t212 user212@example.com /Users/dani/Documents/x212"
+    },
+    {
+      "ts": "10:00:33",
+      "type": "warn",
+      "msg": "line 213 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t213 user213@example.com /Users/dani/Documents/x213"
+    },
+    {
+      "ts": "10:00:34",
+      "type": "dim",
+      "msg": "line 214 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t214 user214@example.com /Users/dani/Documents/x214"
+    },
+    {
+      "ts": "10:00:35",
+      "type": "warn",
+      "msg": "line 215 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t215 user215@example.com /Users/dani/Documents/x215"
+    },
+    {
+      "ts": "10:00:36",
+      "type": "dim",
+      "msg": "line 216 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t216 user216@example.com /Users/dani/Documents/x216"
+    },
+    {
+      "ts": "10:00:37",
+      "type": "warn",
+      "msg": "line 217 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t217 user217@example.com /Users/dani/Documents/x217"
+    },
+    {
+      "ts": "10:00:38",
+      "type": "dim",
+      "msg": "line 218 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t218 user218@example.com /Users/dani/Documents/x218"
+    },
+    {
+      "ts": "10:00:39",
+      "type": "warn",
+      "msg": "line 219 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t219 user219@example.com /Users/dani/Documents/x219"
+    },
+    {
+      "ts": "10:00:40",
+      "type": "dim",
+      "msg": "line 220 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t220 user220@example.com /Users/dani/Documents/x220"
+    },
+    {
+      "ts": "10:00:41",
+      "type": "warn",
+      "msg": "line 221 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t221 user221@example.com /Users/dani/Documents/x221"
+    },
+    {
+      "ts": "10:00:42",
+      "type": "dim",
+      "msg": "line 222 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t222 user222@example.com /Users/dani/Documents/x222"
+    },
+    {
+      "ts": "10:00:43",
+      "type": "warn",
+      "msg": "line 223 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t223 user223@example.com /Users/dani/Documents/x223"
+    },
+    {
+      "ts": "10:00:44",
+      "type": "dim",
+      "msg": "line 224 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t224 user224@example.com /Users/dani/Documents/x224"
+    },
+    {
+      "ts": "10:00:45",
+      "type": "warn",
+      "msg": "line 225 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t225 user225@example.com /Users/dani/Documents/x225"
+    },
+    {
+      "ts": "10:00:46",
+      "type": "dim",
+      "msg": "line 226 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t226 user226@example.com /Users/dani/Documents/x226"
+    },
+    {
+      "ts": "10:00:47",
+      "type": "warn",
+      "msg": "line 227 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t227 user227@example.com /Users/dani/Documents/x227"
+    },
+    {
+      "ts": "10:00:48",
+      "type": "dim",
+      "msg": "line 228 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t228 user228@example.com /Users/dani/Documents/x228"
+    },
+    {
+      "ts": "10:00:49",
+      "type": "warn",
+      "msg": "line 229 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t229 user229@example.com /Users/dani/Documents/x229"
+    },
+    {
+      "ts": "10:00:50",
+      "type": "dim",
+      "msg": "line 230 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t230 user230@example.com /Users/dani/Documents/x230"
+    },
+    {
+      "ts": "10:00:51",
+      "type": "warn",
+      "msg": "line 231 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t231 user231@example.com /Users/dani/Documents/x231"
+    },
+    {
+      "ts": "10:00:52",
+      "type": "dim",
+      "msg": "line 232 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t232 user232@example.com /Users/dani/Documents/x232"
+    },
+    {
+      "ts": "10:00:53",
+      "type": "warn",
+      "msg": "line 233 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t233 user233@example.com /Users/dani/Documents/x233"
+    },
+    {
+      "ts": "10:00:54",
+      "type": "dim",
+      "msg": "line 234 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t234 user234@example.com /Users/dani/Documents/x234"
+    },
+    {
+      "ts": "10:00:55",
+      "type": "warn",
+      "msg": "line 235 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t235 user235@example.com /Users/dani/Documents/x235"
+    },
+    {
+      "ts": "10:00:56",
+      "type": "dim",
+      "msg": "line 236 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t236 user236@example.com /Users/dani/Documents/x236"
+    },
+    {
+      "ts": "10:00:57",
+      "type": "warn",
+      "msg": "line 237 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t237 user237@example.com /Users/dani/Documents/x237"
+    },
+    {
+      "ts": "10:00:58",
+      "type": "dim",
+      "msg": "line 238 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t238 user238@example.com /Users/dani/Documents/x238"
+    },
+    {
+      "ts": "10:00:59",
+      "type": "warn",
+      "msg": "line 239 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t239 user239@example.com /Users/dani/Documents/x239"
+    },
+    {
+      "ts": "10:00:00",
+      "type": "dim",
+      "msg": "line 240 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t240 user240@example.com /Users/dani/Documents/x240"
+    },
+    {
+      "ts": "10:00:01",
+      "type": "warn",
+      "msg": "line 241 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t241 user241@example.com /Users/dani/Documents/x241"
+    },
+    {
+      "ts": "10:00:02",
+      "type": "dim",
+      "msg": "line 242 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t242 user242@example.com /Users/dani/Documents/x242"
+    },
+    {
+      "ts": "10:00:03",
+      "type": "warn",
+      "msg": "line 243 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t243 user243@example.com /Users/dani/Documents/x243"
+    },
+    {
+      "ts": "10:00:04",
+      "type": "dim",
+      "msg": "line 244 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t244 user244@example.com /Users/dani/Documents/x244"
+    },
+    {
+      "ts": "10:00:05",
+      "type": "warn",
+      "msg": "line 245 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t245 user245@example.com /Users/dani/Documents/x245"
+    },
+    {
+      "ts": "10:00:06",
+      "type": "dim",
+      "msg": "line 246 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t246 user246@example.com /Users/dani/Documents/x246"
+    },
+    {
+      "ts": "10:00:07",
+      "type": "warn",
+      "msg": "line 247 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t247 user247@example.com /Users/dani/Documents/x247"
+    },
+    {
+      "ts": "10:00:08",
+      "type": "dim",
+      "msg": "line 248 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t248 user248@example.com /Users/dani/Documents/x248"
+    },
+    {
+      "ts": "10:00:09",
+      "type": "warn",
+      "msg": "line 249 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t249 user249@example.com /Users/dani/Documents/x249"
+    },
+    {
+      "ts": "10:00:10",
+      "type": "dim",
+      "msg": "line 250 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t250 user250@example.com /Users/dani/Documents/x250"
+    },
+    {
+      "ts": "10:00:11",
+      "type": "warn",
+      "msg": "line 251 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t251 user251@example.com /Users/dani/Documents/x251"
+    },
+    {
+      "ts": "10:00:12",
+      "type": "dim",
+      "msg": "line 252 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t252 user252@example.com /Users/dani/Documents/x252"
+    },
+    {
+      "ts": "10:00:13",
+      "type": "warn",
+      "msg": "line 253 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t253 user253@example.com /Users/dani/Documents/x253"
+    },
+    {
+      "ts": "10:00:14",
+      "type": "dim",
+      "msg": "line 254 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t254 user254@example.com /Users/dani/Documents/x254"
+    },
+    {
+      "ts": "10:00:15",
+      "type": "warn",
+      "msg": "line 255 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t255 user255@example.com /Users/dani/Documents/x255"
+    },
+    {
+      "ts": "10:00:16",
+      "type": "dim",
+      "msg": "line 256 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t256 user256@example.com /Users/dani/Documents/x256"
+    },
+    {
+      "ts": "10:00:17",
+      "type": "warn",
+      "msg": "line 257 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t257 user257@example.com /Users/dani/Documents/x257"
+    },
+    {
+      "ts": "10:00:18",
+      "type": "dim",
+      "msg": "line 258 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t258 user258@example.com /Users/dani/Documents/x258"
+    },
+    {
+      "ts": "10:00:19",
+      "type": "warn",
+      "msg": "line 259 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t259 user259@example.com /Users/dani/Documents/x259"
+    },
+    {
+      "ts": "10:00:20",
+      "type": "dim",
+      "msg": "line 260 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t260 user260@example.com /Users/dani/Documents/x260"
+    },
+    {
+      "ts": "10:00:21",
+      "type": "warn",
+      "msg": "line 261 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t261 user261@example.com /Users/dani/Documents/x261"
+    },
+    {
+      "ts": "10:00:22",
+      "type": "dim",
+      "msg": "line 262 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t262 user262@example.com /Users/dani/Documents/x262"
+    },
+    {
+      "ts": "10:00:23",
+      "type": "warn",
+      "msg": "line 263 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t263 user263@example.com /Users/dani/Documents/x263"
+    },
+    {
+      "ts": "10:00:24",
+      "type": "dim",
+      "msg": "line 264 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t264 user264@example.com /Users/dani/Documents/x264"
+    },
+    {
+      "ts": "10:00:25",
+      "type": "warn",
+      "msg": "line 265 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t265 user265@example.com /Users/dani/Documents/x265"
+    },
+    {
+      "ts": "10:00:26",
+      "type": "dim",
+      "msg": "line 266 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t266 user266@example.com /Users/dani/Documents/x266"
+    },
+    {
+      "ts": "10:00:27",
+      "type": "warn",
+      "msg": "line 267 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t267 user267@example.com /Users/dani/Documents/x267"
+    },
+    {
+      "ts": "10:00:28",
+      "type": "dim",
+      "msg": "line 268 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t268 user268@example.com /Users/dani/Documents/x268"
+    },
+    {
+      "ts": "10:00:29",
+      "type": "warn",
+      "msg": "line 269 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t269 user269@example.com /Users/dani/Documents/x269"
+    },
+    {
+      "ts": "10:00:30",
+      "type": "dim",
+      "msg": "line 270 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t270 user270@example.com /Users/dani/Documents/x270"
+    },
+    {
+      "ts": "10:00:31",
+      "type": "warn",
+      "msg": "line 271 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t271 user271@example.com /Users/dani/Documents/x271"
+    },
+    {
+      "ts": "10:00:32",
+      "type": "dim",
+      "msg": "line 272 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t272 user272@example.com /Users/dani/Documents/x272"
+    },
+    {
+      "ts": "10:00:33",
+      "type": "warn",
+      "msg": "line 273 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t273 user273@example.com /Users/dani/Documents/x273"
+    },
+    {
+      "ts": "10:00:34",
+      "type": "dim",
+      "msg": "line 274 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t274 user274@example.com /Users/dani/Documents/x274"
+    },
+    {
+      "ts": "10:00:35",
+      "type": "warn",
+      "msg": "line 275 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t275 user275@example.com /Users/dani/Documents/x275"
+    },
+    {
+      "ts": "10:00:36",
+      "type": "dim",
+      "msg": "line 276 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t276 user276@example.com /Users/dani/Documents/x276"
+    },
+    {
+      "ts": "10:00:37",
+      "type": "warn",
+      "msg": "line 277 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t277 user277@example.com /Users/dani/Documents/x277"
+    },
+    {
+      "ts": "10:00:38",
+      "type": "dim",
+      "msg": "line 278 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t278 user278@example.com /Users/dani/Documents/x278"
+    },
+    {
+      "ts": "10:00:39",
+      "type": "warn",
+      "msg": "line 279 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t279 user279@example.com /Users/dani/Documents/x279"
+    },
+    {
+      "ts": "10:00:40",
+      "type": "dim",
+      "msg": "line 280 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t280 user280@example.com /Users/dani/Documents/x280"
+    },
+    {
+      "ts": "10:00:41",
+      "type": "warn",
+      "msg": "line 281 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t281 user281@example.com /Users/dani/Documents/x281"
+    },
+    {
+      "ts": "10:00:42",
+      "type": "dim",
+      "msg": "line 282 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t282 user282@example.com /Users/dani/Documents/x282"
+    },
+    {
+      "ts": "10:00:43",
+      "type": "warn",
+      "msg": "line 283 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t283 user283@example.com /Users/dani/Documents/x283"
+    },
+    {
+      "ts": "10:00:44",
+      "type": "dim",
+      "msg": "line 284 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t284 user284@example.com /Users/dani/Documents/x284"
+    },
+    {
+      "ts": "10:00:45",
+      "type": "warn",
+      "msg": "line 285 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t285 user285@example.com /Users/dani/Documents/x285"
+    },
+    {
+      "ts": "10:00:46",
+      "type": "dim",
+      "msg": "line 286 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t286 user286@example.com /Users/dani/Documents/x286"
+    },
+    {
+      "ts": "10:00:47",
+      "type": "warn",
+      "msg": "line 287 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t287 user287@example.com /Users/dani/Documents/x287"
+    },
+    {
+      "ts": "10:00:48",
+      "type": "dim",
+      "msg": "line 288 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t288 user288@example.com /Users/dani/Documents/x288"
+    },
+    {
+      "ts": "10:00:49",
+      "type": "warn",
+      "msg": "line 289 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t289 user289@example.com /Users/dani/Documents/x289"
+    },
+    {
+      "ts": "10:00:50",
+      "type": "dim",
+      "msg": "line 290 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t290 user290@example.com /Users/dani/Documents/x290"
+    },
+    {
+      "ts": "10:00:51",
+      "type": "warn",
+      "msg": "line 291 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t291 user291@example.com /Users/dani/Documents/x291"
+    },
+    {
+      "ts": "10:00:52",
+      "type": "dim",
+      "msg": "line 292 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t292 user292@example.com /Users/dani/Documents/x292"
+    },
+    {
+      "ts": "10:00:53",
+      "type": "warn",
+      "msg": "line 293 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t293 user293@example.com /Users/dani/Documents/x293"
+    },
+    {
+      "ts": "10:00:54",
+      "type": "dim",
+      "msg": "line 294 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t294 user294@example.com /Users/dani/Documents/x294"
+    },
+    {
+      "ts": "10:00:55",
+      "type": "warn",
+      "msg": "line 295 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t295 user295@example.com /Users/dani/Documents/x295"
+    },
+    {
+      "ts": "10:00:56",
+      "type": "dim",
+      "msg": "line 296 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t296 user296@example.com /Users/dani/Documents/x296"
+    },
+    {
+      "ts": "10:00:57",
+      "type": "warn",
+      "msg": "line 297 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t297 user297@example.com /Users/dani/Documents/x297"
+    },
+    {
+      "ts": "10:00:58",
+      "type": "dim",
+      "msg": "line 298 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t298 user298@example.com /Users/dani/Documents/x298"
+    },
+    {
+      "ts": "10:00:59",
+      "type": "warn",
+      "msg": "line 299 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx token=t299 user299@example.com /Users/dani/Documents/x299"
+    }
+  ],
+  "version": "4.3.0",
+  "os": "Mac OS X 15.6"
+}

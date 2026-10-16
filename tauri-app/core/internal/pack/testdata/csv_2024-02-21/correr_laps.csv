@@ -1,0 +1,6 @@
+activityId,activityName,lap_lapIndex,lap_startTimeGMT,lap_distance,lap_duration,lap_movingDuration,lap_averageSpeed,lap_averageHR,lap_maxHR,lap_calories,lap_averageRunCadence,lap_maxRunCadence,lap_averageTemperature,lap_maxTemperature,lap_minTemperature,lap_totalAscent,lap_totalDescent
+1010,activityName-redacted,1,2024-02-14T13:13:21.0,1128,1224.759,998,0.761949,122,191,122,81.9582,129,22,37,32,,
+1010,activityName-redacted,2,2024-02-14T13:29:38.0,1128,1002.63,874.876,0.930692,124,178,92,89.774968,126,22,37,33,,
+1010,activityName-redacted,3,2024-02-14T13:42:57.0,1128,1025.968,890,0.909135,127,181,92,88.40531,137,22,38,33,,
+1010,activityName-redacted,4,2024-02-14T13:56:35.0,1128,1048.722,896,0.889807,128,182,92,87.8242,120,22,37,33,,
+1010,activityName-redacted,5,2024-02-14T14:10:30.0,241.48,219.554,189,0.909878,129,182,20,88.529823,118,22,37,33,,

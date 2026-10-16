@@ -1,0 +1,6 @@
+date,readiness_level,readiness_feedbackShort,readiness_feedbackLong,morning_readiness_level,morning_readiness_feedback,morning_readiness_recoveryTime,morning_readiness_sleepScoreFactor,morning_readiness_recoveryTimeFactor,vo2max,trainingStatus,trainingLoad_acute,trainingLoad_chronic,trainingLoad_ratio,trainingLoad_ratioStatus,monthlyLoad_aerobicLow,monthlyLoad_aerobicHigh,monthlyLoad_anaerobic,loadBalance_feedback,enduranceScore,enduranceScore_classification
+2024-02-21,,,,,,,,,,,,,,,,,,,,
+2024-02-20,,,,,,,,,,,,,,,,,,,,
+2024-02-19,HIGH,EXCELLENT_RECOVERY,HIGH_RT_HIGHEST_SS_AVAILABLE_ACWR_POS,HIGH,EXCELLENT_RECOVERY,1,86,126,43.6,RECOVERY_1,23,197,0.1,LOW,284.59635,0,26.95798,AEROBIC_HIGH_SHORTAGE,6345,1
+2024-02-18,MODERATE,GOOD_SLEEP_HISTORY,MOD_RT_LOW_SS_MOD,MODERATE,GOOD_SLEEP_HISTORY,1,54,126,43.6,RECOVERY_1,32,197,0.1,LOW,289.1482,0,26.95798,AEROBIC_HIGH_SHORTAGE,6347,1
+2024-02-17,MODERATE,GOOD_SLEEP_HISTORY,MOD_RT_LOW_SS_MOD,MODERATE,GOOD_SLEEP_HISTORY,1,62,126,43.6,RECOVERY_1,45,197,0.2,LOW,293.79392,0,26.95798,AEROBIC_HIGH_SHORTAGE,6348,1

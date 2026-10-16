@@ -1,0 +1,142 @@
+[
+  {
+    "fn": "string",
+    "in": "https://api.example.com/x?token=abc&access_token=def&authCode=ghi&secret=s&password=p&refresh_token=rt&sig=zz&keep=ok",
+    "out": "https://api.example.com/x?token=REDACTED&access_token=REDACTED&authCode=REDACTED&secret=REDACTED&password=REDACTED&refresh_token=REDACTED&sig=REDACTED&keep=ok"
+  },
+  {
+    "fn": "url",
+    "in": "https://api.example.com/x?token=abc&access_token=def&authCode=ghi&secret=s&password=p&refresh_token=rt&sig=zz&keep=ok",
+    "out": "https://api.example.com/x?token=REDACTED&access_token=REDACTED&authCode=REDACTED&secret=REDACTED&password=REDACTED&refresh_token=REDACTED&sig=REDACTED&keep=ok"
+  },
+  {
+    "fn": "string",
+    "in": "plain text",
+    "out": "plain text"
+  },
+  {
+    "fn": "url",
+    "in": "plain text",
+    "out": "plain text"
+  },
+  {
+    "fn": "string",
+    "in": "",
+    "out": ""
+  },
+  {
+    "fn": "url",
+    "in": "",
+    "out": ""
+  },
+  {
+    "fn": "string",
+    "in": "Authorization: Bearer eyJ0.abc.def",
+    "out": "Authorization: Bearer REDACTED"
+  },
+  {
+    "fn": "url",
+    "in": "Authorization: Bearer eyJ0.abc.def",
+    "out": "Authorization: Bearer eyJ0.abc.def"
+  },
+  {
+    "fn": "string",
+    "in": "auth: bearer abc123.def-ghi",
+    "out": "auth: bearer REDACTED"
+  },
+  {
+    "fn": "url",
+    "in": "auth: bearer abc123.def-ghi",
+    "out": "auth: bearer abc123.def-ghi"
+  },
+  {
+    "fn": "string",
+    "in": "Authorization: Basic dXNlcjpwYXNz",
+    "out": "Authorization: Basic REDACTED"
+  },
+  {
+    "fn": "url",
+    "in": "Authorization: Basic dXNlcjpwYXNz",
+    "out": "Authorization: Basic dXNlcjpwYXNz"
+  },
+  {
+    "fn": "string",
+    "in": "Cookie: SESSIONID=abc; other=xyz",
+    "out": "Cookie: REDACTED"
+  },
+  {
+    "fn": "url",
+    "in": "Cookie: SESSIONID=abc; other=xyz",
+    "out": "Cookie: SESSIONID=abc; other=xyz"
+  },
+  {
+    "fn": "string",
+    "in": "Set-Cookie: JWT=eyJ...; Path=/",
+    "out": "Set-Cookie: REDACTED"
+  },
+  {
+    "fn": "url",
+    "in": "Set-Cookie: JWT=eyJ...; Path=/",
+    "out": "Set-Cookie: JWT=eyJ...; Path=/"
+  },
+  {
+    "fn": "string",
+    "in": "error with token eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.sig embedded",
+    "out": "error with token REDACTED_JWT embedded"
+  },
+  {
+    "fn": "url",
+    "in": "error with token eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.sig embedded",
+    "out": "error with token eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.sig embedded"
+  },
+  {
+    "fn": "string",
+    "in": "{\"password\":\"hunter2\",\"token\":\"abc\",\"keep\":\"ok\"}",
+    "out": "{\"password\":\"REDACTED\",\"token\":\"REDACTED\",\"keep\":\"ok\"}"
+  },
+  {
+    "fn": "url",
+    "in": "{\"password\":\"hunter2\",\"token\":\"abc\",\"keep\":\"ok\"}",
+    "out": "{\"password\":\"hunter2\",\"token\":\"abc\",\"keep\":\"ok\"}"
+  },
+  {
+    "fn": "string",
+    "in": "GET https://x/y?access_token=abc&name=me failed",
+    "out": "GET https://x/y?access_token=REDACTED&name=me failed"
+  },
+  {
+    "fn": "url",
+    "in": "GET https://x/y?access_token=abc&name=me failed",
+    "out": "GET https://x/y?access_token=REDACTED&name=me failed"
+  },
+  {
+    "fn": "string",
+    "in": "HTTP 500: {\"error\":\"bad\",\"password\":\"x\"} Bearer abc.def.ghi at /Users/dani/x",
+    "out": "HTTP 500: {\"error\":\"bad\",\"password\":\"REDACTED\"} Bearer REDACTED at /Users/dani/x"
+  },
+  {
+    "fn": "url",
+    "in": "HTTP 500: {\"error\":\"bad\",\"password\":\"x\"} Bearer abc.def.ghi at /Users/dani/x",
+    "out": "HTTP 500: {\"error\":\"bad\",\"password\":\"x\"} Bearer abc.def.ghi at /Users/dani/x"
+  },
+  {
+    "fn": "string",
+    "in": "two lines\nAuthorization: Bearer one.two.three\nCookie: a=b",
+    "out": "two lines\nAuthorization: Bearer REDACTED\nCookie: REDACTED"
+  },
+  {
+    "fn": "url",
+    "in": "two lines\nAuthorization: Bearer one.two.three\nCookie: a=b",
+    "out": "two lines\nAuthorization: Bearer one.two.three\nCookie: a=b"
+  },
+  {
+    "fn": "string",
+    "in": "acentos: contraseña=secreta y \"clientSecret\":\"é\"",
+    "out": "acentos: contraseña=secreta y \"clientSecret\":\"REDACTED\""
+  },
+  {
+    "fn": "url",
+    "in": "acentos: contraseña=secreta y \"clientSecret\":\"é\"",
+    "out": "acentos: contraseña=secreta y \"clientSecret\":\"é\""
+  }
+]

@@ -1,0 +1,6 @@
+date,totalKilocalories,activeKilocalories,bmrKilocalories,totalSteps,totalDistanceMeters,wellnessKilocalories,remainingKilocalories,floorsAscended,floorsDescended,durationInMilliseconds,stepGoal,maxHeartRate,minHeartRate,restingHeartRate,lastSevenDaysAvgRestingHeartRate,maxStressLevel,avgStressLevel,moderateIntensityMinutes,vigorousIntensityMinutes,hydrationGoalMl,hydrationValueMl,hydrationSweatLossMl,hydrationActivityIntakeMl
+2024-02-21,,,,,,,,,,,,,,,,,,,,3290.143,,,
+2024-02-20,,,,,,,,,,,,,,,,,,,,3290.143,,,
+2024-02-19,1525,30,1761,2130,1554,1634,2434,2.7824,5.98449,72488673,2746,97,68,55,53,86,23,0,0,3290.143,,,
+2024-02-18,2123,22,2483,1358,991,2275,2425,4.23633,6.11097,102136682,3114,96,66,53,52,93,27,0,0,3290.143,,,
+2024-02-17,2122,21,2483,1403,1023,2272,2423,5,3.60062,102136682,3569,97,67,54,51,87,26,0,0,3290.143,,,

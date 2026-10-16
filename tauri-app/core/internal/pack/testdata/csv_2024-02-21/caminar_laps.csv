@@ -1,0 +1,2 @@
+activityId,activityName,lap_lapIndex,lap_startTimeGMT,lap_distance,lap_duration,lap_movingDuration,lap_averageSpeed,lap_averageHR,lap_maxHR,lap_calories,lap_averageRunCadence,lap_maxRunCadence,lap_averageTemperature,lap_maxTemperature,lap_minTemperature,lap_totalAscent,lap_totalDescent
+1016,activityName-redacted,1,2024-02-13T00:10:16.0,3269.35,4812.043,2474,0.561984,86,154,220,44.35484,269,,,,,

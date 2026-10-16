@@ -1,0 +1,107 @@
+{
+  "startDate": "2024-02-17",
+  "endDate": "2024-02-21",
+  "days": 5,
+  "files": [
+    {
+      "name": "activities.csv",
+      "rows": 4
+    },
+    {
+      "name": "body_battery.csv",
+      "rows": 5
+    },
+    {
+      "name": "caminar.csv",
+      "rows": 1
+    },
+    {
+      "name": "caminar_laps.csv",
+      "rows": 1
+    },
+    {
+      "name": "correr.csv",
+      "rows": 1
+    },
+    {
+      "name": "correr_laps.csv",
+      "rows": 5
+    },
+    {
+      "name": "daily_steps_aggregated.csv",
+      "rows": 3
+    },
+    {
+      "name": "daily_summary.csv",
+      "rows": 5
+    },
+    {
+      "name": "gym.csv",
+      "rows": 1
+    },
+    {
+      "name": "gym_laps.csv",
+      "rows": 1
+    },
+    {
+      "name": "hill_score_daily.csv",
+      "rows": 3
+    },
+    {
+      "name": "hrv.csv",
+      "rows": 3
+    },
+    {
+      "name": "mfp_daily.csv",
+      "rows": 4
+    },
+    {
+      "name": "mfp_exercise.csv",
+      "rows": 2
+    },
+    {
+      "name": "mfp_food.csv",
+      "rows": 4
+    },
+    {
+      "name": "misc_metrics.csv",
+      "rows": 1
+    },
+    {
+      "name": "running_tolerance.csv",
+      "rows": 3
+    },
+    {
+      "name": "sleep.csv",
+      "rows": 5
+    },
+    {
+      "name": "spo2_respiration.csv",
+      "rows": 5
+    },
+    {
+      "name": "training.csv",
+      "rows": 5
+    },
+    {
+      "name": "weekly_intensity.csv",
+      "rows": 3
+    }
+  ],
+  "warnings": [
+    "hill_score skipped (404)",
+    "[skip] endurance_score: HTTP 204"
+  ],
+  "langs": {
+    "es": {
+      "bytes": 33278,
+      "tokens": 11093,
+      "singleName": "garmin_2024-02-17_2024-02-21.es.md"
+    },
+    "en": {
+      "bytes": 33028,
+      "tokens": 11009,
+      "singleName": "garmin_2024-02-17_2024-02-21.en.md"
+    }
+  }
+}
