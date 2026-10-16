@@ -274,6 +274,18 @@ func TestWriteFilesFaults(t *testing.T) {
 			}
 		}
 	})
+	t.Run("EG-180 WriteFiles sorts the days for the CSV without reordering the caller's slice", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		days := []DayData{{Date: "2026-10-06"}, {Date: "2026-10-05"}}
+		if _, err := WriteFiles(dir, days, Goals{}); err != nil {
+			t.Fatal(err)
+		}
+		rows := readCSVMaps(t, filepath.Join(dir, "mfp_daily.csv"))
+		if days[0].Date != "2026-10-06" || rows[0]["date"] != "2026-10-05" {
+			t.Fatalf("caller order = %v, first CSV row = %v", days, rows[0])
+		}
+	})
 	t.Run("EP-156 an exercise energy in kilojoules is written as kcal", func(t *testing.T) {
 		t.Parallel()
 		dir := t.TempDir()

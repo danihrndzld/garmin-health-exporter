@@ -5,6 +5,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -73,6 +74,7 @@ func sum(acc **float64, v *float64) {
 
 // WriteFiles writes the three MFP CSV files and returns the number of days with food.
 func WriteFiles(dir string, days []DayData, g Goals) (int, error) {
+	days = slices.Clone(days) // sort a copy; the caller's order is not ours to change
 	sort.Slice(days, func(i, j int) bool { return days[i].Date < days[j].Date })
 	var food, daily, exercise [][]string
 	logged := 0
