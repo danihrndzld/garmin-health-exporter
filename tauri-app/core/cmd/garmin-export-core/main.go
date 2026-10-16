@@ -1,5 +1,6 @@
-// garmin-export-core: the Go backend for Garmin Export. main reads one request line, runs its
-// command and writes the result line. The commands are in garmin.go, mfp.go, summary.go, pack.go and report.go.
+// garmin-export-core: the whole backend of Garmin Export (Garmin, MyFitnessPal, the LLM pack and the bug report).
+// main reads one request line, runs its command and writes the result line. The commands are in
+// garmin.go, mfp.go, summary.go, pack.go and report.go.
 package main
 
 import (

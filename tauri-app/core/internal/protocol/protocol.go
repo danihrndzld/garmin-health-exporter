@@ -1,4 +1,4 @@
-// Package protocol is the stdin/stdout contract shared with the Bun sidecar:
+// Package protocol is the stdin/stdout contract of garmin-export-core:
 // one JSON request line in; JSON lines out with kind log, progress or result.
 package protocol
 

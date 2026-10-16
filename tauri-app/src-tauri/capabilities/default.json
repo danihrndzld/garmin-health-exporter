@@ -12,10 +12,6 @@
       "identifier": "shell:allow-spawn",
       "allow": [
         {
-          "name": "binaries/garmin-core",
-          "sidecar": true
-        },
-        {
           "name": "binaries/garmin-export-core",
           "sidecar": true
         }

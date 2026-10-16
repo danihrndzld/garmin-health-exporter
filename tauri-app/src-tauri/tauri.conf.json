@@ -5,8 +5,8 @@
   "identifier": "dev.danihrndzld.garmin-export",
   "build": {
     "frontendDist": "../ui",
-    "beforeDevCommand": "bun run sidecar",
-    "beforeBuildCommand": "bun run sidecar"
+    "beforeDevCommand": "bun run core",
+    "beforeBuildCommand": "bun run core:universal"
   },
   "app": {
     "withGlobalTauri": true,
@@ -33,7 +33,6 @@
     ],
     "category": "HealthcareAndFitness",
     "externalBin": [
-      "binaries/garmin-core",
       "binaries/garmin-export-core"
     ],
     "icon": [
