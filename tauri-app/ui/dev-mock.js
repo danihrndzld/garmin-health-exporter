@@ -13,14 +13,14 @@
     }
     return { days, activities: 41, types: { running: 12, walking: 20, strength_training: 9 } };
   };
-  const fakePack = () => {
+  const fakePack = (warnings = ['hill_score skipped (404)']) => {
     const files = [['activities', 59], ['body_battery', 60], ['caminar', 26], ['correr', 6], ['correr_laps', 24], ['daily_summary', 60], ['gym', 27], ['hrv', 60], ['sleep', 60], ['training', 60]]
       .map(([n, rows]) => ({ name: n + '.csv', rows }));
     const ctx = (es) => [es ? '# Datos de Garmin Connect' : '# Garmin Connect data', '', (es ? 'Rango' : 'Range') + ': 2026-09-14 → 2026-10-13 (30 ' + (es ? 'días' : 'days') + ')', '',
-      es ? '## Archivos' : '## Files', ...files.map((f) => `- \`${f.name}\`: ${f.rows} ${es ? 'filas' : 'rows'}.`), '', es ? '## Faltantes y avisos' : '## Missing data and warnings', '- hill_score skipped (404)'].join('\n');
+      es ? '## Archivos' : '## Files', ...files.map((f) => `- \`${f.name}\`: ${f.rows} ${es ? 'filas' : 'rows'}.`), '', es ? '## Faltantes y avisos' : '## Missing data and warnings', ...warnings.map((w) => '- ' + w)].join('\n');
     const dir = '/Users/you/Documents/GarminExport/csv_2026-10-13';
     const lang = (l) => ({ context: ctx(l === 'es'), bytes: 121000, tokens: 40300, singleName: `garmin_2026-09-14_2026-10-13.${l}.md` });
-    return { csvDir: dir, startDate: '2026-09-14', endDate: '2026-10-13', days: 30, files, warnings: ['hill_score skipped (404)'], langs: { es: lang('es'), en: lang('en') } };
+    return { csvDir: dir, startDate: '2026-09-14', endDate: '2026-10-13', days: 30, files, warnings, langs: { es: lang('es'), en: lang('en') } };
   };
   window.devMock = {
     defaults: async () => ({ outputDir: '/Users/you/Documents/GarminExport', dataDir: '/tmp' }),
@@ -37,7 +37,7 @@
     },
     listen: (ev, cb) => window.addEventListener('mock-' + ev.replace('-connected', ''), (e) => cb(e.detail)),
     onFocus: (cb) => window.addEventListener('focus', cb),
-    run(req, onEvent) {
+    run(req, onEvent, bin = 'binaries/garmin-core') {
       let cancelled = false;
       const ts = () => new Date().toLocaleTimeString();
       const done = (async () => {
@@ -45,7 +45,8 @@
           // localStorage.mock_summary_hangs = '1' keeps the summary after MyFitnessPal running until cancelled.
           while (localStorage.getItem('mock_summary_hangs')) { if (cancelled) return { ok: false, cancelled: true, error: 'Cancelled.' }; await sleep(50); }
           // Without a jsonPath (Garmin was off) the sidecar has no Garmin summary, only the pack.
-          return { ok: true, summary: req.jsonPath ? fakeSummary() : null, pack: fakePack() };
+          // The pack lists the warn lines the UI forwards, as the sidecar does.
+          return { ok: true, summary: req.jsonPath ? fakeSummary() : null, pack: fakePack(req.warnings ?? []) };
         }
         if (req.cmd === 'pack') {
           await sleep(180);
@@ -106,7 +107,12 @@
         }
         say('success', 'CSVs written to /Users/you/Documents/GarminExport/csv_2026-10-13');
         say('success', `Done. ${nDays} days | ${nActs} activities`);
-        return { ok: true, path: '/Users/you/Documents/GarminExport/csv_2026-10-13', jsonPath: '/Users/you/x.json', summary: fakeSummary(), pack: fakePack() };
+        const path = '/Users/you/Documents/GarminExport/csv_2026-10-13';
+        // The Go core answers with file names only; the UI asks Bun's summary for the rest.
+        if (bin === 'binaries/garmin-export-core') {
+          return { ok: true, path, jsonPath: '/Users/you/x.json', startDate: '2026-09-14', endDate: '2026-10-13', days: nDays, activities: nActs, files: fakePack().files.map((f) => f.name) };
+        }
+        return { ok: true, path, jsonPath: '/Users/you/x.json', summary: fakeSummary(), pack: fakePack() };
       })();
       return { done, cancel: () => { cancelled = true; } };
     },

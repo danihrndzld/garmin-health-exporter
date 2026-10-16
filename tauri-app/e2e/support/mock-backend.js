@@ -15,6 +15,8 @@ export class MockBackend {
   activities(count) { return this.#set('mock_acts', String(count)); }
   packFails() { return this.#set('mock_pack_fail', '1'); }
   summaryHangs() { return this.#set('mock_summary_hangs', '1'); }
+  /** The app's developer switch: `export` runs on the Go core, which answers without summary or pack. */
+  engine(name) { return this.#set('ge_engine', name); }
 
   /** How many garmin-connect calls (sign ins) the mock has received in this tab. */
   async garminConnectCalls() {

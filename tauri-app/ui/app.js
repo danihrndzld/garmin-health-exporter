@@ -408,11 +408,18 @@
   // Garmin on: the engine pulls Garmin, then MyFitnessPal runs; an MFP failure is only a warning row.
   async function runGarmin(req, n) {
     enterPhase('auth');
-    const job = platform.run(req, (e) => (e.kind === 'progress' ? onProgress(e) : e.kind === 'log' && onLog(e)));
+    const warnings = []; // the pack's "Missing data and warnings" section
+    const job = platform.run(req, (e) => {
+      if (e.kind === 'progress') return onProgress(e);
+      if (e.kind !== 'log') return;
+      if (e.type === 'warn') warnings.push(e.msg);
+      onLog(e);
+    }, engine() === 'go' ? GO : 'binaries/garmin-core');
     running.cancel = job.cancel;
     const res = await job.done;
     if (!res.ok) return res;
-    if (running.phases.csv && res.pack?.files) running.phases.csv.files = res.pack.files.length;
+    const files = res.pack?.files || res.files; // Bun answers with the pack, Go with the file names
+    if (running.phases.csv && files) running.phases.csv.files = files.length;
     finishPhase(running.phase);
     PHASES.forEach((p) => {
       // A phase with nothing to fetch (0 activities) sends no progress: full ring, "0" in the legend.
@@ -431,11 +438,17 @@
     pack = res.pack || null;
     // The hero stays "Running" (and the clock ticks) until MyFitnessPal is done too.
     if (mfpOn.checked) setHeadline(`${n} days`, 'reading diary.');
-    try { await runMfp(res.path, { startDate: res.summary?.range?.start, endDate: res.summary?.range?.end }, res.jsonPath); } catch (e) {
+    let m = null;
+    try { m = await runMfp(res.path, { startDate: res.startDate ?? res.summary?.range?.start, endDate: res.endDate ?? res.summary?.range?.end }); } catch (e) {
       finishPhase('mfp');
       setRow('mfp', 'warn', 'Skipped: ' + (e?.message || e));
       $('lg-mfp').textContent = 'skipped';
       log('warn', 'MyFitnessPal skipped: ' + (e?.message || e));
+    }
+    // The Go engine answers without summary and pack; new MyFitnessPal files need a new pack.
+    if (!res.summary || (m?.ok && !m.skipped)) {
+      const s = await refreshPack({ csvDir: res.path, jsonPath: res.jsonPath, warnings });
+      if (s.ok && s.summary && !res.summary) renderSummary(s.summary);
     }
     return res;
   }
@@ -449,8 +462,10 @@
     if (!res.ok) return res;
     pack = null;
     document.querySelectorAll('.preview').forEach((el) => el.setAttribute('data-empty', ''));
-    const m = await runMfp(res.path, { startDate: res.startDate, endDate: res.endDate }, null);
+    const range = { startDate: res.startDate, endDate: res.endDate };
+    const m = await runMfp(res.path, range, true);
     if (!m.ok) return m;
+    await refreshPack({ csvDir: res.path, ...range });
     log('complete', 'Export complete → ' + res.path);
     lastOutDir = res.path;
     store.set('last_out', res.path);
@@ -733,14 +748,14 @@
   mfpOn.addEventListener('change', () => { store.set('mfp_on', mfpOn.checked ? '1' : '0'); renderMfp(); });
   platform.listen('mfp-connected', (s) => { mfp = { ...s, expired: false }; renderMfp(); toast('MyFitnessPal connected.'); });
 
-  // Runs after the Garmin export, or alone with Garmin off; the caller decides what a failure means.
-  // jsonPath is the Garmin JSON for the pack refresh, or null when Garmin was off.
-  async function runMfp(csvDir, range, jsonPath) {
-    if (!mfpOn.checked) return { ok: true };
+  // Runs after the Garmin export, or alone with Garmin off (alone = true); the caller decides
+  // what a failure means and refreshes the pack.
+  async function runMfp(csvDir, range, alone = false) {
+    if (!mfpOn.checked) return { ok: true, skipped: true };
     if (!usable(mfp, mfpOn)) { // switched on but expired: skipped without a request
       setRow('mfp', 'warn', 'Skipped: the MyFitnessPal session expired. Reconnect MyFitnessPal.');
       $('lg-mfp').textContent = 'skipped';
-      return { ok: true };
+      return { ok: true, skipped: true };
     }
     enterPhase('mfp');
     // MFP is outside the Garmin percentage (PHASES/WEIGHT): its own ring, legend and row.
@@ -762,16 +777,10 @@
       setRow('mfp', 'ok', `Food logged on ${res.loggedDays} of ${res.days} days`);
       setRing('mfp', 1);
       $('lg-mfp').textContent = `${res.loggedDays}/${res.days}`;
-      // Esc here cancels only the pack refresh: the MFP files are written and the run ends Done.
-      const job = platform.run({ cmd: 'summary', csvDir, ...(jsonPath ? { jsonPath, warnings: pack?.warnings || [] } : range) }, () => {});
-      running.cancel = job.cancel;
-      const s = await job.done;
-      if (s.ok) pack = s.pack || pack;
     } else {
       finishPhase('mfp');
       if (res.errorCode === 'MFP_SESSION') { mfp.expired = mfp.connected; renderMfp(); }
       // With Garmin off the caller fails the run with this error; here it would only repeat it.
-      const alone = jsonPath === null;
       $('lg-mfp').textContent = res.cancelled ? 'cancelled' : alone ? 'failed' : 'skipped';
       if (alone) return res;
       setRow('mfp', 'warn', res.cancelled ? 'Cancelled.' : 'Skipped: ' + (res.error || 'unknown error'));
@@ -780,9 +789,22 @@
     return res;
   }
 
+  // Asks Bun's `summary` for the pack (and, from the Garmin JSON, the summary) of a finished csv folder.
+  // Esc here cancels only the pack refresh: the files are written and the run ends Done.
+  async function refreshPack(req) {
+    const job = platform.run({ cmd: 'summary', ...req }, () => {});
+    running.cancel = job.cancel;
+    const s = await job.done;
+    if (s.ok) pack = s.pack || pack;
+    return s;
+  }
+
   // ── Garmin ──────────────────────────────────────────────────────────────
   // The Go core signs in once and keeps tokens.json; every export runs from it without a password.
   const GO = 'binaries/garmin-export-core';
+  // Which binary runs `export`; ge_engine is a developer switch with no UI. Every other command has a fixed binary.
+  const DEFAULT_ENGINE = 'bun';
+  const engine = () => store.get('engine', DEFAULT_ENGINE);
   const garminState = $('garmin-state'), garminBtn = $('garmin-btn'), garminOn = $('garmin-on');
   const garminForm = $('garmin-form'), garminErr = $('garmin-err'), signInBtn = $('garmin-signin'), cancelBtn = $('garmin-cancel');
   let garmin = { connected: false, expired: false };

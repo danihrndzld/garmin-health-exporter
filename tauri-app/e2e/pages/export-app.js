@@ -31,6 +31,8 @@ export class ExportApp {
     this.recovery = new RecoveryCard(page);
     this.sheet = new LlmPackSheet(page);
     this.toast = page.locator('#toast');
+    /** One bar per day in the steps preview card, drawn from the export summary. */
+    this.stepsBars = page.locator('#steps-bars > div');
   }
 
   async open() {
