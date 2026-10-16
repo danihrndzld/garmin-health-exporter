@@ -25,8 +25,7 @@ export default defineConfig({
     { name: 'webkit', use: { ...devices['Desktop Safari'] } },
   ],
   webServer: {
-    // ui/date-range.js is a gitignored copy of the Electron range rules.
-    command: `cp ../electron-app/renderer/date-range.js ui/ && PORT=${PORT} bun e2e/support/serve-ui.js`,
+    command: `PORT=${PORT} bun e2e/support/serve-ui.js`,
     url: `http://127.0.0.1:${PORT}`,
     reuseExistingServer: !process.env.CI,
   },

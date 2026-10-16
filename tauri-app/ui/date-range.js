@@ -1,9 +1,6 @@
 /**
- * Pure helpers for the Date Range section.
- *
- * Shared by the renderer (instant UI feedback) and the main process
- * (defense-in-depth on the `download-health` IPC boundary) so one function
- * governs what counts as a valid range and what error a user sees.
+ * Pure helpers for the Date Range section of `ui/app.js`. The Go core checks
+ * the range again at the trust boundary (`internal/guard`).
  *
  * All dates are `YYYY-MM-DD` strings parsed at local midnight — matching the
  * pattern used in `electron-app/garmin/cache.js` so range math stays TZ-safe.

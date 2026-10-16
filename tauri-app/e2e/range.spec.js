@@ -1,5 +1,5 @@
 // Date range: Equivalence Partitioning over the four range modes and the
-// invalid classes of validateRange (electron-app/renderer/date-range.js), and
+// invalid classes of validateRange (ui/date-range.js), and
 // 3-value Boundary Value Analysis on the 90-day span, the 1-day span and today.
 import { test, expect } from './fixtures.js';
 import { dayFromToday, FixedToday } from './support/fixed-today.js';
