@@ -85,9 +85,51 @@ func TestParseKeepsJavaScriptKeyOrder(t *testing.T) {
 			t.Fatalf("%v %v", o.Keys, o.Get("b"))
 		}
 	})
+	for _, c := range []struct {
+		name string
+		keys []string
+		want string
+	}{
+		{"EP-321 Set puts index keys first", []string{"b", "10", "a", "2"}, "[2 10 b a]"},
+		{"BVA-311 Set: 2^32-1 and 01 are strings, 0 and 2^32-2 are indexes", []string{"4294967295", "4294967294", "01", "0"}, "[0 4294967294 4294967295 01]"},
+		{"EP-322 Set on a repeated index key keeps its place", []string{"b", "5", "b", "5"}, "[5 b]"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			o := NewObj()
+			for _, k := range c.keys {
+				o.Set(k, Num(1))
+			}
+			if got := fmt.Sprint(o.Keys); got != c.want {
+				t.Fatalf("keys %s, want %s", got, c.want)
+			}
+		})
+	}
 	t.Run("EP-312 invalid JSON is an error", func(t *testing.T) {
 		if _, err := Parse([]byte(`{"a":`)); err == nil {
 			t.Fatal("want error")
+		}
+	})
+}
+
+func TestFormatNumberExtremes(t *testing.T) {
+	for name, c := range map[string]struct {
+		f    float64
+		want string
+	}{
+		"BVA-312 smallest denormal": {5e-324, "5e-324"},
+		"BVA-313 max float64":       {math.MaxFloat64, "1.7976931348623157e+308"},
+		"BVA-314 2^53+1 rounds":     {1 << 53, "9007199254740992"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if got := FormatNumber(c.f); got != c.want {
+				t.Fatalf("got %q", got)
+			}
+		})
+	}
+	t.Run("BVA-315 1e400 parses as Infinity, prints null in JSON", func(t *testing.T) {
+		v, err := Parse([]byte(`[1e400]`))
+		if err != nil || Stringify(v) != "[null]" || Cell(v) != "Infinity" {
+			t.Fatalf("%v %s %s", err, Stringify(v), Cell(v))
 		}
 	})
 }

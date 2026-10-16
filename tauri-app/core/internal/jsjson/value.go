@@ -43,10 +43,13 @@ func NewObj() *Obj { return &Obj{m: map[string]Value{}} }
 // Get returns Undefined when k is absent.
 func (o *Obj) Get(k string) Value { return o.m[k] }
 
-// Set keeps the first position of k, like JavaScript assignment. Index-like keys are placed by Parse, not here.
+// Set keeps the first position of k, like JavaScript assignment. Index-like keys go first in numeric order.
 func (o *Obj) Set(k string, v Value) {
 	if _, ok := o.m[k]; !ok {
 		o.Keys = append(o.Keys, k)
+		if isIndex(k) {
+			sortKeys(o.Keys)
+		}
 	}
 	o.m[k] = v
 }
@@ -92,6 +95,9 @@ func parseValue(dec *json.Decoder) (Value, error) {
 		return Str(t), nil
 	case json.Number:
 		f, err := strconv.ParseFloat(string(t), 64)
+		if ne, ok := err.(*strconv.NumError); ok && ne.Err == strconv.ErrRange {
+			err = nil // JSON.parse reads 1e400 as Infinity
+		}
 		return Num(f), err
 	case json.Delim:
 		if t == '[' {
@@ -121,7 +127,6 @@ func parseValue(dec *json.Decoder) (Value, error) {
 		if _, err := dec.Token(); err != nil {
 			return Value{}, err
 		}
-		sortKeys(o.Keys)
 		return Value{Kind: Object, O: o}, nil
 	}
 	return Value{}, fmt.Errorf("jsjson: unexpected token %v", tok)
