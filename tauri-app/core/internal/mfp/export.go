@@ -63,8 +63,9 @@ func Export(ctx context.Context, req map[string]any, out *protocol.Emitter, opts
 			return fail("MFP_SESSION", "The MyFitnessPal session expired. Reconnect MyFitnessPal.")
 		case errors.Is(err, ErrRateLimited):
 			return fail("MFP_RATE_LIMITED", "MyFitnessPal is rate limiting requests (HTTP 429). The days downloaded so far are cached; try again later.")
-		default:
-			return fail("MFP_ERROR", err.Error())
+		default: // the raw error is for the log; the UI gets one short line
+			out.Log("warn", "MyFitnessPal: "+err.Error())
+			return fail("MFP_ERROR", "MyFitnessPal did not answer as expected. See the log for details.")
 		}
 	}
 

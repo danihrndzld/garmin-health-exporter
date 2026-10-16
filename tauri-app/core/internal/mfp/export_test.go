@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	msgNoSession = "Connect MyFitnessPal first."
-	msgExpired   = "The MyFitnessPal session expired. Reconnect MyFitnessPal."
+	msgNoSession  = "Connect MyFitnessPal first."
+	msgExpired    = "The MyFitnessPal session expired. Reconnect MyFitnessPal."
+	msgUnexpected = "MyFitnessPal did not answer as expected. See the log for details."
 )
 
 // seedFinal stores a day as the cache would after a run long after that date.
@@ -40,6 +41,16 @@ func fixtureItems(t *testing.T, date string) []DiaryItem {
 	return out.Items
 }
 
+// logHas reports whether a log line of the run contains sub.
+func logHas(lines []map[string]any, sub string) bool {
+	for _, l := range lines {
+		if m, _ := l["msg"].(string); l["kind"] == "log" && strings.Contains(m, sub) {
+			return true
+		}
+	}
+	return false
+}
+
 func csvPresent(e *exportEnv) (n int) {
 	for _, f := range csvNames {
 		if exists(filepath.Join(e.csvDir, f)) {
@@ -61,6 +72,7 @@ func TestExportDecisionTable(t *testing.T) {
 		wantOK     bool
 		wantCode   string
 		wantMsg    string
+		wantLog    string // in a log line, not in the error the UI shows
 		diaryCalls int
 		authCalls  int
 	}{
@@ -84,9 +96,9 @@ func TestExportDecisionTable(t *testing.T) {
 				e.srv.Diary429 = true
 				seedFinal(t, e, "2026-10-05", fixtureItems(t, "2026-10-05"))
 			}, start: "2026-10-05", end: "2026-10-06", wantCode: "MFP_RATE_LIMITED", diaryCalls: 1, authCalls: 1},
-		{name: "DT-R113 C2 answers HTTP 403 (a bot challenge), so MFP_ERROR with the status and not MFP_SESSION",
+		{name: "DT-R113 C2 answers HTTP 403 (a bot challenge), so MFP_ERROR, the status only in the log, and not MFP_SESSION",
 			setup: func(t *testing.T, e *exportEnv) { e.srv.AuthStatus = 403 }, start: "2026-10-04", end: "2026-10-07",
-			wantCode: "MFP_ERROR", wantMsg: "403", authCalls: 1},
+			wantCode: "MFP_ERROR", wantMsg: msgUnexpected, wantLog: "403", authCalls: 1},
 		{name: "DT-R114 C3 yes on auth_token, so MFP_RATE_LIMITED before any diary request",
 			setup: func(t *testing.T, e *exportEnv) { e.srv.AuthStatus = 429 }, start: "2026-10-04", end: "2026-10-07",
 			wantCode: "MFP_RATE_LIMITED", authCalls: 1},
@@ -121,6 +133,9 @@ func TestExportDecisionTable(t *testing.T) {
 			}
 			if tc.wantMsg != "" && !strings.Contains(res["error"].(string), tc.wantMsg) {
 				t.Errorf("error = %q, want it to contain %q", res["error"], tc.wantMsg)
+			}
+			if tc.wantLog != "" && !logHas(lines, tc.wantLog) {
+				t.Errorf("no log line contains %q: %v", tc.wantLog, lines)
 			}
 			if got := e.srv.CallCount("/v2/diary?"); got != tc.diaryCalls {
 				t.Errorf("diary calls = %d, want %d", got, tc.diaryCalls)
@@ -433,7 +448,7 @@ func TestExportCancellation(t *testing.T) {
 
 func TestExportFaults(t *testing.T) {
 	t.Parallel()
-	t.Run("EG-127 a diary answer that is not JSON gives MFP_ERROR and no CSV", func(t *testing.T) {
+	t.Run("EG-127 a diary answer that is not JSON gives MFP_ERROR, the detail only in the log, and no CSV", func(t *testing.T) {
 		t.Parallel()
 		for _, body := range []string{"", "{", `[]`, `{"items":"x"}`} {
 			dir := t.TempDir()
@@ -443,8 +458,8 @@ func TestExportFaults(t *testing.T) {
 			e.srv.Close()
 			e.srv = mfptest.NewServer(dir)
 			t.Cleanup(e.srv.Close)
-			res, _ := e.run(t, e.req("2026-10-05", "2026-10-05"))
-			if res["ok"] != false || res["errorCode"] != "MFP_ERROR" || !strings.Contains(res["error"].(string), "not valid JSON") || csvPresent(e) != 0 {
+			res, lines := e.run(t, e.req("2026-10-05", "2026-10-05"))
+			if res["ok"] != false || res["errorCode"] != "MFP_ERROR" || res["error"] != msgUnexpected || !logHas(lines, "not valid JSON") || csvPresent(e) != 0 {
 				t.Errorf("body %q: result = %v", body, res)
 			}
 		}
