@@ -24,9 +24,8 @@ function pin(file, text) {
 }
 const json = (v) => JSON.stringify(v, null, 2) + '\n';
 
-// The user's Mac is in America/Guatemala (/etc/localtime -> /var/db/timezone/zoneinfo/America/Guatemala,
-// checked 2026-10-16), so the file also passes inside a plain `bun test sidecar`. On another zone run it
-// with TZ=America/Guatemala; the gates in Tasks 5 and 6 say so.
+// Bun forces UTC when TZ is unset, so this file needs TZ=America/Guatemala; the `test` script in
+// package.json sets it. Running it by hand: TZ=America/Guatemala bun test sidecar/golden.test.js.
 test('the zone is fixed, so the Exported line is reproducible', () => {
   expect(Intl.DateTimeFormat().resolvedOptions().timeZone).toBe('America/Guatemala');
 });
@@ -60,10 +59,10 @@ test('AC-18 pack preview and both one-file packs equal the golden files', () => 
 test('AC-19 the bug report URLs equal the golden file', () => {
   const log = Array.from({ length: 300 }, (_, i) => ({
     ts: `10:00:${String(i % 60).padStart(2, '0')}`, type: i % 2 ? 'warn' : 'dim',
-    msg: `line ${i} ${'x'.repeat(40)} token=t${i} user${i}@example.com /Users/dani/Documents/x${i}`,
+    msg: `line ${i} ${'x'.repeat(40)} token=t${i} user${i}@example.com /Users/test/Documents/x${i}`,
   }));
   const input = {
-    error: 'Auth failed for a@b.com: Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.sig password=hunter2 in /Users/dani/Library',
+    error: 'Auth failed for a@b.com: Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.sig password=hunter2 in /Users/test/Library',
     log, version: '4.3.0', os: 'Mac OS X 15.6',
   };
   pin(path.join(REPORT, 'input.json'), json(input));
@@ -79,7 +78,7 @@ test('AC-20 redaction cases equal the golden file', () => {
     'error with token eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.sig embedded',
     '{"password":"hunter2","token":"abc","keep":"ok"}',
     'GET https://x/y?access_token=abc&name=me failed',
-    'HTTP 500: {"error":"bad","password":"x"} Bearer abc.def.ghi at /Users/dani/x',
+    'HTTP 500: {"error":"bad","password":"x"} Bearer abc.def.ghi at /Users/test/x',
     'two lines\nAuthorization: Bearer one.two.three\nCookie: a=b',
     'acentos: contraseña=secreta y "clientSecret":"é"',
   ];

@@ -111,13 +111,13 @@
   },
   {
     "fn": "string",
-    "in": "HTTP 500: {\"error\":\"bad\",\"password\":\"x\"} Bearer abc.def.ghi at /Users/dani/x",
-    "out": "HTTP 500: {\"error\":\"bad\",\"password\":\"REDACTED\"} Bearer REDACTED at /Users/dani/x"
+    "in": "HTTP 500: {\"error\":\"bad\",\"password\":\"x\"} Bearer abc.def.ghi at /Users/test/x",
+    "out": "HTTP 500: {\"error\":\"bad\",\"password\":\"REDACTED\"} Bearer REDACTED at /Users/test/x"
   },
   {
     "fn": "url",
-    "in": "HTTP 500: {\"error\":\"bad\",\"password\":\"x\"} Bearer abc.def.ghi at /Users/dani/x",
-    "out": "HTTP 500: {\"error\":\"bad\",\"password\":\"x\"} Bearer abc.def.ghi at /Users/dani/x"
+    "in": "HTTP 500: {\"error\":\"bad\",\"password\":\"x\"} Bearer abc.def.ghi at /Users/test/x",
+    "out": "HTTP 500: {\"error\":\"bad\",\"password\":\"x\"} Bearer abc.def.ghi at /Users/test/x"
   },
   {
     "fn": "string",
