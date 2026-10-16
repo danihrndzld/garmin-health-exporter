@@ -102,6 +102,13 @@ function summarize(jsonPath) {
 }
 
 async function summary(req) {
+  // A run with Garmin off has no JSON: only the pack, from the csv folder and the range.
+  if (req.jsonPath == null) {
+    const csvDir = resolveOutputDir(req.csvDir);
+    if (!csvDir) return fail('csvDir must be a folder within your home directory.');
+    if (!ISO.test(req.startDate) || !ISO.test(req.endDate)) return fail('startDate and endDate must be YYYY-MM-DD.');
+    return { ok: true, summary: null, pack: previewPack({ csvDir, startDate: req.startDate, endDate: req.endDate, warnings: cleanWarnings(req.warnings) }) };
+  }
   const p = resolveOutputDir(req.jsonPath);
   if (!p || !p.endsWith('.json')) return fail('jsonPath must be a .json file within your home directory.');
   const s = summarize(p);

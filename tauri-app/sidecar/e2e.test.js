@@ -155,6 +155,17 @@ test('AC-13 a refresh that fails with HTTP 500 ends with GARMIN_ERROR, keeps tok
   }
 }, 60000);
 
+test('AC-14 summary builds the pack from a csv folder without a Garmin JSON file', async () => {
+  const { out } = dirs();
+  const csvDir = path.join(out, 'csv_2026-10-07');
+  fs.mkdirSync(csvDir);
+  fs.writeFileSync(path.join(csvDir, 'mfp_daily.csv'), 'date,logged\n2026-10-07,yes\n');
+  const { result } = await sidecar({ cmd: 'summary', csvDir, startDate: '2026-10-01', endDate: '2026-10-07' });
+  expect(result.ok).toBe(true);
+  expect(result.summary).toBe(null);
+  expect(result.pack.files.map((f) => f.name)).toContain('mfp_daily.csv');
+}, 60000);
+
 test('a Garmin export removes MyFitnessPal files left in the csv folder by an earlier run', async () => {
   const { out, data } = dirs();
   const req = {

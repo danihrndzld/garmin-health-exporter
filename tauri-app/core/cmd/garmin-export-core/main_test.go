@@ -340,3 +340,74 @@ func TestBinaryClearCache(t *testing.T) {
 		}
 	})
 }
+
+func TestBinaryExportWithGarminOff(t *testing.T) {
+	t.Parallel()
+	fake := garmintest.New(nil)
+	t.Cleanup(fake.Close)
+	home, _ := os.UserHomeDir()
+	out, err := os.MkdirTemp(home, ".garmin-export-off-test-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(out) })
+	run := func(req map[string]any) map[string]any {
+		b, _ := json.Marshal(req)
+		c := exec.Command(binary)
+		c.Stdin = strings.NewReader(string(b) + "\n")
+		c.Env = append(os.Environ(), "GARMIN_FAKE_SERVER="+fake.URL())
+		stdout, err := c.Output()
+		if err != nil {
+			t.Fatalf("binary failed: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal([]byte(strings.TrimSpace(string(stdout))), &m); err != nil {
+			t.Fatalf("stdout %q: %v", stdout, err)
+		}
+		return m
+	}
+	t.Run("CL-243 garmin:false makes csv_<endDate>, answers jsonPath null and sends no Garmin request", func(t *testing.T) {
+		r := run(map[string]any{"cmd": "export", "garmin": false, "startDate": "2026-10-01", "endDate": "2026-10-07", "outputDir": out})
+		jsonPath, has := r["jsonPath"]
+		if r["ok"] != true || r["path"] != filepath.Join(out, "csv_2026-10-07") || !has || jsonPath != nil || r["startDate"] != "2026-10-01" || r["endDate"] != "2026-10-07" {
+			t.Fatalf("result = %v", r)
+		}
+		if fi, err := os.Stat(filepath.Join(out, "csv_2026-10-07")); err != nil || !fi.IsDir() {
+			t.Fatalf("csv folder: %v", err)
+		}
+		if n := len(fake.Calls("")); n != 0 {
+			t.Fatalf("%d Garmin requests", n)
+		}
+	})
+	t.Run("CL-244 garmin:false with daysBack 1 makes the folder of today", func(t *testing.T) {
+		today := time.Now().Format("2006-01-02")
+		r := run(map[string]any{"cmd": "export", "garmin": false, "daysBack": 1, "outputDir": out})
+		if r["ok"] != true || r["startDate"] != today || r["endDate"] != today || r["path"] != filepath.Join(out, "csv_"+today) {
+			t.Fatalf("result = %v", r)
+		}
+	})
+	t.Run("CL-245 garmin:true answers GARMIN_ERROR until the Go Garmin export lands", func(t *testing.T) {
+		r := run(map[string]any{"cmd": "export", "garmin": true, "startDate": "2026-10-01", "endDate": "2026-10-07", "outputDir": out})
+		if r["ok"] != false || r["errorCode"] != "GARMIN_ERROR" || r["error"] != "The Go Garmin export is not ready yet." {
+			t.Fatalf("result = %v", r)
+		}
+	})
+	for _, c := range []struct {
+		name string
+		req  map[string]any
+	}{
+		{"EP-222 an outputDir outside $HOME is rejected", map[string]any{"startDate": "2026-10-01", "endDate": "2026-10-07", "outputDir": "/etc"}},
+		{"EP-223 a range of 91 days is rejected", map[string]any{"startDate": "2026-07-16", "endDate": "2026-10-14", "outputDir": out}},
+		{"EP-224 daysBack 0 is rejected", map[string]any{"daysBack": 0, "outputDir": out}},
+		{"EP-225 a daysBack that is not a whole number is rejected", map[string]any{"daysBack": 1.5, "outputDir": out}},
+		{"EP-226 a refreshWindow of 8 is rejected", map[string]any{"daysBack": 7, "refreshWindow": 8, "outputDir": out}},
+		{"BVA-217 an endDate of tomorrow is rejected", map[string]any{"startDate": time.Now().Format("2006-01-02"), "endDate": time.Now().AddDate(0, 0, 1).Format("2006-01-02"), "outputDir": out}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			c.req["cmd"], c.req["garmin"] = "export", false
+			if r := run(c.req); r["ok"] != false || r["errorCode"] != "GARMIN_INPUT" || r["error"] == "" {
+				t.Fatalf("result = %v", r)
+			}
+		})
+	}
+}

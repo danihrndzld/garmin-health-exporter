@@ -84,6 +84,45 @@ func main() {
 		}
 		s := garmin.StatusOf(dataDir, time.Now())
 		out.Result(map[string]any{"ok": true, "connected": s.Connected, "expired": s.Expired, "savedAt": s.SavedAt, "loginKind": s.Kind})
+	case "export":
+		bad := func(msg string) { out.Result(map[string]any{"ok": false, "errorCode": "GARMIN_INPUT", "error": msg}) }
+		start, _ := req["startDate"].(string)
+		end, _ := req["endDate"].(string)
+		if req["startDate"] != nil || req["endDate"] != nil {
+			err = guard.ValidateRange(start, end, 90)
+			if err == nil {
+				err = guard.NotFuture(end, time.Now())
+			}
+		} else {
+			n, ok := req["daysBack"].(float64)
+			if !ok || n != float64(int(n)) {
+				n = 0 // DaysBack rejects it with the usual sentence
+			}
+			start, end, err = guard.DaysBack(int(n), time.Now())
+		}
+		if err == nil && req["refreshWindow"] != nil {
+			rw, ok := req["refreshWindow"].(float64)
+			if !ok || rw != float64(int(rw)) {
+				rw = 0
+			}
+			err = guard.RefreshWindow(int(rw))
+		}
+		if err != nil {
+			bad(err.Error())
+			return
+		}
+		if on, ok := req["garmin"].(bool); !ok || on {
+			out.Result(map[string]any{"ok": false, "errorCode": "GARMIN_ERROR", "error": "The Go Garmin export is not ready yet."})
+			return
+		}
+		// Garmin off: only the folder, for mfp-export to fill. No tokens are read and no request is sent.
+		outputDir, _ := req["outputDir"].(string)
+		dir, err := garmin.PrepareDir(outputDir, end)
+		if err != nil {
+			bad("outputDir: " + err.Error())
+			return
+		}
+		out.Result(map[string]any{"ok": true, "path": dir, "jsonPath": nil, "startDate": start, "endDate": end})
 	default:
 		out.Result(map[string]any{"ok": false, "error": "Unknown command."})
 	}

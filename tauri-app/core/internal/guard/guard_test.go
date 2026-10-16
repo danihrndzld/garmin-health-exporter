@@ -210,3 +210,22 @@ func TestCredentials(t *testing.T) {
 		})
 	}
 }
+
+func TestNotFutureEndsToday(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 10, 15, 23, 30, 0, 0, time.Local)
+	for _, c := range []struct {
+		id, end string
+		ok      bool
+	}{
+		{"BVA-215 an end date of today is accepted", "2026-10-15", true},
+		{"BVA-216 an end date of tomorrow is rejected", "2026-10-16", false},
+	} {
+		t.Run(c.id, func(t *testing.T) {
+			t.Parallel()
+			if err := NotFuture(c.end, now); (err == nil) != c.ok {
+				t.Fatalf("NotFuture(%q) = %v", c.end, err)
+			}
+		})
+	}
+}

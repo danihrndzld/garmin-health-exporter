@@ -12,7 +12,8 @@ import (
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/protocol"
 )
 
-var csvFiles = []string{"mfp_food.csv", "mfp_daily.csv", "mfp_exercise.csv"}
+// CSVFiles are the files mfp-export writes; a Garmin export removes stale ones.
+var CSVFiles = []string{"mfp_food.csv", "mfp_daily.csv", "mfp_exercise.csv"}
 
 func fail(code, msg string) map[string]any {
 	return map[string]any{"ok": false, "errorCode": code, "error": msg}
@@ -35,7 +36,7 @@ func Export(ctx context.Context, req map[string]any, out *protocol.Emitter, opts
 	}
 
 	// A previous run's files must never survive a failed or MFP-less run into the LLM pack.
-	for _, f := range csvFiles {
+	for _, f := range CSVFiles {
 		if err := os.Remove(filepath.Join(csvDir, f)); err != nil && !os.IsNotExist(err) {
 			return fail("MFP_ERROR", "Could not remove the old "+f+": "+err.Error())
 		}
@@ -108,5 +109,5 @@ func Export(ctx context.Context, req map[string]any, out *protocol.Emitter, opts
 	}
 	out.Log("success", fmt.Sprintf("MyFitnessPal: food logged on %d of %d days (%d downloaded, %d from the cache)", logged, len(dates), fetched, len(dates)-fetched))
 	return map[string]any{"ok": true, "days": len(dates), "loggedDays": logged, "csvDir": csvDir,
-		"files": csvFiles}
+		"files": CSVFiles}
 }

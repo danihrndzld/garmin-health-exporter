@@ -111,3 +111,11 @@ func Credentials(email, password string) error {
 	}
 	return nil
 }
+
+// NotFuture rejects an end date after today in local time. ISO dates compare as strings.
+func NotFuture(end string, now time.Time) error {
+	if end > now.In(time.Local).Format(layout) {
+		return errors.New("the end date cannot be in the future")
+	}
+	return nil
+}
