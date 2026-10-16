@@ -14,7 +14,7 @@ test('ST-T19 Running → Done with the csv count, the summary and the warnings i
   await expect(app.sheet.context).toContainText('hill_score skipped (404)');
 });
 
-test('ST-T21 go engine with MyFitnessPal: the diary runs on the Go range, then the pack is built', async ({ app, scenario }) => {
+test('ST-T21 run with MyFitnessPal: the diary runs on the export range, then the pack is built', async ({ app, scenario }) => {
   scenario.mfpConnected();
   await app.open();
   await app.startExport();
@@ -25,7 +25,7 @@ test('ST-T21 go engine with MyFitnessPal: the diary runs on the Go range, then t
   await expect(app.hero.llmButton).toBeVisible();
 });
 
-test('EG-11 go engine: when the summary of a later run fails, the previews drop the earlier run\'s data', async ({ app, scenario }) => {
+test('EG-11 when the summary of a later run fails, the previews and the LLM pack drop the earlier run\'s data', async ({ app, scenario }) => {
   await app.open();
   await app.startExport();
   await app.waitForRunEnd();
@@ -35,4 +35,7 @@ test('EG-11 go engine: when the summary of a later run fails, the previews drop 
   await app.waitForRunEnd();
   await expect(app.hero.badge).toHaveText('Done');
   for (const preview of await app.previews.all()) await expect(preview).toHaveAttribute('data-empty', '');
+  await app.sheet.openWithShortcut();
+  await expect(app.sheet.emptyNote).toBeVisible();
+  await expect(app.sheet.folderButton).toBeHidden();
 });

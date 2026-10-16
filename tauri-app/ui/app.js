@@ -443,7 +443,8 @@
       $('lg-mfp').textContent = 'skipped';
       log('warn', 'MyFitnessPal skipped: ' + (e?.message || e));
     }
-    // The Go core answers without summary and pack: the previews stay empty until this summary paints them.
+    // The Go core answers without summary and pack: the previews and the pack stay empty until this summary fills them.
+    pack = null;
     document.querySelectorAll('.preview').forEach((el) => el.setAttribute('data-empty', ''));
     const s = await refreshPack({ csvDir: res.path, jsonPath: res.jsonPath, warnings });
     if (s.ok && s.summary) renderSummary(s.summary);

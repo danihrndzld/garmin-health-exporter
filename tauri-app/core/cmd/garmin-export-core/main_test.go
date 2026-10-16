@@ -67,6 +67,14 @@ func runBinary(t *testing.T, fakeURL, stdin string) []map[string]any {
 	return lines
 }
 
+// must stops the test when a setup step fails, so a check never passes on a missing file.
+func must(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func result(t *testing.T, lines []map[string]any) map[string]any {
 	t.Helper()
 	last := lines[len(lines)-1]
@@ -512,7 +520,7 @@ func TestBinaryStage3Commands(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	os.WriteFile(jsonPath, fx, 0o644)
+	must(t, os.WriteFile(jsonPath, fx, 0o644))
 	line := func(v map[string]any) string { b, _ := json.Marshal(v); return string(b) + "\n" }
 
 	t.Run("AC-606 summary with jsonPath, pack in both modes, report, and summary with csvDir only, through the binary", func(t *testing.T) {
@@ -550,7 +558,7 @@ func TestBinaryStage3Commands(t *testing.T) {
 		}
 		// An empty csv_* folder still gives an array for files, and no jsonPath gives summary null.
 		empty := filepath.Join(root, "csv_2026-01-01")
-		os.Mkdir(empty, 0o755)
+		must(t, os.Mkdir(empty, 0o755))
 		lines := runBinary(t, "", line(map[string]any{"cmd": "summary", "csvDir": empty, "startDate": "2026-01-01", "endDate": "2026-01-01"}))
 		last, _ := json.Marshal(lines[len(lines)-1])
 		if !strings.Contains(string(last), `"files":[]`) || !strings.Contains(string(last), `"summary":null`) {
@@ -560,8 +568,8 @@ func TestBinaryStage3Commands(t *testing.T) {
 
 	t.Run("EG-608 pack refuses a folder outside $HOME, a folder not named csv_* and a missing folder before touching anything; summary keeps the cli.js sentences", func(t *testing.T) {
 		notCsv := filepath.Join(root, "Documents")
-		os.Mkdir(notCsv, 0o755)
-		os.WriteFile(filepath.Join(notCsv, "keep.md"), []byte("x"), 0o644)
+		must(t, os.Mkdir(notCsv, 0o755))
+		must(t, os.WriteFile(filepath.Join(notCsv, "keep.md"), []byte("x"), 0o644))
 		for _, dir := range []string{"/tmp", notCsv, filepath.Join(root, "csv_missing"), ""} {
 			res := result(t, runBinary(t, "", line(map[string]any{"cmd": "pack", "mode": "files", "lang": "en", "csvDir": dir, "startDate": "2026-01-01", "endDate": "2026-01-02"})))
 			if res["ok"] != false || res["error"] != "csvDir must be an export csv_ folder within your home directory." || res["errorCode"] != nil {
@@ -573,11 +581,11 @@ func TestBinaryStage3Commands(t *testing.T) {
 		}
 		// A csv_ symlink to a folder outside $HOME and a csv_ regular file are refused too.
 		outside := t.TempDir()
-		os.WriteFile(filepath.Join(outside, "keep.md"), []byte("x"), 0o644)
-		os.Mkdir(filepath.Join(outside, "llm-en"), 0o755)
+		must(t, os.WriteFile(filepath.Join(outside, "keep.md"), []byte("x"), 0o644))
+		must(t, os.Mkdir(filepath.Join(outside, "llm-en"), 0o755))
 		link, file := filepath.Join(root, "csv_link"), filepath.Join(root, "csv_file")
-		os.Symlink(outside, link)
-		os.WriteFile(file, []byte("x"), 0o644)
+		must(t, os.Symlink(outside, link))
+		must(t, os.WriteFile(file, []byte("x"), 0o644))
 		for _, dir := range []string{link, file} {
 			res := result(t, runBinary(t, "", line(map[string]any{"cmd": "pack", "mode": "files", "lang": "en", "csvDir": dir, "startDate": "2026-01-01", "endDate": "2026-01-02"})))
 			if res["error"] != "csvDir must be an export csv_ folder within your home directory." {
@@ -592,7 +600,7 @@ func TestBinaryStage3Commands(t *testing.T) {
 		}
 		// A date_range that is not YYYY-MM-DD never reaches the pack: summary yes, pack null.
 		slash := filepath.Join(root, "slash.json")
-		os.WriteFile(slash, []byte(`{"date_range":{"start":"2024/02/17","end":"2024-02-21"},"daily":{}}`), 0o644)
+		must(t, os.WriteFile(slash, []byte(`{"date_range":{"start":"2024/02/17","end":"2024-02-21"},"daily":{}}`), 0o644))
 		if res := result(t, runBinary(t, "", line(map[string]any{"cmd": "summary", "jsonPath": slash, "csvDir": csvDir}))); res["ok"] != true || res["summary"] == nil || res["pack"] != nil {
 			t.Errorf("file range: %v", res)
 		}
@@ -603,7 +611,7 @@ func TestBinaryStage3Commands(t *testing.T) {
 		if res := result(t, runBinary(t, "", line(map[string]any{"cmd": "report", "error": "x", "log": []any{map[string]any{"ts": 1}}}))); res["error"] != "Invalid report request." {
 			t.Errorf("bad log: %v", res)
 		}
-		os.Mkdir(filepath.Join(root, "csv_x"), 0o755)
+		must(t, os.Mkdir(filepath.Join(root, "csv_x"), 0o755))
 		if res := result(t, runBinary(t, "", line(map[string]any{"cmd": "pack", "mode": "files", "lang": "en", "csvDir": filepath.Join(root, "csv_x"), "startDate": "2026-1-1", "endDate": "2026-01-02"}))); res["error"] != "startDate and endDate must be YYYY-MM-DD." {
 			t.Errorf("dates: %v", res)
 		}
@@ -614,12 +622,12 @@ func TestBinaryStage3Commands(t *testing.T) {
 			t.Errorf("csvDir: %v", res)
 		}
 		bad := filepath.Join(root, "x.txt")
-		os.WriteFile(bad, []byte("{}"), 0o644)
+		must(t, os.WriteFile(bad, []byte("{}"), 0o644))
 		if res := result(t, runBinary(t, "", line(map[string]any{"cmd": "summary", "jsonPath": bad}))); res["error"] != "jsonPath must be a .json file within your home directory." {
 			t.Errorf("not json: %v", res)
 		}
 		corrupt := filepath.Join(root, "x.json")
-		os.WriteFile(corrupt, []byte("{"), 0o644)
+		must(t, os.WriteFile(corrupt, []byte("{"), 0o644))
 		if res := result(t, runBinary(t, "", line(map[string]any{"cmd": "summary", "jsonPath": corrupt}))); res["error"] != "Could not read export." {
 			t.Errorf("corrupt: %v", res)
 		}
