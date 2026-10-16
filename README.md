@@ -192,6 +192,6 @@ When a change to the Garmin CSV files is intended, rebuild the golden files with
 - `tauri-app/ui` holds the window, written in plain HTML, CSS, and JavaScript with no build step. `ui/dev-mock.js` lets you open `index.html` in a browser with fake data.
 - `tauri-app/core` holds `garmin-export-core`, a Go program that connects Garmin, keeps the login token, downloads the Garmin data, writes the CSV files, builds the summary, the LLM pack and the bug report links, and downloads the MyFitnessPal diary. The window starts it for each command and sends one JSON request on its standard input, so your password never appears in the process list. It checks the range, the refresh window, and the folders before it does anything. The Garmin sign in and API client is the library [`github.com/danihrndzld/gconnect`](https://github.com/danihrndzld/gconnect), which never touches the disk.
 - The 3.x Electron app and the earlier JavaScript code are at the git tag `archive/electron-app`.
-- `garmin_health_export.py`, `json_to_csv.py`, and `download_activity_details.py` are the original Python scripts, which you can run with `uv run`. The app doesn't use them.
+- The original Python scripts (`garmin_health_export.py`, `json_to_csv.py`, `download_activity_details.py`) were removed in 4.5.0; they are in the git history.
 
 </details>
