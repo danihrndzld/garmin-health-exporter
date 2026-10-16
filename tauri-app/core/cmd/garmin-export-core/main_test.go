@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -173,8 +174,10 @@ func TestBinaryRejectsBadRequests(t *testing.T) {
 
 func TestBinaryGarminStatusAndDisconnect(t *testing.T) {
 	t.Parallel()
+	var requests atomic.Int32
 	fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Errorf("EP-217 garmin-status or garmin-disconnect sent a request: %s", r.URL)
+		requests.Add(1)
+		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	t.Cleanup(fake.Close)
 	home, _ := os.UserHomeDir()
@@ -187,7 +190,7 @@ func TestBinaryGarminStatusAndDisconnect(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "tokens.json"), []byte(tokens), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	run := func(cmd string) map[string]any {
+	run := func(t *testing.T, cmd string) map[string]any {
 		b, _ := json.Marshal(map[string]any{"cmd": cmd, "dataDir": dir})
 		c := exec.Command(binary)
 		c.Stdin = strings.NewReader(string(b) + "\n")
@@ -202,25 +205,41 @@ func TestBinaryGarminStatusAndDisconnect(t *testing.T) {
 		}
 		return m
 	}
-	if r := run("garmin-status"); r["ok"] != true || r["connected"] != true || r["loginKind"] != "di" || r["savedAt"] != "2026-10-01T00:00:00Z" {
-		t.Errorf("CL-213 status before disconnect = %v", r)
-	}
-	if r := run("garmin-disconnect"); r["ok"] != true || r["connected"] != false {
-		t.Errorf("CL-214 disconnect = %v", r)
-	}
-	if r := run("garmin-status"); r["connected"] != false {
-		t.Errorf("CL-215 status after disconnect = %v", r)
-	}
-	if _, err := os.Stat(filepath.Join(dir, "tokens.json")); !os.IsNotExist(err) {
-		t.Errorf("CL-216 tokens.json still exists: %v", err)
-	}
-	b, _ := json.Marshal(map[string]any{"cmd": "garmin-status", "dataDir": "/etc"})
-	c := exec.Command(binary)
-	c.Stdin = strings.NewReader(string(b) + "\n")
-	out, _ := c.Output()
-	if !strings.Contains(string(out), `"errorCode":"GARMIN_INPUT"`) {
-		t.Errorf("CL-217 dataDir outside home answered %s", out)
-	}
+	// The steps share one data dir and run in order.
+	t.Run("CL-213 status before disconnect reads the saved DI login", func(t *testing.T) {
+		if r := run(t, "garmin-status"); r["ok"] != true || r["connected"] != true || r["loginKind"] != "di" || r["savedAt"] != "2026-10-01T00:00:00Z" {
+			t.Errorf("status before disconnect = %v", r)
+		}
+	})
+	t.Run("CL-214 disconnect answers not connected", func(t *testing.T) {
+		if r := run(t, "garmin-disconnect"); r["ok"] != true || r["connected"] != false {
+			t.Errorf("disconnect = %v", r)
+		}
+	})
+	t.Run("CL-215 status after disconnect is not connected", func(t *testing.T) {
+		if r := run(t, "garmin-status"); r["connected"] != false {
+			t.Errorf("status after disconnect = %v", r)
+		}
+	})
+	t.Run("CL-216 disconnect deletes tokens.json", func(t *testing.T) {
+		if _, err := os.Stat(filepath.Join(dir, "tokens.json")); !os.IsNotExist(err) {
+			t.Errorf("tokens.json still exists: %v", err)
+		}
+	})
+	t.Run("CL-217 a dataDir outside home is GARMIN_INPUT", func(t *testing.T) {
+		b, _ := json.Marshal(map[string]any{"cmd": "garmin-status", "dataDir": "/etc"})
+		c := exec.Command(binary)
+		c.Stdin = strings.NewReader(string(b) + "\n")
+		out, _ := c.Output()
+		if !strings.Contains(string(out), `"errorCode":"GARMIN_INPUT"`) {
+			t.Errorf("dataDir outside home answered %s", out)
+		}
+	})
+	t.Run("EP-217 garmin-status and garmin-disconnect send no request", func(t *testing.T) {
+		if n := requests.Load(); n != 0 {
+			t.Errorf("the fake Garmin got %d requests", n)
+		}
+	})
 }
 
 func TestBinaryGarminConnect(t *testing.T) {

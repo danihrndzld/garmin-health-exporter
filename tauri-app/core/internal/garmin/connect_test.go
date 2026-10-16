@@ -199,7 +199,7 @@ func TestFreshKeepsTokensOnServerOrNetworkError(t *testing.T) {
 	}
 	before := tokensFileOf(t, dir)
 	srv.Control().RefreshFail = 500
-	for _, step := range []string{"ST-T203 a 500 on the refresh grant", "ST-T203 a closed network"} {
+	for _, step := range []string{"ST-T203 a 500 on the refresh grant", "ST-T212 a closed network"} {
 		t.Run(step, func(t *testing.T) {
 			_, err := Fresh(context.Background(), a, dir)
 			if err == nil || errors.Is(err, gconnect.ErrSessionDead) || errors.Is(err, ErrNoLogin) {

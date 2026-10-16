@@ -70,18 +70,22 @@ func TestSaveKeepsAuthJsShapeAndMode(t *testing.T) {
 	if err := (&tokenFile{Tokens: *tok}).save(dir); err != nil {
 		t.Fatal(err)
 	}
-	info, _ := os.Stat(filepath.Join(dir, "tokens.json"))
-	if info.Mode().Perm() != 0o600 {
-		t.Fatalf("CL-211 mode %v", info.Mode().Perm())
-	}
-	var back map[string]map[string]any
-	b, _ := os.ReadFile(filepath.Join(dir, "tokens.json"))
-	_ = json.Unmarshal(b, &back)
-	for _, k := range []string{"access_token", "refresh_token", "client_id", "expires_at", "refresh_token_expires_at"} {
-		if _, ok := back["di"][k]; !ok {
-			t.Errorf("CL-212 di.%s missing after a Go save", k)
+	t.Run("CL-211 tokens.json is saved with mode 0600", func(t *testing.T) {
+		info, _ := os.Stat(filepath.Join(dir, "tokens.json"))
+		if info.Mode().Perm() != 0o600 {
+			t.Fatalf("mode %v", info.Mode().Perm())
 		}
-	}
+	})
+	t.Run("CL-212 a Go save keeps every DI key of auth.js", func(t *testing.T) {
+		var back map[string]map[string]any
+		b, _ := os.ReadFile(filepath.Join(dir, "tokens.json"))
+		_ = json.Unmarshal(b, &back)
+		for _, k := range []string{"access_token", "refresh_token", "client_id", "expires_at", "refresh_token_expires_at"} {
+			if _, ok := back["di"][k]; !ok {
+				t.Errorf("di.%s missing after a Go save", k)
+			}
+		}
+	})
 }
 
 func TestMarkExpiredDropsEverySecret(t *testing.T) {
@@ -91,31 +95,39 @@ func TestMarkExpiredDropsEverySecret(t *testing.T) {
 	if err := MarkExpired(dir, time.Unix(1760000000, 0)); err != nil {
 		t.Fatal(err)
 	}
-	b, _ := os.ReadFile(filepath.Join(dir, "tokens.json"))
-	for _, secret := range []string{"legacy-1", "lr", "ot", "os", "cs"} {
-		if strings.Contains(string(b), `"`+secret+`"`) {
-			t.Errorf("EG-211 marker still holds %q: %s", secret, b)
+	t.Run("EG-211 the expired marker holds no secret", func(t *testing.T) {
+		b, _ := os.ReadFile(filepath.Join(dir, "tokens.json"))
+		for _, secret := range []string{"legacy-1", "lr", "ot", "os", "cs"} {
+			if strings.Contains(string(b), `"`+secret+`"`) {
+				t.Errorf("marker still holds %q: %s", secret, b)
+			}
 		}
-	}
-	if _, err := LoadTokens(dir); err == nil {
-		t.Error("EG-212 an expired marker must not load as a login")
-	}
+	})
+	t.Run("EG-212 an expired marker does not load as a login", func(t *testing.T) {
+		if _, err := LoadTokens(dir); err == nil {
+			t.Error("LoadTokens accepted the expired marker")
+		}
+	})
 }
 
 func TestDeleteMissingFileIsFine(t *testing.T) {
 	t.Parallel()
-	if err := Delete(t.TempDir()); err != nil {
-		t.Fatalf("EG-213 %v", err)
-	}
+	t.Run("EG-213 deleting a missing tokens.json is not an error", func(t *testing.T) {
+		if err := Delete(t.TempDir()); err != nil {
+			t.Fatal(err)
+		}
+	})
 }
 
 func TestSaveCreatesDataDir(t *testing.T) {
 	t.Parallel()
-	dir := filepath.Join(t.TempDir(), "fresh", "data")
-	if err := (&tokenFile{Tokens: gconnect.Tokens{DI: &gconnect.DI{AccessToken: "a"}}}).save(dir); err != nil {
-		t.Fatalf("CL-221 Save on a missing dataDir: %v", err)
-	}
-	if info, err := os.Stat(dir); err != nil || info.Mode().Perm() != 0o700 {
-		t.Fatalf("CL-221 dataDir %v %v", info, err)
-	}
+	t.Run("CL-221 save makes a missing dataDir with mode 0700", func(t *testing.T) {
+		dir := filepath.Join(t.TempDir(), "fresh", "data")
+		if err := (&tokenFile{Tokens: gconnect.Tokens{DI: &gconnect.DI{AccessToken: "a"}}}).save(dir); err != nil {
+			t.Fatalf("Save on a missing dataDir: %v", err)
+		}
+		if info, err := os.Stat(dir); err != nil || info.Mode().Perm() != 0o700 {
+			t.Fatalf("dataDir %v %v", info, err)
+		}
+	})
 }

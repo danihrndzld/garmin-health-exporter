@@ -13,22 +13,24 @@ import (
 
 // No t.Parallel: t.Setenv forbids it.
 func TestFakeServerAcceptsLoopbackOnly(t *testing.T) {
-	for v, want := range map[string]string{
-		"http://127.0.0.1:4100":   "http://127.0.0.1:4100", // EP-211
-		"http://localhost:9":      "http://localhost:9",    // EP-212
-		"https://127.0.0.1:4100":  "",                      // EP-213
-		"http://evil.com:80":      "",                      // EP-214
-		"http://127.0.0.1:4100/x": "",                      // EP-215
-		"":                        "",                      // EP-216
+	for _, c := range []struct{ name, v, want string }{
+		{"EP-211 http on 127.0.0.1 with a port is accepted", "http://127.0.0.1:4100", "http://127.0.0.1:4100"},
+		{"EP-212 http on localhost with a port is accepted", "http://localhost:9", "http://localhost:9"},
+		{"EP-213 https is rejected", "https://127.0.0.1:4100", ""},
+		{"EP-214 a host that is not loopback is rejected", "http://evil.com:80", ""},
+		{"EP-215 a URL with a path is rejected", "http://127.0.0.1:4100/x", ""},
+		{"EP-216 an empty value means the real Garmin", "", ""},
 	} {
-		t.Setenv("GARMIN_FAKE_SERVER", v)
-		wantHosts := gconnect.Hosts{}
-		if want != "" {
-			wantHosts = gconnect.SameHost(want)
-		}
-		if got := garminHosts(); got != wantHosts {
-			t.Errorf("%q -> %+v", v, got)
-		}
+		t.Run(c.name, func(t *testing.T) {
+			t.Setenv("GARMIN_FAKE_SERVER", c.v)
+			wantHosts := gconnect.Hosts{}
+			if c.want != "" {
+				wantHosts = gconnect.SameHost(c.want)
+			}
+			if got := garminHosts(); got != wantHosts {
+				t.Errorf("%q -> %+v", c.v, got)
+			}
+		})
 	}
 }
 
