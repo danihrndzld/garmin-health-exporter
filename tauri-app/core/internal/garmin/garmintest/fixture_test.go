@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/gconnect"
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/gconnect/gconnecttest"
@@ -27,7 +26,7 @@ func TestServeFixture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c := &gconnect.Client{Auth: &gconnect.Auth{Hosts: srv.Hosts()}, Tokens: tok, Gap: time.Nanosecond}
+	c := &gconnect.Client{Auth: &gconnect.Auth{Hosts: srv.Hosts()}, Tokens: tok, Gap: -1}
 	get := func(name string, p gconnect.Params) gconnect.Result {
 		e, _ := gconnect.Lookup(name)
 		return c.Get(ctx, e, p)

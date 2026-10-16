@@ -113,7 +113,7 @@ type ExportRequest struct {
 	RefreshWindow      int
 	OutputDir, DataDir string        // already resolved by guard.InsideHome in cmd
 	Hosts              gconnect.Hosts // zero value: the real Garmin; cmd sets the loopback fake
-	Gap                time.Duration  // 500 ms; cmd sets 0 only with the fake
+	Gap                time.Duration  // passed to gconnect.Client.Gap: 0 means 500 ms; cmd sets -1 (no pause) only with the loopback fake
 	Now                func() time.Time
 }
 type ExportResult struct {
@@ -347,8 +347,8 @@ func Lookup(name string) (Endpoint, bool)
 type Result struct {
 	Data   json.RawMessage // nil on 204, an empty body, or any failure
 	Status int
-	Code   string // "" on success; EMPTY_BODY, BAD_JSON, TIMEOUT, NETWORK, AUTH, FORBIDDEN, RATE_LIMIT, HTTP_4XX, HTTP_5XX
-	Err    string // redacted, at most 200 characters
+	Code   string // "" on success; BAD_JSON, TOO_LARGE, TIMEOUT, NETWORK, AUTH, FORBIDDEN, RATE_LIMIT, HTTP_4XX, HTTP_5XX
+	Err    string // redacted; a body preview inside it is at most 200 characters
 }
 type StopReason string
 const (StopSessionDead StopReason = "session_dead"; StopRateLimited StopReason = "rate_limited"; StopBlocked StopReason = "blocked"; StopRefreshFailed StopReason = "refresh_failed")
@@ -358,7 +358,7 @@ type Client struct {
 	Auth     *Auth
 	Tokens   *Tokens
 	OnTokens func(*Tokens) error // called after every successful refresh; the app writes tokens.json here. On an error the client keeps the refreshed tokens in memory, logs it as "warn" with code SAVE_FAILED and goes on; the app decides whether a failed save is fatal
-	Gap      time.Duration       // minimum time between requests; 0 means 500 ms
+	Gap      time.Duration       // minimum time between requests; 0 means 500 ms; a negative value disables the pause (for a loopback fake only)
 	Timeout  time.Duration       // 0 means 30 s
 	Sleep    func(context.Context, time.Duration) error // tests inject
 	Jitter   func() time.Duration
