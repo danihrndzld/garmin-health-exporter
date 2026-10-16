@@ -558,7 +558,8 @@ class GarminAuth {
 
   /**
    * Get a new access token now (also used after a 401). Rewrites tokens.json.
-   * @returns {{ ok: true, tokens: object } | { ok: false, error: string }}
+   * `rejected` is false when the refresh failed for a reason other than Garmin refusing the token.
+   * @returns {{ ok: true, tokens: object } | { ok: false, rejected?: boolean, error: string }}
    */
   async refresh(data = this._cachedTokens) {
     if (!data) {
@@ -573,13 +574,14 @@ class GarminAuth {
         client_id: data.di.client_id,
         refresh_token: data.di.refresh_token,
       });
-      if (!res.ok) return { ok: false, error: `Token refresh failed (${res.error}) — login required` };
+      // Only a 400/401 means Garmin rejected the token; a network error or a 5xx may pass.
+      if (!res.ok) return { ok: false, rejected: res.status === 400 || res.status === 401, error: `Token refresh failed (${res.error}) — login required` };
       const next = { di: res.di };
       this._writeTokens(next);
       return { ok: true, tokens: next };
     }
     const oauth2Result = await this._exchangeOAuth1ForOAuth2(data.consumer, data.oauth1);
-    if (!oauth2Result.ok) return oauth2Result;
+    if (!oauth2Result.ok) return { ...oauth2Result, rejected: oauth2Result.status === 401 };
     const next = { ...data, oauth2: oauth2Result.oauth2 };
     this._writeTokens(next);
     return { ok: true, tokens: next };
@@ -668,7 +670,7 @@ class GarminAuth {
       });
       if (!exchangeResp.ok) {
         const errText = await exchangeResp.text();
-        return { ok: false, error: `OAuth2 exchange failed: ${exchangeResp.status} - ${errText.slice(0, 200)}` };
+        return { ok: false, status: exchangeResp.status, error: `OAuth2 exchange failed: ${exchangeResp.status} - ${errText.slice(0, 200)}` };
       }
       const oauth2 = await exchangeResp.json();
       const now = nowSeconds();

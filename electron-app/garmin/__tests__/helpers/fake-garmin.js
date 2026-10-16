@@ -44,7 +44,7 @@ function startFakeGarmin(fixture, opts = {}) {
   const control = {
     password: 'right-password',
     mobileLogin: 'ok',      // 'ok' | 'mfa' | 'cloudflare' (403) | '429' | 'captcha'
-    diauth: 'ok',           // 'ok' | '429' | 'fail'
+    diauth: 'ok',           // 'ok' | '429' | 'fail' (400) | '500'
     tokenTtl: 3600,
     dataStatus: {},         // { '<endpoint path prefix>': status } to force 401/403/429/500 on data calls
     failOnce: {},           // { '<path prefix>': status } answers once, then normal
@@ -87,6 +87,7 @@ function startFakeGarmin(fixture, opts = {}) {
     if (p === '/di-oauth2-service/oauth/token' && req.method === 'POST') {
       if (control.diauth === '429') return send(res, 429, { error: 'rate' });
       if (control.diauth === 'fail') return send(res, 400, { error: 'invalid_grant' });
+      if (control.diauth === '500') return send(res, 500, { error: 'server_error' });
       const form = new URLSearchParams(body);
       if (form.get('grant_type') === 'refresh_token') {
         if (!/^refresh-/.test(form.get('refresh_token') || '')) return send(res, 400, { error: 'invalid_grant' });

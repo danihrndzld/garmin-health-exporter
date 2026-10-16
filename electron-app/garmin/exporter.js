@@ -160,7 +160,12 @@ async function exportHealth(opts) {
   } else {
     // Fall back to credential login
     // Without credentials (the Tauri UI never sends them) a sign in would only spend one of Garmin's few attempts.
-    if (!email || !password) return { ok: false, errorCode: 'GARMIN_SESSION', error: 'Connect Garmin first.' };
+    // A refresh that failed on the network or a 5xx keeps the login: the user should retry, not reconnect.
+    if (!email || !password) {
+      return tokenResult.rejected === false
+        ? { ok: false, errorCode: 'GARMIN_ERROR', error: 'Garmin did not answer when the app renewed the login. Check the connection and try again.' }
+        : { ok: false, errorCode: 'GARMIN_SESSION', error: 'Connect Garmin first.' };
+    }
     onLog({ type: 'dim', message: `Token load failed (${tokenResult.error}), logging in...` });
     const loginResult = await auth.login(email, password);
     if (!loginResult.ok) {

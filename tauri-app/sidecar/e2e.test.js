@@ -113,13 +113,18 @@ test('AC-11 without a saved login, export asks to connect Garmin and sends no si
   expect(fake.calls.filter((c) => SIGN_INS.includes(c.path))).toEqual([]);
 }, 60000);
 
-test('AC-11 a failed refresh of a saved login asks to connect Garmin and sends no sign in', async () => {
-  const { out, data } = dirs();
+// A DI login that expires within the 15 minute refresh margin, so the export refreshes it first.
+function expiringLogin(data) {
   const now = Math.floor(Date.now() / 1000);
   fs.writeFileSync(path.join(data, 'tokens.json'), JSON.stringify({ di: {
     access_token: 'old', refresh_token: 'refresh-old', client_id: 'GARMIN_CONNECT_MOBILE_ANDROID_DI_2025Q2',
     expires_at: now + 600, refresh_token_expires_at: now + 86400,
   } }));
+}
+
+test('AC-12 a rejected refresh of a saved login asks to connect Garmin and sends no sign in', async () => {
+  const { out, data } = dirs();
+  expiringLogin(data);
   fake.control.diauth = 'fail';
   fake.calls.length = 0;
   try {
@@ -127,6 +132,24 @@ test('AC-11 a failed refresh of a saved login asks to connect Garmin and sends n
     expect(result).toMatchObject({ ok: false, errorCode: 'GARMIN_SESSION', error: 'Connect Garmin first.' });
     expect(fake.calls.some((c) => c.path.startsWith('/di-oauth2-service'))).toBe(true);
     expect(fake.calls.filter((c) => SIGN_INS.includes(c.path))).toEqual([]);
+  } finally {
+    fake.control.diauth = 'ok';
+  }
+}, 60000);
+
+test('AC-13 a refresh that fails with HTTP 500 ends with GARMIN_ERROR, keeps tokens.json and sends no sign in', async () => {
+  const { out, data } = dirs();
+  expiringLogin(data);
+  const before = fs.readFileSync(path.join(data, 'tokens.json'), 'utf8');
+  fake.control.diauth = '500';
+  fake.calls.length = 0;
+  try {
+    const { result } = await sidecar({ cmd: 'export', startDate: FIXTURE.date_range.start, endDate: FIXTURE.date_range.end, outputDir: out, dataDir: data });
+    expect(result).toMatchObject({ ok: false, errorCode: 'GARMIN_ERROR' });
+    expect(result.error).toMatch(/^Garmin did not answer/);
+    expect(fake.calls.some((c) => c.path.startsWith('/di-oauth2-service'))).toBe(true);
+    expect(fake.calls.filter((c) => SIGN_INS.includes(c.path))).toEqual([]);
+    expect(fs.readFileSync(path.join(data, 'tokens.json'), 'utf8')).toBe(before);
   } finally {
     fake.control.diauth = 'ok';
   }
