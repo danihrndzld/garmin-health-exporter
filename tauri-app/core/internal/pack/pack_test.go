@@ -265,3 +265,27 @@ func mustRead(t *testing.T, p string) []byte {
 	}
 	return b
 }
+
+func TestBuildUnlinksASymlinkedPackFolder(t *testing.T) {
+	t.Run("EG-609 an llm-en symlink is removed as a link and the folder it points to keeps its files", func(t *testing.T) {
+		dir := copyFixture(t)
+		outside := t.TempDir()
+		keep := filepath.Join(outside, "keep.txt")
+		os.WriteFile(keep, []byte("keep"), 0o644)
+		if err := os.Symlink(outside, filepath.Join(dir, "llm-en")); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := Build(opts(dir), "en", "files"); err != nil {
+			t.Fatal(err)
+		}
+		if fi, err := os.Lstat(filepath.Join(dir, "llm-en")); err != nil || !fi.IsDir() {
+			t.Errorf("llm-en is not a real folder after Build: %v %v", fi, err)
+		}
+		if b, err := os.ReadFile(keep); err != nil || string(b) != "keep" {
+			t.Errorf("the target of the link lost keep.txt: %q %v", b, err)
+		}
+		if entries, _ := os.ReadDir(outside); len(entries) != 1 {
+			t.Errorf("Build wrote into the target of the link: %d entries", len(entries))
+		}
+	})
+}
