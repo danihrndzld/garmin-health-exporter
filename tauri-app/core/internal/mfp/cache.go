@@ -29,7 +29,7 @@ func HasFood(items []DiaryItem) bool {
 
 func (c Cache) path(date string) string { return filepath.Join(c.Dir, date+".json") }
 
-func (c Cache) Get(date string, now time.Time) (items []DiaryItem, final bool, ok bool) {
+func (c Cache) Get(date string) (items []DiaryItem, final bool, ok bool) {
 	b, err := os.ReadFile(c.path(date))
 	if err != nil {
 		return nil, false, false

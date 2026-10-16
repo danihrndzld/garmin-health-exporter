@@ -87,7 +87,7 @@ func Export(ctx context.Context, req map[string]any, out *protocol.Emitter, opts
 	days := make([]DayData, 0, len(dates))
 	fetched := 0
 	for i, d := range dates {
-		items, final, ok := cache.Get(d, time.Now())
+		items, final, ok := cache.Get(d)
 		if !ok || !final {
 			items, err = client.Diary(ctx, d)
 			if err != nil {

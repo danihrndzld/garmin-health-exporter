@@ -34,7 +34,7 @@ func TestCacheFinalRule(t *testing.T) {
 			if err := c.Put("2026-10-01", tc.items, day.Add(tc.fetchedAt)); err != nil {
 				t.Fatal(err)
 			}
-			_, final, ok := c.Get("2026-10-01", time.Now())
+			_, final, ok := c.Get("2026-10-01")
 			if !ok || final != tc.final {
 				t.Fatalf("ok = %v, final = %v, want final = %v", ok, final, tc.final)
 			}
@@ -67,7 +67,7 @@ func TestCacheGetOfUnreadableDays(t *testing.T) {
 			if tc.body != "" {
 				write(t, dir, tc.body)
 			}
-			_, final, ok := Cache{Dir: dir}.Get("2026-10-01", time.Now())
+			_, final, ok := Cache{Dir: dir}.Get("2026-10-01")
 			if ok != tc.wantOK || final != tc.wantFinal {
 				t.Fatalf("ok = %v, final = %v", ok, final)
 			}
