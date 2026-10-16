@@ -431,9 +431,8 @@ func TestExportCancellation(t *testing.T) {
 		e := newExportEnv(t)
 		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 		defer cancel()
-		var buf bytes.Buffer
 		start := time.Now()
-		res := Export(ctx, e.req("2026-10-04", "2026-10-07"), nilEmitter(&buf), Options{Base: e.srv.URL, Gap: time.Hour})
+		res := asMap(Export(ctx, toRequest(e.req("2026-10-04", "2026-10-07"), e.srv.URL, time.Hour), &recorder{}))
 		if res["ok"] != false || res["errorCode"] != "MFP_ERROR" || csvPresent(e) != 0 {
 			t.Fatalf("result = %v", res)
 		}

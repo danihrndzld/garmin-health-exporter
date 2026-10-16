@@ -8,8 +8,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
-	"regexp"
 	"strings"
 	"time"
 )
@@ -24,18 +22,6 @@ const (
 	apiBase    = "https://api.myfitnesspal.com"
 	diaryTypes = "food_entry,exercise_entry,steps_aggregate" // an unknown type makes MFP return nothing
 )
-
-var loopback = regexp.MustCompile(`^http://(127\.0\.0\.1|localhost):\d+$`)
-
-// FakeServer returns MFP_FAKE_SERVER when it is a loopback URL, else "".
-// It is read on every request, so it can never redirect traffic elsewhere.
-func FakeServer() string {
-	v := os.Getenv("MFP_FAKE_SERVER")
-	if loopback.MatchString(v) {
-		return v
-	}
-	return ""
-}
 
 type Options struct {
 	Gap  time.Duration // pause between requests; 1 s against the real MFP
@@ -56,7 +42,7 @@ func NewClient(s *Session, opts Options) *Client {
 	if opts.HTTP == nil {
 		opts.HTTP = &http.Client{Timeout: 30 * time.Second}
 	}
-	if opts.Gap == 0 && opts.Base == "" && FakeServer() == "" {
+	if opts.Gap == 0 && opts.Base == "" {
 		opts.Gap = time.Second // the real MFP: at least 1 s between requests
 	}
 	return &Client{sess: s, opts: opts}
@@ -69,9 +55,6 @@ func (c *Client) userAgent() string    { return c.sess.UserAgent }
 func (c *Client) host(real string) string {
 	if c.opts.Base != "" {
 		return c.opts.Base
-	}
-	if f := FakeServer(); f != "" {
-		return f
 	}
 	return real
 }

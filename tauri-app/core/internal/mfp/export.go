@@ -9,27 +9,48 @@ import (
 	"time"
 
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/guard"
-	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/protocol"
 )
 
 var csvFiles = []string{"mfp_food.csv", "mfp_daily.csv", "mfp_exercise.csv"}
 
-func fail(code, msg string) map[string]any {
-	return map[string]any{"ok": false, "errorCode": code, "error": msg}
+// Reporter receives the log and progress lines; *protocol.Emitter satisfies it.
+type Reporter interface {
+	Log(kind, msg string)
+	Progress(phase string, current, total int)
 }
 
-// Export runs the mfp-export command. It never touches garmin_cache.db.
-func Export(ctx context.Context, req map[string]any, out *protocol.Emitter, opts Options) map[string]any {
-	str := func(k string) string { s, _ := req[k].(string); return s }
-	start, end := str("startDate"), str("endDate")
+type ExportRequest struct {
+	StartDate, EndDate, DataDir, CSVDir string
+	Base                                string        // test server; "" for the real MFP
+	Gap                                 time.Duration // pause between requests; 0 means 1 s against the real MFP
+}
+
+type ExportResult struct {
+	Days       int      `json:"days"`
+	LoggedDays int      `json:"loggedDays"`
+	CSVDir     string   `json:"csvDir"`
+	Files      []string `json:"files"`
+}
+
+// CodeError is a failure the UI names by Code (MFP_INPUT, MFP_SESSION, MFP_RATE_LIMITED, MFP_ERROR).
+type CodeError struct{ Code, Msg string }
+
+func (e *CodeError) Error() string     { return e.Msg }
+func (e *CodeError) ErrorCode() string { return e.Code }
+
+func fail(code, msg string) (*ExportResult, error) { return nil, &CodeError{code, msg} }
+
+// Export runs the mfp-export command. It never touches garmin_cache.db. Every failure is a *CodeError.
+func Export(ctx context.Context, r ExportRequest, out Reporter) (*ExportResult, error) {
+	start, end := r.StartDate, r.EndDate
 	if err := guard.ValidateRange(start, end, 90); err != nil {
 		return fail("MFP_INPUT", err.Error())
 	}
-	dataDir, err := guard.InsideHome(str("dataDir"))
+	dataDir, err := guard.InsideHome(r.DataDir)
 	if err != nil {
 		return fail("MFP_INPUT", "dataDir: "+err.Error())
 	}
-	csvDir, err := guard.InsideHome(str("csvDir"))
+	csvDir, err := guard.InsideHome(r.CSVDir)
 	if err != nil {
 		return fail("MFP_INPUT", "csvDir: "+err.Error())
 	}
@@ -46,7 +67,7 @@ func Export(ctx context.Context, req map[string]any, out *protocol.Emitter, opts
 	if err != nil {
 		return fail("MFP_SESSION", "Connect MyFitnessPal first.")
 	}
-	client := NewClient(sess, opts)
+	client := NewClient(sess, Options{Base: r.Base, Gap: r.Gap})
 	sessionLost := false
 	// Save rotated cookies even when the run stops early, but never after an expired
 	// session: the page that says so may set cookies and would refresh saved_at.
@@ -56,7 +77,7 @@ func Export(ctx context.Context, req map[string]any, out *protocol.Emitter, opts
 		}
 	}()
 
-	mapErr := func(err error) map[string]any {
+	mapErr := func(err error) (*ExportResult, error) {
 		switch {
 		case errors.Is(err, ErrSession):
 			sessionLost = true
@@ -107,6 +128,5 @@ func Export(ctx context.Context, req map[string]any, out *protocol.Emitter, opts
 		return fail("MFP_ERROR", "Could not write the MyFitnessPal CSV files: "+err.Error())
 	}
 	out.Log("success", fmt.Sprintf("MyFitnessPal: food logged on %d of %d days (%d downloaded, %d from the cache)", logged, len(dates), fetched, len(dates)-fetched))
-	return map[string]any{"ok": true, "days": len(dates), "loggedDays": logged, "csvDir": csvDir,
-		"files": csvFiles}
+	return &ExportResult{Days: len(dates), LoggedDays: logged, CSVDir: csvDir, Files: csvFiles}, nil
 }

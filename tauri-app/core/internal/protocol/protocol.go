@@ -38,10 +38,23 @@ func (e *Emitter) Progress(phase string, current, total int) {
 	e.write(map[string]any{"kind": "progress", "phase": phase, "current": current, "total": total})
 }
 
-func (e *Emitter) Result(v map[string]any) {
+// Result writes one result line from parts, each a map or a struct that marshals to a JSON
+// object; later keys win. Going through a map keeps the keys sorted, as they always were.
+func (e *Emitter) Result(parts ...any) {
 	out := map[string]any{}
-	for k, x := range v {
-		out[k] = x
+	for _, p := range parts {
+		var m map[string]any
+		b, err := json.Marshal(p)
+		if err == nil {
+			err = json.Unmarshal(b, &m)
+		}
+		if err != nil { // a NaN would otherwise drop the line, and a lost result reads as a crash
+			out = map[string]any{"ok": false, "error": "Could not encode the answer: " + err.Error()}
+			break
+		}
+		for k, x := range m {
+			out[k] = x
+		}
 	}
 	out["kind"] = "result" // a payload key must never turn the result into another kind
 	e.write(out)

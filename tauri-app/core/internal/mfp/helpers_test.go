@@ -1,16 +1,16 @@
 package mfp
 
 import (
-	"bytes"
 	"context"
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/mfp/mfptest"
-	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/protocol"
 )
 
 func testSession() *Session {
@@ -68,7 +68,7 @@ func (e *exportEnv) req(start, end string) map[string]any {
 	return map[string]any{"cmd": "mfp-export", "startDate": start, "endDate": end, "dataDir": e.dataDir, "csvDir": e.csvDir}
 }
 
-// run drives Export like the binary does: a request map in, protocol lines and a result out.
+// run drives Export like the binary does: a request map in, protocol lines and a result map out.
 func (e *exportEnv) run(t *testing.T, req map[string]any) (map[string]any, []map[string]any) {
 	t.Helper()
 	return runExport(t, context.Background(), e.srv, req)
@@ -76,19 +76,37 @@ func (e *exportEnv) run(t *testing.T, req map[string]any) (map[string]any, []map
 
 func runExport(t *testing.T, ctx context.Context, srv *mfptest.Server, req map[string]any) (map[string]any, []map[string]any) {
 	t.Helper()
-	var buf bytes.Buffer
-	res := Export(ctx, req, &protocol.Emitter{Out: &buf}, Options{Base: srv.URL})
-	var lines []map[string]any
-	if s := bytes.TrimSpace(buf.Bytes()); len(s) > 0 {
-		for _, l := range bytes.Split(s, []byte("\n")) {
-			var m map[string]any
-			if err := json.Unmarshal(l, &m); err != nil {
-				t.Fatalf("protocol line %q is not JSON: %v", l, err)
-			}
-			lines = append(lines, m)
-		}
+	rec := &recorder{}
+	return asMap(Export(ctx, toRequest(req, srv.URL, 0), rec)), rec.lines
+}
+
+// toRequest decodes a request map the way cmd/garmin-export-core does.
+func toRequest(req map[string]any, base string, gap time.Duration) ExportRequest {
+	str := func(k string) string { s, _ := req[k].(string); return s }
+	return ExportRequest{StartDate: str("startDate"), EndDate: str("endDate"), DataDir: str("dataDir"), CSVDir: str("csvDir"), Base: base, Gap: gap}
+}
+
+// asMap is the result line without kind, as cmd/garmin-export-core writes it.
+func asMap(r *ExportResult, err error) map[string]any {
+	var ce *CodeError
+	if errors.As(err, &ce) {
+		return map[string]any{"ok": false, "errorCode": ce.Code, "error": ce.Msg}
 	}
-	return res, lines
+	if err != nil {
+		return map[string]any{"ok": false, "error": err.Error()}
+	}
+	return map[string]any{"ok": true, "days": r.Days, "loggedDays": r.LoggedDays, "csvDir": r.CSVDir, "files": r.Files}
+}
+
+// recorder keeps the log and progress lines in their protocol shape; numbers are float64, as after JSON.
+type recorder struct{ lines []map[string]any }
+
+func (r *recorder) Log(kind, msg string) {
+	r.lines = append(r.lines, map[string]any{"kind": "log", "type": kind, "msg": msg})
+}
+
+func (r *recorder) Progress(phase string, current, total int) {
+	r.lines = append(r.lines, map[string]any{"kind": "progress", "phase": phase, "current": float64(current), "total": float64(total)})
 }
 
 func exists(path string) bool { _, err := os.Stat(path); return err == nil }
@@ -143,5 +161,3 @@ func fixtureGoals() Goals {
 	f := func(v float64) *float64 { return &v }
 	return Goals{EnergyKcal: f(2200), Protein: f(150), Carbohydrate: f(220), Fat: f(73), Sodium: f(2300), Sugar: f(50)}
 }
-
-func nilEmitter(buf *bytes.Buffer) *protocol.Emitter { return &protocol.Emitter{Out: buf} }
