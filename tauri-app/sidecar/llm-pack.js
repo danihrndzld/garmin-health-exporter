@@ -96,7 +96,8 @@ export function buildContext({ lang, startDate, endDate, exportedAt, tz, files, 
   const daily = files.find((f) => f.name === 'mfp_daily.csv');
   if (daily) {
     const rows = daily.text.split(/\r?\n/).slice(1).filter(Boolean);
-    const logged = rows.filter((r) => r.split(',')[1] === 'yes').length;
+    const col = daily.header.indexOf('logged');
+    const logged = rows.filter((r) => r.split(',')[col] === 'yes').length;
     out.push('', t.mfp(logged, rows.length));
   }
   out.push('', t.missing, ...(warnings.length ? warnings.map((w) => `- ${w}`) : [t.none]));

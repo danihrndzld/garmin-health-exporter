@@ -60,3 +60,9 @@ test('MyFitnessPal files get descriptions, units and the logged days line', () =
   expect(en).toContain('Calcium, iron and vitamin D are as MyFitnessPal stores them for each food, which can be a percent of daily value or milligrams.');
   expect(en).toContain('Food diary from MyFitnessPal, one row per food');
 });
+
+test('the logged days line finds the logged column by its header, not by position', () => {
+  const dir = exportDir();
+  fs.writeFileSync(path.join(dir, 'mfp_daily.csv'), 'date,meals_logged,logged\n2026-05-11,2,yes\n2026-05-12,0,no\n');
+  expect(previewPack(opts(dir)).langs.en.context).toContain('MyFitnessPal: food logged on 1 of 2 days.');
+});
