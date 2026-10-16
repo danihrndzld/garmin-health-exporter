@@ -16,7 +16,7 @@
 
 <br>
 
-<img src="docs/images/garmin-export.png" alt="The Garmin Export window with the LLM pack panel open, showing an English context file, a token meter at 118k tokens, 18 CSV files, and the Build folder and Build one file buttons" width="900">
+<img src="docs/images/garmin-export.png" alt="The Garmin Export window after a 7 day export, with the LLM pack panel open: an English context file, a token meter at 14k tokens, 17 files including the MyFitnessPal ones, and the Build folder and Build one file buttons" width="900">
 
 </div>
 
@@ -76,7 +76,11 @@ Each source in the Setup card has an Include switch that turns it on or off for 
 Downloaded days are also kept in a local cache, so a second export of the same range only asks Garmin for the newest days.
 
 <div align="center">
-<img src="docs/images/export-done.png" alt="The main Garmin Export window, with progress rings on the left, the setup and run cards in the middle, and step and sleep charts on the right" width="900">
+<img src="docs/images/export-done.png" alt="The main Garmin Export window after a 7 day export: five progress rings on the left, the Setup card with Garmin Connect and MyFitnessPal both connected, the six run steps, and the step and recovery charts" width="900">
+</div>
+
+<div align="center">
+<img src="docs/images/theme-ocean.png" alt="The LLM pack panel in the ocean accent color" width="290"> <img src="docs/images/theme-coral.png" alt="The LLM pack panel in the coral accent color" width="290"> <img src="docs/images/theme-violet.png" alt="The LLM pack panel in the violet accent color" width="290">
 </div>
 
 ## Give the data to an LLM
