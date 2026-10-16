@@ -3,17 +3,22 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Checks the version bump of tools/release.py on the real config files, in memory.
+"""Checks tools/release.py: the version bump on the real config files (in memory),
+and the stage order with a fake runner (nothing is pushed before verify passes).
 
 Usage: uv run tools/test_release.py
 """
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
+sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import release  # noqa: E402
 
@@ -45,6 +50,71 @@ class BumpTest(unittest.TestCase):
         self.assertEqual(release.bump("4.4.0", "patch"), "4.4.1")
         self.assertEqual(release.bump("4.4.1", "minor"), "4.5.0")
         self.assertEqual(release.bump("4.5.0", "major"), "5.0.0")
+
+
+class FakeRunner:
+    """Records every command; answers the read only ones like a clean repo."""
+
+    def __init__(self, version: str, archs: str = "x86_64 arm64") -> None:
+        self.version, self.archs, self.cmds = version, archs, []
+
+    def __call__(self, cmd, cwd=None, dry=False, check=True, capture=False):
+        self.cmds.append(cmd)
+        out, rc = "", 0
+        if cmd[:3] == ["git", "rev-parse", "--abbrev-ref"]:
+            out = "feat/x"
+        elif cmd[:3] == ["git", "worktree", "list"]:
+            out = "worktree /repo\nHEAD abc\nbranch refs/heads/main\n"
+        elif cmd[0] == "lipo":
+            out = self.archs
+        elif cmd[0].endswith("PlistBuddy"):
+            out = self.version
+        elif cmd[0] == "gh":
+            out = "https://example.invalid/release"
+        if check and rc:
+            raise SystemExit(1)
+        return subprocess.CompletedProcess(cmd, rc, stdout=out, stderr="")
+
+
+def publishing(cmd) -> bool:
+    return (
+        cmd[:2] == ["git", "push"]
+        or cmd[:3] == ["git", "tag", "-a"]
+        or cmd[:3] == ["gh", "release", "create"]
+        or ("merge" in cmd and "--ff-only" in cmd)
+    )
+
+
+class OrderTest(unittest.TestCase):
+    def run_release(self, runner: FakeRunner) -> None:
+        tmp = Path(tempfile.mkdtemp())
+        dmg = tmp / "x.dmg"
+        dmg.write_text("")
+        with (
+            mock.patch.object(release, "run", runner),
+            mock.patch.object(release, "gh_authed", return_value=True),
+            mock.patch.object(release, "release_exists", return_value=False),
+            mock.patch.object(release, "write_versions"),
+            mock.patch.object(release, "dmg_path", return_value=dmg),
+            mock.patch.object(release, "NOTES_DIR", tmp),
+        ):
+            release.main(["--version", runner.version])
+
+    def test_nothing_is_pushed_before_verify_passes(self) -> None:
+        r = FakeRunner("9.8.7")
+        self.run_release(r)
+        last_verify = max(i for i, c in enumerate(r.cmds) if c[0] == "codesign")
+        first_publish = min(i for i, c in enumerate(r.cmds) if publishing(c))
+        self.assertLess(last_verify, first_publish)
+        self.assertIn(["git", "-C", "/repo", "merge", "--ff-only", "feat/x"], r.cmds)
+        self.assertNotIn("checkout", [c[1] for c in r.cmds if c[0] == "git"])
+
+    def test_a_failed_verify_pushes_nothing(self) -> None:
+        r = FakeRunner("9.8.7", archs="arm64")
+        with self.assertRaises(SystemExit):
+            self.run_release(r)
+        self.assertFalse([c for c in r.cmds if publishing(c)])
+        self.assertIn("detach", [c[1] for c in r.cmds if c[0] == "hdiutil"])
 
 
 if __name__ == "__main__":
