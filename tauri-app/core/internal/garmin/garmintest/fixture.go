@@ -47,12 +47,12 @@ func Serve(srv *gconnecttest.Server, path string) error {
 	routes := map[string]jsjson.Value{} // path?query -> answer
 	daily, agg := fx.Get("daily"), fx.Get("aggregated")
 	for _, date := range daily.O.Keys {
-		for _, ep := range gconnect.Daily {
+		for _, ep := range gconnect.Daily() {
 			routes[ep.URL("", gconnect.Params{Date: date, DisplayName: DisplayName})] = daily.Get(date).Get(ep.Name)
 		}
 	}
 	rng := fx.Get("date_range")
-	for _, ep := range gconnect.Aggregated {
+	for _, ep := range gconnect.Aggregated() {
 		if ep.Name != "daily_steps" { // chunked: served by prefix below
 			routes[ep.URL("", gconnect.Params{Start: rng.Get("start").S, End: rng.Get("end").S, DisplayName: DisplayName})] = agg.Get(ep.Name)
 		}

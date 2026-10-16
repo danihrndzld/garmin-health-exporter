@@ -72,6 +72,9 @@ func PrepareDir(outputDir, endDate string) (string, error) {
 	return dir, removeMFP(dir)
 }
 
+// rateLimitedMsg replaces the library's neutral text: this app caches every finished day.
+const rateLimitedMsg = "Garmin is rate limiting requests (HTTP 429). The data so far is cached; try again in an hour."
+
 // stopErr maps the client's stop to the code the UI shows. A dead login is marked expired;
 // a refresh that failed without proving it dead keeps tokens.json.
 func stopErr(c *gconnect.Client, dataDir string, out Reporter) error {
@@ -86,7 +89,7 @@ func stopErr(c *gconnect.Client, dataDir string, out Reporter) error {
 		}
 		return &CodeError{"GARMIN_SESSION", expiredMsg}
 	case gconnect.StopRateLimited:
-		return &CodeError{"GARMIN_RATE_LIMITED", s.Msg}
+		return &CodeError{"GARMIN_RATE_LIMITED", rateLimitedMsg}
 	case gconnect.StopBlocked:
 		return &CodeError{"GARMIN_BLOCKED", s.Msg}
 	}
@@ -199,7 +202,7 @@ func Export(ctx context.Context, r ExportRequest, out Reporter) (*ExportResult, 
 		day := jsjson.NewObj()
 		entries := cache.Day(date)
 		useCache := !InRefreshWindow(date, r.RefreshWindow, now)
-		for _, ep := range gconnect.Daily {
+		for _, ep := range gconnect.Daily() {
 			if ep.AliasOf != "" && slices.Contains(day.Keys, ep.AliasOf) {
 				day.Set(ep.Name, day.Get(ep.AliasOf))
 				continue
@@ -227,14 +230,14 @@ func Export(ctx context.Context, r ExportRequest, out Reporter) (*ExportResult, 
 
 	// 6. Aggregated endpoints, always asked again (exporter.js:305-323).
 	out.Log("info", "Pulling aggregated metrics...")
-	aggregated := jsjson.NewObj()
-	for i, ep := range gconnect.Aggregated {
+	aggregated, aggEndpoints := jsjson.NewObj(), gconnect.Aggregated()
+	for i, ep := range aggEndpoints {
 		if ep.Name == "daily_steps" {
 			aggregated.Set(ep.Name, dailySteps(ctx, c, r.StartDate, r.EndDate))
 		} else {
 			aggregated.Set(ep.Name, parse(c.Safe(ctx, ep, gconnect.Params{Start: r.StartDate, End: r.EndDate, DisplayName: displayName})))
 		}
-		out.Progress("aggregated", i+1, len(gconnect.Aggregated))
+		out.Progress("aggregated", i+1, len(aggEndpoints))
 		if err := stopErr(c, r.DataDir, out); err != nil {
 			return nil, err
 		}

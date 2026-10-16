@@ -62,7 +62,7 @@ func TestConnectMapsLoginCodesAndWritesFiles(t *testing.T) {
 		} {
 			srv.Reset()
 			if c.set != nil {
-				c.set(srv.Control())
+				srv.Set(c.set)
 			}
 			dir := t.TempDir()
 			s, err := Connect(context.Background(), a, dir, "e2e@example.invalid", c.password, time.Now())
@@ -96,8 +96,7 @@ func TestLoginCodeMapping(t *testing.T) {
 func TestLoginRateLimitedTwiceStartsCooldown(t *testing.T) {
 	t.Run("DT-R219 ports DT-R9: two 429s start the cooldown and the next login sends nothing", func(t *testing.T) {
 		srv, a := fakeGarmin(t)
-		srv.Control().MobileLogin = "429"
-		srv.Control().Widget429 = true
+		srv.Set(func(c *gconnecttest.Control) { c.MobileLogin, c.Widget429 = "429", true })
 		dir := t.TempDir()
 		err := connect(a, dir, time.Now())
 		if codeOf(err) != "GARMIN_RATE_LIMITED" {
@@ -165,7 +164,7 @@ func itoa(n int64) string { return strconv.FormatInt(n, 10) }
 func TestFreshRefreshesDIBeforeExpiry(t *testing.T) {
 	t.Run("ST-T201 ports ST-T1: a DI token near expiry is refreshed once", func(t *testing.T) {
 		srv, a := fakeGarmin(t)
-		srv.Control().TokenTTL = 600 // inside the 15 minute margin
+		srv.Set(func(c *gconnecttest.Control) { c.TokenTTL = 600 }) // inside the 15 minute margin
 		dir := t.TempDir()
 		if err := connect(a, dir, time.Now()); err != nil {
 			t.Fatal(err)
@@ -192,13 +191,13 @@ func TestFreshRefreshesDIBeforeExpiry(t *testing.T) {
 
 func TestFreshKeepsTokensOnServerOrNetworkError(t *testing.T) {
 	srv, a := fakeGarmin(t)
-	srv.Control().TokenTTL = 600
+	srv.Set(func(c *gconnecttest.Control) { c.TokenTTL = 600 })
 	dir := t.TempDir()
 	if err := connect(a, dir, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	before := tokensFileOf(t, dir)
-	srv.Control().RefreshFail = 500
+	srv.Set(func(c *gconnecttest.Control) { c.RefreshFail = 500 })
 	for _, step := range []string{"ST-T203 a 500 on the refresh grant", "ST-T212 a closed network"} {
 		t.Run(step, func(t *testing.T) {
 			_, err := Fresh(context.Background(), a, dir)
@@ -233,7 +232,7 @@ func TestRefreshDeadOnlyOnProvenAnswers(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.id, func(t *testing.T) {
 			srv.Reset()
-			srv.Control().RefreshFail = c.status
+			srv.Set(func(k *gconnecttest.Control) { k.RefreshFail = c.status })
 			dir := t.TempDir()
 			write(t, dir, c.body)
 			_, err := Fresh(context.Background(), a, dir)

@@ -55,7 +55,11 @@ func Connect(ctx context.Context, a *gconnect.Auth, dataDir, email, password str
 		if le.Code == gconnect.RateLimited {
 			startCooldown(dataDir, now)
 		}
-		return Status{}, &CodeError{loginErrorCode(le.Code), le.Msg}
+		msg := le.Msg
+		if le.Code == gconnect.MFARequired { // the library's text is neutral; name this app
+			msg = "This account uses two step verification, which Garmin Export does not support yet."
+		}
+		return Status{}, &CodeError{loginErrorCode(le.Code), msg}
 	}
 	if err := (&tokenFile{Tokens: *t}).save(dataDir); err != nil {
 		return Status{}, &CodeError{"GARMIN_ERROR", "could not save the Garmin login: " + err.Error()}

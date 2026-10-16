@@ -215,7 +215,7 @@ func TestExportReadsFinalDaysFromTheCache(t *testing.T) {
 		fx, _ := jsjson.Parse(raw)
 		daily, want := map[string]bool{}, map[string]bool{}
 		for _, date := range guard.Dates(r.StartDate, r.EndDate) {
-			for _, ep := range gconnect.Daily {
+			for _, ep := range gconnect.Daily() {
 				if ep.AliasOf != "" {
 					continue
 				}
