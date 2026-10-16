@@ -4,14 +4,13 @@
 // Oracle: docs/superpowers/specs/2026-10-14-go-core-mfp-design.md (UI section and
 // "A failure in MFP never changes the result of the Garmin export").
 import { test, expect } from './fixtures.js';
-import { VALID_LOGIN } from './support/mock-backend.js';
 
 test.describe('decision table: MFP step of a run', () => {
   test('DT-R1 not connected: no MFP step, Include off and disabled', async ({ app }) => {
     await app.open();
     await expect(app.mfp.include).toBeDisabled();
     await expect(app.mfp.include).not.toBeChecked();
-    await app.startExport(VALID_LOGIN);
+    await app.startExport();
     await app.waitForRunEnd();
     await expect(app.hero.badge).toHaveText('Done');
     await expect(app.run.row('mfp').root).toBeHidden();
@@ -22,7 +21,7 @@ test.describe('decision table: MFP step of a run', () => {
     scenario.mfpConnected();
     await app.open();
     await app.mfp.include.uncheck();
-    await app.startExport(VALID_LOGIN);
+    await app.startExport();
     await app.waitForRunEnd();
     await expect(app.hero.badge).toHaveText('Done');
     await expect(app.run.row('mfp').root).toBeHidden();
@@ -33,7 +32,7 @@ test.describe('decision table: MFP step of a run', () => {
   test('DT-R3 connected, included, valid session: food logged on 17 of 30 days', async ({ app, scenario }) => {
     scenario.mfpConnected();
     await app.open();
-    await app.startExport(VALID_LOGIN);
+    await app.startExport();
     await app.waitForRunEnd();
     await expect(app.hero.badge).toHaveText('Done');
     await expect(app.run.row('mfp').root).toHaveAttribute('data-st', 'ok');
@@ -45,7 +44,7 @@ test.describe('decision table: MFP step of a run', () => {
   test('DT-R4 connected, included, expired session: MFP skipped, Garmin still Done', async ({ app, scenario }) => {
     scenario.mfpConnected().mfpSessionExpired();
     await app.open();
-    await app.startExport(VALID_LOGIN);
+    await app.startExport();
     await app.waitForRunEnd();
     await expect(app.hero.badge).toHaveText('Done');
     await expect(app.run.row('mfp').root).toHaveAttribute('data-st', 'warn');
@@ -57,7 +56,7 @@ test.describe('decision table: MFP step of a run', () => {
   test('DT-R5 connected, included, valid, cancelled during MFP: MFP cancelled, Garmin still Done', async ({ app, scenario }) => {
     scenario.mfpConnected();
     await app.open();
-    await app.startExport(VALID_LOGIN);
+    await app.startExport();
     await app.waitForPhase('mfp');
     await app.pressEscape();
     await app.waitForRunEnd();
@@ -93,7 +92,7 @@ test.describe('state transitions: Setup row', () => {
     scenario.mfpConnected().mfpSessionExpired();
     await app.open();
     await expect(app.mfp.state).toHaveText('Connected');
-    await app.startExport(VALID_LOGIN);
+    await app.startExport();
     await app.waitForRunEnd();
     await expect(app.mfp.state).toHaveText('Session expired');
     await expect(app.mfp.button).toHaveText('reconnect');
@@ -102,7 +101,7 @@ test.describe('state transitions: Setup row', () => {
   test('ST-T12 Session expired → Connected after reconnecting', async ({ app, scenario }) => {
     scenario.mfpConnected().mfpSessionExpired();
     await app.open();
-    await app.startExport(VALID_LOGIN);
+    await app.startExport();
     await app.waitForRunEnd();
     await app.mfp.pressButton();
     await expect(app.mfp.state).toHaveText('Connected');
@@ -112,7 +111,7 @@ test.describe('state transitions: Setup row', () => {
   test('ST-I7 Running + Include toggle: disabled', async ({ app, scenario }) => {
     scenario.mfpConnected();
     await app.open();
-    await app.startExport(VALID_LOGIN);
+    await app.startExport();
     await expect(app.mfp.include).toBeDisabled();
     await expect(app.mfp.button).toBeDisabled();
   });
@@ -120,7 +119,7 @@ test.describe('state transitions: Setup row', () => {
   test('ST-I9 Esc while the pack refreshes after MFP: the run ends Done and MFP stays ok', async ({ app, scenario }) => {
     scenario.mfpConnected().summaryHangs();
     await app.open();
-    await app.startExport(VALID_LOGIN);
+    await app.startExport();
     await app.waitForPhase('mfp', 'ok');
     await expect(app.hero.badge).toHaveText('Running');
     await app.pressEscape();

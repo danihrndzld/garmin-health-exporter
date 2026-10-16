@@ -73,11 +73,12 @@
     <div class="card-h"><span class="num-lbl mono">01</span>Setup<span class="grow"></span>
       <button type="button" class="link mono" id="clear-cache">clear cache</button></div>
     <div class="grid">
-      <label class="field"><span>Email</span>
-        <input type="email" id="email" autocomplete="username" spellcheck="false" placeholder="you@example.com"></label>
-      <label class="field"><span>Password</span>
-        <span class="pw"><input type="password" id="password" autocomplete="current-password" placeholder="••••••••">
-        <button type="button" class="eye" id="eye" aria-label="Show password">show</button></span></label>
+      <div class="field"><span>Refresh window <i class="hint" title="Always re-fetches this many recent days to catch late Garmin updates.">?</i></span>
+        <div class="seg seg-sm" role="radiogroup" aria-label="Refresh window" id="refresh-seg">
+          <button type="button" role="radio" data-v="1">1d</button><button type="button" role="radio" data-v="2">2d</button><button type="button" role="radio" data-v="3">3d</button><button type="button" role="radio" data-v="5">5d</button><button type="button" role="radio" data-v="7">7d</button>
+        </div></div>
+      <div class="field"><span>Output</span>
+        <button type="button" class="path mono" id="out"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h7l2 2h9v11H3z"/></svg><span id="out-path">~/Documents/GarminExport</span><em>change</em></button></div>
       <div class="field" id="range-field"><span>Range</span>
         <div class="range-read mono" id="range-read">—</div>
         <div class="range-custom">
@@ -85,12 +86,17 @@
         </div>
         <div class="err" id="range-err" role="alert" hidden></div>
       </div>
-      <div class="field"><span>Refresh window <i class="hint" title="Always re-fetches this many recent days to catch late Garmin updates.">?</i></span>
-        <div class="seg seg-sm" role="radiogroup" aria-label="Refresh window" id="refresh-seg">
-          <button type="button" role="radio" data-v="1">1d</button><button type="button" role="radio" data-v="2">2d</button><button type="button" role="radio" data-v="3">3d</button><button type="button" role="radio" data-v="5">5d</button><button type="button" role="radio" data-v="7">7d</button>
-        </div></div>
-      <div class="field wide"><span>Output</span>
-        <button type="button" class="path mono" id="out"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h7l2 2h9v11H3z"/></svg><span id="out-path">~/Documents/GarminExport</span><em>change</em></button></div>
+      <div class="field full"><span>Garmin Connect <i class="hint" title="Connect once. The app saves a login token, not your password.">?</i></span>
+        <div class="mfp-row"><span class="mono" id="garmin-state">Not connected</span><span class="grow"></span>
+          <label class="switch"><input type="checkbox" id="garmin-on"><span>Include</span></label>
+          <button type="button" class="link mono" id="garmin-btn">connect</button></div>
+        <div class="garmin-form" id="garmin-form" hidden>
+          <label><span>Email</span><input type="email" id="email" autocomplete="username" spellcheck="false" placeholder="you@example.com"></label>
+          <label><span>Password</span><span class="pw"><input type="password" id="password" autocomplete="current-password" placeholder="••••••••">
+            <button type="button" class="eye" id="eye" aria-label="Show password">show</button></span></label>
+          <p class="err" id="garmin-err" role="alert" hidden></p>
+          <button type="button" class="link mono" id="garmin-signin">sign in</button>
+          <button type="button" class="link mono" id="garmin-cancel">cancel</button></div></div>
       <div class="field full"><span>MyFitnessPal <i class="hint" title="Adds your food diary to each export. You sign in on MyFitnessPal's own page; the app never sees your password.">?</i></span>
         <div class="mfp-row"><span class="mono" id="mfp-state">Not connected</span><span class="grow"></span>
           <label class="switch"><input type="checkbox" id="mfp-on"><span>Include</span></label>

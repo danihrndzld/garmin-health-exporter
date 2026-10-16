@@ -333,25 +333,19 @@
 
   // ── Export ──────────────────────────────────────────────────────────────
   function lock(on) {
-    [emailEl, passEl, eye, outBtn, clearCacheBtn, fromEl, toEl, mfpBtn, mfpOn].forEach((el) => { el.disabled = on; });
-    if (!on) mfpOn.disabled = !mfp.connected;
+    [emailEl, passEl, eye, outBtn, clearCacheBtn, fromEl, toEl, mfpBtn, mfpOn, garminBtn, garminOn, signInBtn, cancelBtn].forEach((el) => { el.disabled = on; });
+    if (!on) { mfpOn.disabled = !mfp.connected; garminOn.disabled = !garmin.connected; }
     rangeSeg.querySelectorAll('button').forEach((b) => { b.disabled = on; });
     refreshSeg.querySelectorAll('button').forEach((b) => { b.disabled = on; });
   }
 
   async function startExport() {
     if (running) return;
-    const email = emailEl.value.trim();
-    const password = passEl.value;
-    if (!email || !password) {
-      (email ? passEl : emailEl).focus();
-      toast('Email and password are required.');
-      return;
-    }
+    if (!usable(garmin, garminOn)) { toast('Connect Garmin first.'); return; }
     if (!rangeCheck.ok) { toast(rangeCheck.message); return; }
 
     const req = {
-      cmd: 'export', email, password, refreshWindow: parseInt(refresh, 10),
+      cmd: 'export', refreshWindow: parseInt(refresh, 10),
       outputDir: paths.outputDir, dataDir: paths.dataDir,
       ...(days === 'custom' ? { startDate: fromEl.value, endDate: toEl.value } : { daysBack: parseInt(days, 10) }),
     };
@@ -428,6 +422,7 @@
       setHeadline(res.cancelled ? 'Cancelled.' : 'Stopped.', res.cancelled ? 'cache kept.' : 'see the log.');
       log('error', res.error || 'Unknown error');
       if (!res.cancelled) { toast(res.error || 'Export failed.', 6000); showReport(res.error); }
+      if (res.errorCode === 'GARMIN_SESSION') { garmin.expired = garmin.connected; renderGarmin(); }
     }
     running = null;
     lock(false);
@@ -440,7 +435,12 @@
     if (running && running.cancel) running.cancel();
   }
 
-  $('setup').addEventListener('submit', (e) => { e.preventDefault(); running ? cancelExport() : startExport(); });
+  $('setup').addEventListener('submit', (e) => {
+    e.preventDefault();
+    // Enter in the Garmin form signs in; it must not start a run.
+    if (garminForm.contains(document.activeElement)) signIn();
+    else running ? cancelExport() : startExport();
+  });
   document.addEventListener('keydown', (e) => {
     const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName);
     if (!sheet.hidden) {
@@ -739,6 +739,62 @@
     }
   }
 
+  // ── Garmin ──────────────────────────────────────────────────────────────
+  // The Go core signs in once and keeps tokens.json; every export runs from it without a password.
+  const GO = 'binaries/garmin-export-core';
+  const garminState = $('garmin-state'), garminBtn = $('garmin-btn'), garminOn = $('garmin-on');
+  const garminForm = $('garmin-form'), garminErr = $('garmin-err'), signInBtn = $('garmin-signin'), cancelBtn = $('garmin-cancel');
+  let garmin = { connected: false, expired: false };
+  const usable = (s, sw) => sw.checked && s.connected && !s.expired;
+  const goRun = (req) => platform.run(req, () => {}, GO).done.catch((e) => ({ ok: false, error: String(e?.message || e) }));
+  function renderGarmin() {
+    garminState.textContent = garmin.expired ? 'Session expired' : garmin.connected ? 'Connected' : 'Not connected';
+    garminBtn.textContent = garmin.expired ? 'reconnect' : garmin.connected ? 'disconnect' : 'connect';
+    garminOn.disabled = !!running || !garmin.connected;
+    garminOn.checked = garmin.connected && store.get('garmin_on', '1') === '1';
+    if (garmin.connected && !garmin.expired) garminForm.hidden = true;
+  }
+  function setGarmin(s) {
+    garmin = { connected: !!s.connected, expired: !!s.expired, savedAt: s.savedAt };
+    renderGarmin();
+  }
+  function showGarminError(msg) {
+    garminErr.textContent = msg;
+    garminErr.hidden = !msg;
+  }
+  async function refreshGarmin() {
+    const s = await goRun({ cmd: 'garmin-status', dataDir: paths.dataDir });
+    // Expired stays until a sign in or a disconnect, as for MyFitnessPal.
+    if (s.ok) setGarmin({ ...s, expired: s.expired || (garmin.expired && s.connected) });
+  }
+  async function signIn() {
+    const email = emailEl.value.trim(), password = passEl.value;
+    if (!email || !password) { showGarminError('Enter your email and password.'); (email ? passEl : emailEl).focus(); return; }
+    store.set('email', email);
+    signInBtn.disabled = true;
+    let res;
+    try { res = await goRun({ cmd: 'garmin-connect', email, password, dataDir: paths.dataDir }); } finally { passEl.value = ''; signInBtn.disabled = false; }
+    if (!res.ok) { showGarminError(res.error); passEl.focus(); return; }
+    showGarminError('');
+    setGarmin(res);
+    toast('Garmin connected.');
+  }
+  garminBtn.addEventListener('click', async () => {
+    if (garmin.connected && !garmin.expired) {
+      const res = await goRun({ cmd: 'garmin-disconnect', dataDir: paths.dataDir });
+      if (!res.ok) { toast(res.error); return; }
+      setGarmin(res);
+      toast('Garmin disconnected.');
+      return;
+    }
+    showGarminError('');
+    garminForm.hidden = false;
+    emailEl.focus();
+  });
+  signInBtn.addEventListener('click', signIn);
+  cancelBtn.addEventListener('click', () => { garminForm.hidden = true; passEl.value = ''; showGarminError(''); });
+  garminOn.addEventListener('change', () => { store.set('garmin_on', garminOn.checked ? '1' : '0'); renderGarmin(); });
+
   // ── Version + update check ──────────────────────────────────────────────
   const verEl = $('ver');
   let version = '';
@@ -777,10 +833,12 @@
     if (savedDir) paths.outputDir = savedDir;
     outPath.textContent = tilde(paths.outputDir);
     version = await platform.version();
+    await refreshGarmin(); // before the version shows, so the e2e boot wait also covers the Garmin status
     verEl.textContent = 'v' + version;
     if (lastOutDir) openOut.hidden = false;
     loadLastSummary();
     refreshMfp();
     platform.onFocus(refreshMfp);
+    platform.onFocus(refreshGarmin);
   })();
 })();

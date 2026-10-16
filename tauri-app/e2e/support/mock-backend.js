@@ -6,6 +6,9 @@
 export class MockBackend {
   #keys = {};
 
+  garminConnected() { return this.#set('mock_garmin', String(Date.UTC(2026, 9, 1))); }
+  garminNotConnected() { delete this.#keys.mock_garmin; return this; }
+  garminSessionExpired() { return this.#set('mock_garmin_expired', '1'); }
   mfpConnected() { return this.#set('mock_mfp', String(Date.UTC(2026, 9, 1))); }
   mfpSessionExpired() { return this.#set('mock_mfp_expired', '1'); }
   activities(count) { return this.#set('mock_acts', String(count)); }
@@ -28,6 +31,6 @@ export class MockBackend {
   }
 }
 
-/** Login the mock rejects (dev-mock.js: "fail@x.com"). */
+/** Login the mock rejects as a wrong password (dev-mock.js: "fail@x.com"). */
 export const REJECTED_EMAIL = 'fail@x.com';
 export const VALID_LOGIN = { email: 'runner@example.com', password: 'correct horse' };

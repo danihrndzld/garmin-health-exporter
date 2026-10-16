@@ -58,11 +58,24 @@
           return { ok: true, days: 30, loggedDays: 17, files: ['mfp_food.csv', 'mfp_daily.csv', 'mfp_exercise.csv'] };
         }
         if (req.cmd === 'report') return { ok: true, issueUrl: 'https://github.com/x/issues/new', mailtoUrl: 'mailto:x' };
+        // Garmin login, as the Go core answers it. localStorage.mock_garmin holds the save time;
+        // mock_garmin_expired makes the next export end with GARMIN_SESSION.
+        const garminStatus = () => ({ ok: true, connected: !!localStorage.getItem('mock_garmin'), expired: false, savedAt: Number(localStorage.getItem('mock_garmin')) || 0, loginKind: 'di' });
+        if (req.cmd === 'garmin-status') return garminStatus();
+        if (req.cmd === 'garmin-disconnect') { localStorage.removeItem('mock_garmin'); localStorage.removeItem('mock_garmin_expired'); return garminStatus(); }
+        if (req.cmd === 'garmin-connect') {
+          await sleep(200);
+          // Garmin does not trim, so an email with spaces is a wrong login.
+          if (req.email === 'fail@x.com' || req.email !== req.email.trim()) return { ok: false, errorCode: 'GARMIN_BAD_PASSWORD', error: 'Wrong email or password.' };
+          if (req.email === 'mfa@x.com') return { ok: false, errorCode: 'GARMIN_MFA', error: 'This account uses two step verification, which Garmin Export does not support yet.' };
+          localStorage.setItem('mock_garmin', String(Date.now()));
+          localStorage.removeItem('mock_garmin_expired');
+          return garminStatus();
+        }
         if (req.cmd !== 'export') return { ok: true };
-        if (req.email === 'fail@x.com') {
-          onEvent({ kind: 'log', type: 'warn', msg: '[skip] endurance_score: Empty response body [endurance_score] — Garmin returned HTTP 204 with no content. Usually no data for that day yet (the watch has not synced) or a metric this device does not record.', ts: ts() });
+        if (!localStorage.getItem('mock_garmin') || localStorage.getItem('mock_garmin_expired')) {
           await sleep(300);
-          return { ok: false, error: 'Auth failed: Account locked — unlock at connect.garmin.com' };
+          return { ok: false, errorCode: 'GARMIN_SESSION', error: 'Connect Garmin first.' };
         }
         onEvent({ kind: 'log', type: 'dim', msg: 'Loaded saved tokens', ts: ts() });
         await sleep(300);

@@ -4,11 +4,10 @@
 // Oracle: CLAUDE.md "LLM pack" (one language per subfolder llm-<lang>/ or
 // llm-<lang>-one-file/) and the ES/EN strings the sheet ships with.
 import { test, expect } from './fixtures.js';
-import { VALID_LOGIN } from './support/mock-backend.js';
 
 async function finishedExport(app) {
   await app.open();
-  await app.startExport(VALID_LOGIN);
+  await app.startExport();
   await app.waitForRunEnd();
 }
 
@@ -29,7 +28,8 @@ test.describe('with a finished export', () => {
   });
 
   test('ST-I8 typing in a field + L: sheet stays closed', async ({ app }) => {
-    await app.setup.email.focus();
+    await app.range.choose('Custom');
+    await app.range.from.focus();
     await app.sheet.openWithShortcut();
     await expect(app.sheet.dialog).toBeHidden();
   });

@@ -9,7 +9,8 @@ import { MockBackend } from './support/mock-backend.js';
  * for `scenario` (configure before `app.open()`), `app` and, for layout, `layout`.
  */
 export const test = base.extend({
-  scenario: async ({}, use) => { await use(new MockBackend()); },
+  // Garmin starts connected: most runs need it; specs about connecting opt out.
+  scenario: async ({}, use) => { await use(new MockBackend().garminConnected()); },
   clock: async ({ page }, use) => { await use(new FixedToday(page)); },
   app: async ({ page, scenario, clock }, use) => { await use(new ExportApp(page, { scenario, clock })); },
   layout: async ({ page }, use) => { await use(new LayoutProbe(page)); },

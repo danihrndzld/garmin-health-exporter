@@ -1,10 +1,10 @@
+import { GarminConnection } from './garmin-connection.js';
 import { HeroPanel } from './hero-panel.js';
 import { LlmPackSheet } from './llm-pack-sheet.js';
 import { MfpConnection } from './mfp-connection.js';
 import { RangePicker } from './range-picker.js';
 import { RecoveryCard } from './recovery-card.js';
 import { RunSteps } from './run-steps.js';
-import { SetupForm } from './setup-form.js';
 
 /** A 90-day mock export with MyFitnessPal runs ~19 s of real timers. */
 const LONGEST_RUN_MS = 60_000;
@@ -24,7 +24,7 @@ export class ExportApp {
     this.#scenario = scenario;
     this.#clock = clock;
     this.range = new RangePicker(page);
-    this.setup = new SetupForm(page);
+    this.garmin = new GarminConnection(page);
     this.mfp = new MfpConnection(page);
     this.hero = new HeroPanel(page);
     this.run = new RunSteps(page);
@@ -40,8 +40,8 @@ export class ExportApp {
     await this.#page.waitForFunction(() => !/…/.test(document.getElementById('ver').textContent)); // boot() finished
   }
 
-  async startExport(login) {
-    await this.setup.fillCredentials(login);
+  /** Pull: runs from the saved Garmin login, no credentials. */
+  async startExport() {
     await this.hero.pressCta();
   }
 

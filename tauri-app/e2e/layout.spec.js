@@ -2,7 +2,6 @@
 // and the minimum window (860×620) from src-tauri/tauri.conf.json, with
 // MyFitnessPal on, the busiest layout: six Run rows and five rings.
 import { test, expect } from './fixtures.js';
-import { VALID_LOGIN } from './support/mock-backend.js';
 
 const WINDOWS = [
   { name: 'default 1000×720', width: 1000, height: 720, ids: ['CL-01', 'CL-02', 'CL-03', 'CL-04', 'CL-05', 'CL-06', 'CL-07', 'CL-08'] },
@@ -14,7 +13,7 @@ async function reach(app, scenario, moment) {
   scenario.mfpConnected();
   await app.open();
   if (moment === 'idle') return;
-  await app.startExport(VALID_LOGIN);
+  await app.startExport();
   if (moment === 'mfp') await app.waitForPhase('mfp');
   else await app.waitForRunEnd();
 }
