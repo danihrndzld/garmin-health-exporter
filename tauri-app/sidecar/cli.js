@@ -68,10 +68,11 @@ async function runExport(req) {
   });
   if (!res.ok) return fail(res.error);
   const summary = summarize(res.jsonPath);
-  // MyFitnessPal files from an earlier run the same day must not reach the pack when MFP is off.
-  for (const f of ['mfp_food.csv', 'mfp_daily.csv', 'mfp_exercise.csv']) fs.rmSync(path.join(res.csvDir, f), { force: true });
   let pack = null;
   try {
+    // MyFitnessPal files from an earlier run the same day must not reach the pack when MFP is off;
+    // if one cannot be removed, the export still succeeds without a pack preview.
+    for (const f of ['mfp_food.csv', 'mfp_daily.csv', 'mfp_exercise.csv']) fs.rmSync(path.join(res.csvDir, f), { force: true });
     pack = previewPack({ csvDir: res.csvDir, startDate: summary?.range?.start, endDate: summary?.range?.end, warnings });
   } catch (err) {
     emit({ kind: 'log', type: 'warn', msg: `LLM pack preview failed: ${err.message}`, ts: ts() });

@@ -108,3 +108,18 @@ test('a Garmin export removes MyFitnessPal files left in the csv folder by an ea
   expect(second.result.path).toBe(first.result.path);
   for (const f of stale) expect(fs.existsSync(f)).toBe(false);
 }, 120000);
+
+test('a stale MyFitnessPal file that cannot be removed skips the pack preview, not the export', async () => {
+  const { out, data } = dirs();
+  const req = {
+    cmd: 'export', email: 'e2e@example.invalid', password: 'right-password',
+    startDate: FIXTURE.date_range.start, endDate: FIXTURE.date_range.end,
+    outputDir: out, dataDir: data, refreshWindow: 3,
+  };
+  const first = await sidecar(req);
+  fs.mkdirSync(path.join(first.result.path, 'mfp_food.csv')); // rmSync without recursive fails on a directory
+  const { result, logs } = await sidecar(req);
+  expect(result.ok).toBe(true);
+  expect(result.pack).toBeNull();
+  expect(logs.some((l) => l.type === 'warn' && /^LLM pack preview failed/.test(l.msg))).toBe(true);
+}, 120000);
