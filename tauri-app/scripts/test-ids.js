@@ -1,10 +1,11 @@
 // Lists test IDs that name more than one test, and IDs that appear in a test
 // file but in no test name (so they never reach the JUnit output).
-// Usage: bun scripts/test-ids.js   (exit 1 when it finds a problem)
+// Usage: node scripts/test-ids.js   (or bun; exit 1 when it finds a problem). Part of `bun run test`.
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const root = join(import.meta.dir, '..');
+const root = fileURLToPath(new URL('..', import.meta.url)); // node and bun
 const ID = String.raw`(?:AC|BVA|CL|DT-R|EG|EP|ST-T|ST-I)-?\d+`;
 const anyId = new RegExp(String.raw`(?<!ports )\b(${ID})\b`, 'g');
 // A test name: the first string of test(), it() or describe(), a JS string that is only
