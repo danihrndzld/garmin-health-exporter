@@ -1,7 +1,7 @@
 # Workflow: Ship a Release
 
 ## Objective
-Cut a new version of Garmin Export (`tauri-app/`): bump the version in four files in one local commit, build a fresh universal DMG from that commit in a git worktree, verify the DMG, fast forward `main`, push, tag, and publish a GitHub release with the one DMG attached. Nothing reaches origin until the DMG is built and verified. Use this workflow when the user says "cut a release", "ship it" or "release vX.Y.Z", or after `cicd_pipeline.md` gave a known good build and the branch is ready to land.
+Cut a new version of Garmin Export (`tauri-app/`): bump the version in four files in one local commit, build a fresh universal DMG from that commit in a git worktree, verify the DMG, fast forward `main`, tag, push the branches and the tag in one atomic push, and publish a GitHub release with the one DMG attached. Nothing reaches origin until the DMG is built and verified. Use this workflow when the user says "cut a release", "ship it" or "release vX.Y.Z", or after `cicd_pipeline.md` gave a known good build and the branch is ready to land.
 
 ## Required Inputs
 - **Version kind**: `patch`, `minor` or `major`, or an explicit version (`4.5.0`). If the user does not say, ask: "`patch`, `minor`, `major`, or an explicit X.Y.Z?"
@@ -29,7 +29,7 @@ The stages run in this order. Build and verify come before any merge, push or ta
 | build     | `uv run tools/ci_pipeline.py --no-open`: clean, install, test, and the universal build in a fresh worktree of HEAD, which is the bump commit. | A test regression or a build error. See its log. |
 | verify    | `hdiutil verify` on `tauri-app/dist/Garmin Export_X.Y.Z_universal.dmg`, then `hdiutil attach -nobrowse -readonly` on a temporary mount point and, on the `.app` inside the DMG: `lipo -archs` on every file in `Contents/MacOS` (each must have `arm64` and `x86_64`), `PlistBuddy` `CFBundleShortVersionString` equal to `X.Y.Z`, `codesign --verify --deep --strict`. `hdiutil detach` always runs. | A broken DMG, a thin binary, a wrong version or a broken signature. |
 | merge     | Fast forwards `main` to the source branch without a checkout: `git -C <main checkout> merge --ff-only <source>`, or `git fetch . <source>:main` when no checkout has `main`. Skipped on `main` or with `--skip-merge`. | Someone moved `main` after preflight. |
-| push      | `git push --atomic origin <source> main` (only `<source>` when the merge is skipped), then `git tag -a vX.Y.Z -m "Release vX.Y.Z"` and `git push origin vX.Y.Z`. | Push refused, or the tag appeared on origin meanwhile. |
+| push      | `git tag -a vX.Y.Z -m "Release vX.Y.Z"`, then one `git push --atomic origin <source> main vX.Y.Z` (no `main` when the merge is skipped). Either every ref lands on origin or none does, so origin never holds the bump without its tag. | Push refused, or the tag appeared on origin meanwhile. Nothing reached origin; delete the local tag (`git tag -d vX.Y.Z`) before a retry. |
 | release   | Writes the notes to `.tmp/release-notes-vX.Y.Z.md`, then `gh release create vX.Y.Z "tauri-app/dist/Garmin Export_X.Y.Z_universal.dmg" --title vX.Y.Z --notes-file .tmp/release-notes-vX.Y.Z.md`, plus `--prerelease` when asked. | `gh` refused. |
 
 When build or verify fails, origin is untouched. The tool prints how to undo the local bump: `git reset --hard HEAD^` on the source branch.
@@ -76,10 +76,11 @@ uv run tools/release.py --bump minor --dry-run
 - **Ad hoc signature.** `tauri.conf.json` sets `signingIdentity: "-"`. There is no Developer ID and no notarization, so Gatekeeper asks on the first open: right click the app, choose Open, and confirm. The default release notes say so. This is expected; do not stop to ask.
 - **`Cargo.lock` needs the cargo cache.** `cargo update --workspace --offline` only rewrites the `garmin-export` entry and needs no network, but it reads the local registry index. On a machine that never built the app it can fail after the three other files changed; run `git checkout -- tauri-app`, then one `cargo fetch` in `src-tauri/`, and try again.
 - **Notes with backticks or dollar signs.** The notes go through a file, never through a shell, so backticks, `$` and newlines are safe.
-- **Abort after the push.** If the tag push or `gh release create` fails, the bump commit is already on origin. Recovery: fix the cause and run the remaining printed commands by hand. Rewriting `main` on origin (`git push --force-with-lease`) needs the user's confirmation first. The tool has no cleanup logic, because destructive steps need a person's judgment.
+- **Abort after the push.** The branches and the tag go in one atomic push, so they land together or not at all. If `gh release create` fails, the bump commit and the tag are already on origin. Recovery: fix the cause and run the remaining printed commands by hand. Rewriting `main` on origin (`git push --force-with-lease`) needs the user's confirmation first. The tool has no cleanup logic, because destructive steps need a person's judgment.
 
 ## Self-Improvement Log
 When a release fails, record the diagnosis here before moving on. Keep entries short (date, symptom, fix).
 
 - 2026-10-16: rewritten for `tauri-app/`; the electron-builder entries live in git history before this date.
 - 2026-10-16: review of the rewrite. Pushes ran before build and verify, so a failed build left the bump on `origin/main`; the order is now bump, build, verify, merge, push, tag, release. Verify checks the `.app` inside the mounted DMG. The merge no longer checks out `main`. `--skip-build` could never succeed (a DMG at the new version only exists after the bump), so it is gone.
+- 2026-10-16: the tag was pushed after the branches, so a failed tag push left the bump on `origin/main` without a tag. The tag is now created first and sent with the branches in one `git push --atomic`.

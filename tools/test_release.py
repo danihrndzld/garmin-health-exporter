@@ -111,6 +111,14 @@ class OrderTest(unittest.TestCase):
         self.assertIn(["git", "-C", "/repo", "merge", "--ff-only", "feat/x"], r.cmds)
         self.assertNotIn("checkout", [c[1] for c in r.cmds if c[0] == "git"])
 
+    def test_branches_and_tag_go_in_one_atomic_push(self) -> None:
+        r = FakeRunner("9.8.7")
+        self.run_release(r)
+        pushes = [c for c in r.cmds if c[:2] == ["git", "push"]]
+        self.assertEqual(pushes, [["git", "push", "--atomic", "origin", "feat/x", "main", "v9.8.7"]])
+        tag = r.cmds.index(["git", "tag", "-a", "v9.8.7", "-m", "Release v9.8.7"])
+        self.assertLess(tag, r.cmds.index(pushes[0]))
+
     def test_a_failed_verify_pushes_nothing(self) -> None:
         r = FakeRunner("9.8.7", archs="arm64")
         with self.assertRaises(SystemExit):

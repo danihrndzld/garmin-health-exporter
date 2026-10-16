@@ -32,7 +32,7 @@ Everything the user needs to *see* lives in cloud services (Sheets, Slides, etc.
 | Tool | Purpose | Invocation |
 | ---- | ------- | ---------- |
 | [tools/ci_pipeline.py](tools/ci_pipeline.py) | Full CI/CD for `tauri-app/` (clean → install → test → universal build in a worktree → open). Supports `--stages`, `--skip-install`, `--skip-tests`, `--skip-build`, `--skip-clean`, `--no-open`, `--here`, `--dry-run`, `--rustup-home`, `--cargo-home`. | `uv run tools/ci_pipeline.py [flags]` |
-| [tools/release.py](tools/release.py) | End-to-end release: preflight → bump → build (delegates to `ci_pipeline.py`) → verify DMG → FF merge into main → push → tag → `gh release create` with the universal DMG. Supports `--bump {patch,minor,major}` or `--version X.Y.Z`, `--source`, `--notes` / `--notes-file`, `--prerelease`, `--skip-merge`, `--dry-run`, `--rustup-home`, `--cargo-home`. | `uv run tools/release.py --bump <kind> [flags]` |
+| [tools/release.py](tools/release.py) | End-to-end release: preflight → bump → build (delegates to `ci_pipeline.py`) → verify DMG → FF merge into main → tag → one atomic push of the branches and the tag → `gh release create` with the universal DMG. Supports `--bump {patch,minor,major}` or `--version X.Y.Z`, `--source`, `--notes` / `--notes-file`, `--prerelease`, `--skip-merge`, `--dry-run`, `--rustup-home`, `--cargo-home`. | `uv run tools/release.py --bump <kind> [flags]` |
 
 Legacy Python scripts at the repo root (`garmin_health_export.py`, `download_activity_details.py`, `json_to_csv.py`) predate the WAT structure. They are not wrapped as workflow tools yet — leave them alone unless the user asks for migration.
 

@@ -18,7 +18,7 @@ Nothing reaches origin until the DMG is built and verified:
                 inside: lipo (arm64 + x86_64), Info.plist version, codesign --verify --deep --strict
   merge      -> fast forward main to the source branch without a checkout:
                 git -C <main checkout> merge --ff-only <source>
-  push       -> git push --atomic origin <source> main, then git tag -a vX.Y.Z and push the tag
+  push       -> git tag -a vX.Y.Z, then git push --atomic origin <source> main vX.Y.Z
   release    -> gh release create vX.Y.Z with the one universal DMG
 
 A failure in build or verify leaves origin untouched and prints how to undo the
@@ -320,11 +320,11 @@ def stage_merge(source: str, dry: bool) -> None:
 
 def stage_push(source: str, new_version: str, skip_merge: bool, dry: bool) -> None:
     tag = f"v{new_version}"
-    log(f"stage: push  {source}{'' if skip_merge or source == MAIN_BRANCH else ' and ' + MAIN_BRANCH}, then tag {tag}")
     branches = [source] if skip_merge or source == MAIN_BRANCH else [source, MAIN_BRANCH]
-    git(["push", "--atomic", "origin", *branches], dry=dry)
+    log(f"stage: push  tag {tag}, then {' and '.join(branches)} and {tag} in one atomic push")
+    # One atomic push: origin never holds the bump without its tag.
     git(["tag", "-a", tag, "-m", f"Release {tag}"], dry=dry)
-    git(["push", "origin", tag], dry=dry)
+    git(["push", "--atomic", "origin", *branches, tag], dry=dry)
 
 
 def stage_release(new_version: str, notes: str, prerelease: bool, dry: bool) -> str:
