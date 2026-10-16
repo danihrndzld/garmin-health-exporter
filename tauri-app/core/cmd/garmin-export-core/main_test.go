@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/gconnect/gconnecttest"
+	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/garmin/garmintest"
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/mfp"
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/mfp/mfptest"
 )
@@ -386,12 +387,6 @@ func TestBinaryExportWithGarminOff(t *testing.T) {
 			t.Fatalf("result = %v", r)
 		}
 	})
-	t.Run("CL-245 garmin:true answers GARMIN_ERROR until the Go Garmin export lands", func(t *testing.T) {
-		r := run(map[string]any{"cmd": "export", "garmin": true, "startDate": "2026-10-01", "endDate": "2026-10-07", "outputDir": out})
-		if r["ok"] != false || r["errorCode"] != "GARMIN_ERROR" || r["error"] != "The Go Garmin export is not ready yet." {
-			t.Fatalf("result = %v", r)
-		}
-	})
 	for _, c := range []struct {
 		name string
 		req  map[string]any
@@ -410,4 +405,69 @@ func TestBinaryExportWithGarminOff(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBinaryGarminExport(t *testing.T) {
+	t.Parallel()
+	repo := filepath.Join("..", "..", "..", "..")
+	fake := gconnecttest.New()
+	t.Cleanup(fake.Close)
+	if err := garmintest.Serve(fake, filepath.Join(repo, "electron-app", "garmin", "__tests__", "fixtures", "export-sample.json")); err != nil {
+		t.Fatal(err)
+	}
+	home, _ := os.UserHomeDir()
+	root, err := os.MkdirTemp(home, ".garmin-binary-export-test-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(root) })
+	data, out := filepath.Join(root, "data"), filepath.Join(root, "out")
+	run := func(req map[string]any) map[string]any {
+		b, _ := json.Marshal(req)
+		c := exec.Command(binary)
+		c.Stdin = strings.NewReader(string(b) + "\n")
+		c.Env = append(os.Environ(), "GARMIN_FAKE_SERVER="+fake.URL())
+		stdout, err := c.Output()
+		if err != nil {
+			t.Fatalf("binary failed: %v", err)
+		}
+		lines := strings.Split(strings.TrimSpace(string(stdout)), "\n")
+		var m map[string]any
+		if err := json.Unmarshal([]byte(lines[len(lines)-1]), &m); err != nil {
+			t.Fatalf("stdout %q: %v", stdout, err)
+		}
+		return m
+	}
+	t.Run("CL-361 garmin-connect then export through the binary answers ok with the golden CSV files", func(t *testing.T) {
+		if r := run(map[string]any{"cmd": "garmin-connect", "email": "e2e@example.invalid", "password": "right-password", "dataDir": data}); r["ok"] != true {
+			t.Fatalf("connect = %v", r)
+		}
+		r := run(map[string]any{"cmd": "export", "garmin": true, "startDate": "2024-02-17", "endDate": "2024-02-21", "refreshWindow": 3, "outputDir": out, "dataDir": data})
+		if r["ok"] != true || r["path"] != filepath.Join(out, "csv_"+time.Now().Format("2006-01-02")) || r["days"] != 5.0 || r["activities"] != 4.0 {
+			t.Fatalf("export = %v", r)
+		}
+		golden := filepath.Join(repo, "electron-app", "garmin", "__tests__", "golden")
+		names, _ := os.ReadDir(golden)
+		if files, _ := r["files"].([]any); len(files) != len(names) {
+			t.Fatalf("files = %v, want %d", r["files"], len(names))
+		}
+		for _, n := range names {
+			want, _ := os.ReadFile(filepath.Join(golden, n.Name()))
+			got, err := os.ReadFile(filepath.Join(r["path"].(string), n.Name()))
+			if err != nil || !bytes.Equal(got, want) {
+				t.Errorf("%s differs from the golden file (%v)", n.Name(), err)
+			}
+		}
+		if p, _ := r["jsonPath"].(string); !strings.HasPrefix(p, filepath.Join(out, "garmin_health_")) {
+			t.Errorf("jsonPath = %v", r["jsonPath"])
+		}
+	})
+	t.Run("CL-362 export without a garmin-connect answers GARMIN_SESSION and sends nothing", func(t *testing.T) {
+		fake.Reset()
+		empty := filepath.Join(root, "empty")
+		r := run(map[string]any{"cmd": "export", "startDate": "2024-02-17", "endDate": "2024-02-21", "outputDir": out, "dataDir": empty})
+		if r["ok"] != false || r["errorCode"] != "GARMIN_SESSION" || r["error"] != "Connect Garmin first." || len(fake.Calls("")) != 0 {
+			t.Fatalf("result = %v, %d calls", r, len(fake.Calls("")))
+		}
+	})
 }

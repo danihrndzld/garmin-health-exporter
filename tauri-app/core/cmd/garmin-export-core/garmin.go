@@ -84,7 +84,7 @@ func clearCache(_ context.Context, req map[string]any, _ *protocol.Emitter) (any
 	return map[string]any{}, nil
 }
 
-func export(_ context.Context, req map[string]any, _ *protocol.Emitter) (any, error) {
+func export(ctx context.Context, req map[string]any, out *protocol.Emitter) (any, error) {
 	var err error
 	start, end := str(req, "startDate"), str(req, "endDate")
 	if req["startDate"] != nil || req["endDate"] != nil {
@@ -99,9 +99,10 @@ func export(_ context.Context, req map[string]any, _ *protocol.Emitter) (any, er
 		}
 		start, end, err = guard.DaysBack(int(n), time.Now())
 	}
+	rw := 3.0
 	if err == nil && req["refreshWindow"] != nil {
-		rw, ok := req["refreshWindow"].(float64)
-		if !ok || rw != float64(int(rw)) {
+		var ok bool
+		if rw, ok = req["refreshWindow"].(float64); !ok || rw != float64(int(rw)) {
 			rw = 0
 		}
 		err = guard.RefreshWindow(int(rw))
@@ -109,13 +110,26 @@ func export(_ context.Context, req map[string]any, _ *protocol.Emitter) (any, er
 	if err != nil {
 		return nil, inputError(err.Error())
 	}
-	if on, ok := req["garmin"].(bool); !ok || on {
-		return nil, &garmin.CodeError{Code: "GARMIN_ERROR", Msg: "The Go Garmin export is not ready yet."}
+	if on, ok := req["garmin"].(bool); ok && !on {
+		// Garmin off: only the folder, for mfp-export to fill. No tokens are read and no request is sent.
+		dir, err := garmin.PrepareDir(str(req, "outputDir"), end)
+		if err != nil {
+			return nil, inputError("outputDir: " + err.Error())
+		}
+		return &garmin.ExportResult{Path: dir, StartDate: start, EndDate: end}, nil
 	}
-	// Garmin off: only the folder, for mfp-export to fill. No tokens are read and no request is sent.
-	dir, err := garmin.PrepareDir(str(req, "outputDir"), end)
+	outDir, err := guard.InsideHome(str(req, "outputDir"))
 	if err != nil {
 		return nil, inputError("outputDir: " + err.Error())
 	}
-	return map[string]any{"path": dir, "jsonPath": nil, "startDate": start, "endDate": end}, nil
+	data, err := dataDir(req)
+	if err != nil {
+		return nil, err
+	}
+	r := garmin.ExportRequest{StartDate: start, EndDate: end, RefreshWindow: int(rw), OutputDir: outDir, DataDir: data,
+		Hosts: garminHosts(), Now: time.Now}
+	if fakeServer("GARMIN_FAKE_SERVER") != "" {
+		r.Gap = -1 // only the loopback fake may skip the pause between requests
+	}
+	return garmin.Export(ctx, r, out)
 }
