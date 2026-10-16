@@ -1720,7 +1720,7 @@ D=tauri-app/reportes-pruebas/$(date +%F)-stage3 && mkdir -p $D
 (cd tauri-app/src-tauri && cargo test 2>&1 | tee ../$D/cargo-test.txt | tail -3)
 ```
 
-Expected: `0 duplicates, 0 not in a test name`; `ok` for every Go package; `14 pass` in Bun; Playwright green on chromium and webkit; cargo `test result: ok`. Count the Go tests whose names carry 601 and above: 21 (AC-601 to AC-606, EP-601, EP-602, BVA-601 to BVA-603, ST-T601, DT-R601, EG-601 to EG-608): `rg -c '"(AC-|EP-|BVA-|EG-|ST-T|DT-R)6[0-9]{2} ' tauri-app/core --glob '*_test.go'`.
+Expected: `0 duplicates, 0 not in a test name`; `ok` for every Go package; `14 pass` in Bun; Playwright green on chromium and webkit; cargo `test result: ok`. Count the Go tests whose names carry 601 and above: 22 (AC-601 to AC-606, EP-601, EP-602, BVA-601 to BVA-603, ST-T601, DT-R601, EG-601 to EG-609; EG-609 came with the final review): `rg -c '"(AC-|EP-|BVA-|EG-|ST-T|DT-R)6[0-9]{2} ' tauri-app/core --glob '*_test.go'`.
 
 - [ ] **Step 2: Build.** `uv run tools/ci_pipeline.py --skip-install --skip-tests --no-open`. Record the DMG size next to the 62 MB of v4.3.0 and the size of v4.4.0 (`gh release view v4.4.0 --json assets`).
 
