@@ -1,5 +1,5 @@
 // garmin-export-core: the Go backend for Garmin Export. main reads one request line, runs its
-// command and writes the result line. The commands are in garmin.go and mfp.go.
+// command and writes the result line. The commands are in garmin.go, mfp.go, summary.go, pack.go and report.go.
 package main
 
 import (
@@ -21,6 +21,9 @@ var commands = map[string]handler{
 	"clear-cache":       clearCache,
 	"export":            export,
 	"mfp-export":        mfpExport,
+	"summary":           summary,
+	"pack":              buildPack,
+	"report":            buildReport,
 }
 
 // coded is a use case error that carries the errorCode the UI shows.
