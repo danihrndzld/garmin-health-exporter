@@ -164,28 +164,25 @@ Clear cache deletes the local copy of downloaded days, so the next export downlo
 <details>
 <summary>Requirements, build, and tests</summary>
 
-You need Node.js 18 or later, Bun, Rust, Go 1.24 or later, and the Xcode command line tools. The Garmin code lives in `electron-app/garmin`, so install its packages first, and then run the app from `tauri-app`.
+You need Bun, Rust, Go 1.24 or later, and the Xcode command line tools. Version 4.5.0 ships one Go program, `garmin-export-core`, inside the app, so the DMG is about 15 MB. Install the packages and run the app from `tauri-app`.
 
 ```sh
 git clone https://github.com/danihrndzld/garmin-health-exporter.git
-cd garmin-health-exporter
-(cd electron-app && npm install)
-cd tauri-app
+cd garmin-health-exporter/tauri-app
 bun install
 bun run dev
 ```
 
 `bun run build` makes an app and a DMG for your own Mac. `bun run release` makes a universal app and DMG, and it needs the `aarch64-apple-darwin` and `x86_64-apple-darwin` Rust targets, which you can add with `rustup target add`.
 
-To run the tests, use the commands below. Most tests run the real sign in, client, cache and CSV code against a local server that imitates Garmin, so they never contact Garmin. The CSV output of the JavaScript and of the Go code is compared byte by byte with the files in `electron-app/garmin/__tests__/golden`, and `tauri-app/sidecar/e2e.test.js` runs the sidecar the way the app does. The Go tests in `tauri-app/core` run against local servers that imitate Garmin and MyFitnessPal. The window tests run in Chromium and WebKit with fake data, through `bunx playwright test` in `tauri-app`.
+To run all the tests, use the command below. Most tests run the real sign in, client, cache and CSV code against a local server that imitates Garmin, so they never contact Garmin. The Go tests in `tauri-app/core` also run against a local server that imitates MyFitnessPal. The CSV output is compared byte by byte with the files in `tauri-app/core/internal/garmin/testdata/golden`. The window tests run in Chromium and WebKit with fake data, through Playwright.
 
 ```sh
-(cd electron-app && npm test)
-(cd tauri-app && bun test sidecar)
-(cd tauri-app && bun run test:core)
+cd tauri-app
+bun run test
 ```
 
-When a change to the CSV files is intended, rebuild the golden files with `UPDATE_GOLDEN=1 node --test garmin/__tests__/regression.test.js` and check the diff. The test fixture comes from a real export through `npm run fixture -- <garmin_health_*.json> <out.json>`, which removes ids, names and GPS, moves the dates by a random amount and changes every number by a random amount up to 30 percent.
+When a change to the Garmin CSV files is intended, rebuild the golden files with `UPDATE_GOLDEN=1 go test ./internal/garmin -run AC301` in `tauri-app/core` and check the diff. The test fixture comes from a real export through `bun scripts/make-fixture.js <garmin_health_*.json> <out.json>` in `tauri-app`, which removes ids, names and GPS, moves the dates by a random amount and changes every number by a random amount up to 30 percent.
 
 </details>
 
@@ -193,9 +190,8 @@ When a change to the CSV files is intended, rebuild the golden files with `UPDAT
 <summary>Project layout</summary>
 
 - `tauri-app/ui` holds the window, written in plain HTML, CSS, and JavaScript with no build step. `ui/dev-mock.js` lets you open `index.html` in a browser with fake data.
-- `tauri-app/core` holds `garmin-export-core`, a Go program that connects Garmin, keeps the login token, downloads the Garmin data, writes the CSV files, and downloads the MyFitnessPal diary. The window starts it for each command and sends one JSON request on its standard input, so your password never appears in the process list. It checks the range, the refresh window, and the folders before it does anything. `tauri-app/core/gconnect` is the Garmin sign in and API client, as a library that never touches the disk.
-- `tauri-app/sidecar` holds `garmin-core`, a small program compiled with `bun build --compile`. It builds the summary, the LLM pack, and the bug report. It can still run the older JavaScript Garmin export, which the app uses only when a developer switches the engine back.
-- `electron-app/garmin` holds the JavaScript Garmin sign in, the API client, the SQLite cache, and the CSV writer. The 3.x Electron app in `electron-app` still uses the same code.
+- `tauri-app/core` holds `garmin-export-core`, a Go program that connects Garmin, keeps the login token, downloads the Garmin data, writes the CSV files, builds the summary, the LLM pack and the bug report links, and downloads the MyFitnessPal diary. The window starts it for each command and sends one JSON request on its standard input, so your password never appears in the process list. It checks the range, the refresh window, and the folders before it does anything. The Garmin sign in and API client is the library [`github.com/danihrndzld/gconnect`](https://github.com/danihrndzld/gconnect), which never touches the disk.
+- The 3.x Electron app and the earlier JavaScript code are at the git tag `archive/electron-app`.
 - `garmin_health_export.py`, `json_to_csv.py`, and `download_activity_details.py` are the original Python scripts, which you can run with `uv run`. The app doesn't use them.
 
 </details>

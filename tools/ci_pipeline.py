@@ -13,7 +13,7 @@ Stages (run in order):
                under src-tauri/target/*/release/ (never the cargo cache)
   2. install   bun install in tauri-app/
   3. test      bun run test (test IDs, Go, ui/__tests__, Playwright), then
-               bun run core (host sidecar for tauri-build) and cargo test
+               bun run core (host Go binary for tauri-build) and cargo test
   4. build     git worktree add .worktrees/build-<sha> HEAD, bun install and
                bun run release there (universal DMG), copy the DMG and the .app
                to tauri-app/dist/, remove the worktree. --here builds in this

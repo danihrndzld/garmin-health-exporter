@@ -1,4 +1,4 @@
-// Garmin work happens in the sidecars; Rust only handles the MyFitnessPal sign in window.
+// Garmin work happens in the Go core; Rust only handles the MyFitnessPal sign in window.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod mfp;

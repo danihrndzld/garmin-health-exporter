@@ -3,7 +3,7 @@
  * the range again at the trust boundary (`internal/guard`).
  *
  * All dates are `YYYY-MM-DD` strings parsed at local midnight — matching the
- * pattern used in `electron-app/garmin/cache.js` so range math stays TZ-safe.
+ * pattern of the JavaScript cache (removed in stage 3; see tag archive/electron-app and git history) so range math stays TZ-safe.
  */
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;

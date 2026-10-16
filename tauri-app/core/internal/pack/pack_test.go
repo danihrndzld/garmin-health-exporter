@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// The frozen inputs and outputs of tauri-app/sidecar/llm-pack.js (stage 3 Task 1).
+// The frozen inputs and outputs of the JavaScript llm-pack, ported from the JavaScript sidecar (removed in stage 3; see tag archive/electron-app and git history).
 const fixtureDir = "testdata/csv_2024-02-21"
 
 func opts(csvDir string) Options {

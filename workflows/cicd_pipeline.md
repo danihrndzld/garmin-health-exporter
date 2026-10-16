@@ -21,7 +21,7 @@ Optional context from the user:
 | ------- | ------------ | ------------- |
 | clean   | `rm -rf tauri-app/dist tauri-app/src-tauri/binaries` and every `tauri-app/src-tauri/target/*/release/bundle`. It never removes the cargo cache. | File permissions. |
 | install | `bun install` in `tauri-app/`. | Registry or lockfile problem. |
-| test    | `bun run test` (test IDs, Go vet and tests, `ui/__tests__`, Playwright), then `bun run core` and `cargo test` in `src-tauri/`. `bun run core` builds the host sidecar, because tauri-build refuses to compile without it and clean removed it. | A real regression. Stop. |
+| test    | `bun run test` (test IDs, Go vet and tests, `ui/__tests__`, Playwright), then `bun run core` and `cargo test` in `src-tauri/`. `bun run core` builds the host Go core, because tauri-build refuses to compile without it and clean removed it. | A real regression. Stop. |
 | build   | Checks `rustup target list --installed` for both targets. Then `git worktree add --detach .worktrees/build-<sha> HEAD`, `bun install` and `bun run release` there, copies `Garmin Export_<ver>_universal.dmg` and `Garmin Export.app` from `src-tauri/target/universal-apple-darwin/release/bundle/` to `tauri-app/dist/` (`cp` and `ditto`), and runs `git worktree remove --force`. With `--here`, the same `bun install`, `bun run release` and copy run in this checkout. | A missing rust target, or a Go, Rust or bundler error. |
 | open    | `codesign --verify --deep --strict "tauri-app/dist/Garmin Export.app"`, then `open -n` on it. | A broken signature or a launch failure. |
 
@@ -66,7 +66,7 @@ uv run tools/ci_pipeline.py --dry-run
 - **Two rust targets.** `bun run release` is `tauri build --target universal-apple-darwin`, which needs both `aarch64-apple-darwin` and `x86_64-apple-darwin`. Homebrew's Rust has no `x86_64-apple-darwin`, so v4.0.0 and later were built with an isolated rustup (`RUSTUP_HOME` and `CARGO_HOME` in a scratch folder, installed with `rustup-init`). The build stage stops before the worktree is created when a target is missing.
 - **A stale build worktree.** If an earlier run was killed, `.worktrees/build-<sha>` can still exist. The build stage removes it with `git worktree remove --force` before it adds a new one.
 - **Ad hoc signature.** `tauri.conf.json` sets `signingIdentity: "-"`. The app is signed ad hoc, not with a Developer ID, so `codesign --verify` passes but Gatekeeper asks on the first open on another Mac (right click, Open). The release notes say so.
-- **The host sidecar for `cargo test`.** tauri-build checks that `src-tauri/binaries/garmin-export-core-<host triple>` exists. The test stage runs `bun run core` before `cargo test` for that reason.
+- **The host Go binary for `cargo test`.** tauri-build checks that `src-tauri/binaries/garmin-export-core-<host triple>` exists. The test stage runs `bun run core` before `cargo test` for that reason.
 
 ## Self-Improvement Log
 When a run fails, record the diagnosis here before moving on. Keep entries short (date, symptom, fix).

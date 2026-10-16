@@ -1,5 +1,5 @@
 // Package report builds the two bug report links (a prefilled GitHub issue and a mailto),
-// scrubbed before anything leaves the machine. Port of tauri-app/sidecar/report.js.
+// scrubbed before anything leaves the machine. Port of report.js, ported from the JavaScript sidecar (removed in stage 3; see tag archive/electron-app and git history).
 package report
 
 import (

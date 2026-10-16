@@ -97,7 +97,7 @@
         await sleep(300);
         onEvent({ kind: 'log', type: 'warn', msg: '[skip] endurance_score: Empty response body [endurance_score] — Garmin returned HTTP 204 with no content. Usually no data for that day yet (the watch has not synced) or a metric this device does not record.', ts: ts() });
         await sleep(300);
-        // Same log lines as electron-app/garmin/exporter.js, in the same order around the progress events.
+        // Same log lines as the Go export (the JavaScript exporter is at tag archive/electron-app), in the same order around the progress events.
         // localStorage.mock_acts = '0' reproduces a range with no activities (no activities progress at all).
         const nDays = req.daysBack || 22, nActs = Number(localStorage.getItem('mock_acts') ?? 41);
         const say = (type, msg) => onEvent({ kind: 'log', type, msg, ts: ts() });

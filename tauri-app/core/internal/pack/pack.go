@@ -1,6 +1,6 @@
 // Package pack builds the LLM pack: CONTEXT.<lang>.md next to the CSV files, or one Markdown
-// file with every CSV inline. Port of tauri-app/sidecar/llm-pack.js; the files in
-// testdata/golden were written by that JavaScript and pin the bytes.
+// file with every CSV inline. Port of llm-pack.js, ported from the JavaScript sidecar (removed in stage 3; see tag archive/electron-app and git history).
+// The files in testdata/golden were written by that JavaScript and pin the bytes.
 package pack
 
 import (

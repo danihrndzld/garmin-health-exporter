@@ -8,7 +8,7 @@ import (
 	"github.com/danihrndzld/gconnect"
 )
 
-// cases.json was written by electron-app/util/redact.js (stage 3 Task 1). The report URLs depend
+// cases.json was written by the JavaScript redact.js (removed in stage 3; see tag archive/electron-app). The report URLs depend
 // on the library giving the same output, so a gconnect bump that changes redaction fails here first.
 func TestRedactionMatchesTheJavaScript(t *testing.T) {
 	t.Run("AC-601 gconnect.Redact and RedactURL give the JavaScript output for every frozen case", func(t *testing.T) {
