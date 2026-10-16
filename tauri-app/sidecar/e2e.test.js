@@ -123,3 +123,12 @@ test('a stale MyFitnessPal file that cannot be removed skips the pack preview, n
   expect(result.pack).toBeNull();
   expect(logs.some((l) => l.type === 'warn' && /^LLM pack preview failed/.test(l.msg))).toBe(true);
 }, 120000);
+
+test('clear-cache also removes the MyFitnessPal day cache', async () => {
+  const { data } = dirs();
+  fs.mkdirSync(path.join(data, 'mfp-cache'));
+  fs.writeFileSync(path.join(data, 'mfp-cache', '2026-10-05.json'), '{}');
+  const { result } = await sidecar({ cmd: 'clear-cache', dataDir: data });
+  expect(result.ok).toBe(true);
+  expect(fs.existsSync(path.join(data, 'mfp-cache'))).toBe(false);
+});
