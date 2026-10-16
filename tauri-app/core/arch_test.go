@@ -34,6 +34,17 @@ var diskImports = map[string]bool{
 	"io/ioutil": true, "syscall": true, "unsafe": true,
 }
 
+// hostNames are the os and syscall members that read the host's environment, files or streams
+// in other ways. Only cmd/ may use them; internal/guard may also call UserHomeDir, which is how
+// it resolves $HOME for the trust boundary.
+var hostNames = map[string]bool{
+	"UserCacheDir": true, "UserConfigDir": true, "TempDir": true, "NewFile": true, "Hostname": true,
+	"Getwd": true, "Executable": true, "UserHomeDir": true,
+}
+
+// wirePackages may not hold map[string]any in an exported signature or type: the wire shape belongs to cmd.
+var wirePackages = []string{"internal/garmin", "internal/mfp", "gconnect"}
+
 var leafPackages = map[string]bool{"internal/jsjson": true, "internal/atomicfile": true, "internal/guard": true, "internal/protocol": true}
 
 func isStd(p string) bool {
@@ -50,6 +61,7 @@ func checkTree(root, modPrefix string) ([]string, error) {
 		return nil, err
 	}
 	fset := token.NewFileSet()
+	pkgs := map[string][]*ast.File{} // non-test files of the wire packages, by dir
 	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -62,13 +74,22 @@ func checkTree(root, modPrefix string) ([]string, error) {
 		}
 		rel, _ := filepath.Rel(root, p)
 		rel = filepath.ToSlash(rel)
-		f, err := parser.ParseFile(fset, p, nil, 0)
+		f, err := parser.ParseFile(fset, p, nil, parser.ParseComments)
 		if err != nil {
 			return err
 		}
 		checkFile(rel, f, modPrefix, report)
+		dir := path.Dir(rel)
+		for _, w := range wirePackages {
+			if under(dir, w) && !strings.HasSuffix(rel, "_test.go") {
+				pkgs[dir] = append(pkgs[dir], f)
+			}
+		}
 		return nil
 	})
+	for dir, files := range pkgs {
+		checkWire(dir, files, report)
+	}
 	return bad, err
 }
 
@@ -92,6 +113,10 @@ func checkFile(rel string, f *ast.File, modPrefix string, report func(string, ..
 			}
 		}
 		switch {
+		case p == "C":
+			report("%s: cgo (import \"C\") is not allowed", rel)
+		case under(local, "cmd") && local != p && !inCmd:
+			report("%s: imports %s; nothing outside cmd/ may import the driving adapter", rel, p)
 		case inLib && !isStd(p) && !under(local, "gconnect"):
 			report("%s: the library imports %s; gconnect is standard library only", rel, p)
 		case inLib && !isTest && diskImports[p]:
@@ -105,34 +130,81 @@ func checkFile(rel string, f *ast.File, modPrefix string, report func(string, ..
 			report("%s: %s is a leaf package; it imports %s", rel, dir, p)
 		case p == "io/ioutil" && !inCmd && !isTest:
 			report("%s: io/ioutil outside cmd/", rel)
+		case p == "unsafe" && !inCmd && !isTest:
+			report("%s: unsafe outside cmd/", rel)
 		}
 	}
-	if inCmd || isTest {
+	if isTest {
+		return
+	}
+	for _, g := range f.Comments {
+		for _, c := range g.List {
+			if strings.HasPrefix(c.Text, "//go:linkname") {
+				report("%s: a //go:linkname directive reaches into another package", rel)
+			}
+		}
+	}
+	if inCmd {
 		return
 	}
 	ast.Inspect(f, func(n ast.Node) bool {
 		if s, ok := n.(*ast.SelectorExpr); ok {
-			if x, ok := s.X.(*ast.Ident); ok && envPkgs[x.Name] && envNames[s.Sel.Name] {
-				report("%s: %s.%s outside cmd/", rel, x.Name, s.Sel.Name)
+			x, ok := s.X.(*ast.Ident)
+			name := s.Sel.Name
+			sanctioned := name == "UserHomeDir" && dir == "internal/guard"
+			if ok && envPkgs[x.Name] && (envNames[name] || hostNames[name] && !sanctioned) {
+				report("%s: %s.%s outside cmd/", rel, x.Name, name)
 			}
 		}
 		return true
 	})
-	if !under(dir, "internal/garmin") && !under(dir, "internal/mfp") && !inLib {
-		return
-	}
-	for _, decl := range f.Decls {
-		fn, ok := decl.(*ast.FuncDecl)
-		if !ok || !fn.Name.IsExported() {
-			continue
+}
+
+// checkWire reports exported funcs, methods and types of one wire package that hold
+// map[string]any, also behind a type of the same package (alias, defined type or struct field).
+func checkWire(dir string, files []*ast.File, report func(string, ...any)) {
+	types := map[string]ast.Expr{}
+	for _, f := range files {
+		for _, d := range f.Decls {
+			if g, ok := d.(*ast.GenDecl); ok && g.Tok == token.TYPE {
+				for _, sp := range g.Specs {
+					ts := sp.(*ast.TypeSpec)
+					types[ts.Name.Name] = ts.Type
+				}
+			}
 		}
-		for _, list := range []*ast.FieldList{fn.Type.Params, fn.Type.Results} {
-			if list == nil {
+	}
+	var holds func(e ast.Expr, seen map[string]bool) bool
+	holds = func(e ast.Expr, seen map[string]bool) bool {
+		found := hasWireMap(e)
+		ast.Inspect(e, func(n ast.Node) bool {
+			if id, ok := n.(*ast.Ident); ok && types[id.Name] != nil && !seen[id.Name] {
+				seen[id.Name] = true
+				found = holds(types[id.Name], seen) || found
+			}
+			return true
+		})
+		return found
+	}
+	for name, t := range types {
+		if ast.IsExported(name) && holds(t, map[string]bool{name: true}) {
+			report("%s: type %s holds map[string]any; the wire shape belongs to cmd", dir, name)
+		}
+	}
+	for _, f := range files {
+		for _, d := range f.Decls {
+			fn, ok := d.(*ast.FuncDecl)
+			if !ok || !fn.Name.IsExported() {
 				continue
 			}
-			for _, field := range list.List {
-				if hasWireMap(field.Type) {
-					report("%s: %s takes or returns map[string]any; the wire shape belongs to cmd", rel, fn.Name.Name)
+			for _, list := range []*ast.FieldList{fn.Type.Params, fn.Type.Results} {
+				if list == nil {
+					continue
+				}
+				for _, field := range list.List {
+					if holds(field.Type, map[string]bool{}) {
+						report("%s: %s takes or returns map[string]any; the wire shape belongs to cmd", dir, fn.Name.Name)
+					}
 				}
 			}
 		}
@@ -306,6 +378,46 @@ func TestArchitectureCheckerCatchesEachRule(t *testing.T) {
 			{"one line", map[string]string{"go.mod": goMod + "require example.com/x v1.0.0\n"}},
 			{"a block", map[string]string{"go.mod": goMod + "require (\n\texample.com/x v1.0.0 // indirect\n)\n"}},
 		}},
+		{"CL-273 nothing outside cmd imports a package under cmd/", "may import the driving adapter", []fixture{
+			{"internal/mfp imports a cmd helper", map[string]string{"internal/mfp/a.go": src("mfp", `"`+fake+`cmd/envutil"`, `var _ = envutil.Get("MFP_FAKE_SERVER")`)}},
+			{"a test file in internal/garmin imports cmd", map[string]string{"internal/garmin/a_test.go": src("garmin", `m "`+fake+`cmd/app"`, "var _ = m.Run")}},
+			{"gconnect imports cmd", map[string]string{"gconnect/a.go": src("gconnect", `"`+fake+`cmd/app"`, "var _ = app.Run")}},
+			{"internal/guard imports cmd", map[string]string{"internal/guard/a.go": src("guard", `"`+fake+`cmd"`, "var _ = cmd.X")}},
+		}},
+		{"CL-274 map[string]any cannot hide behind a named type of the inside", "map[string]any", []fixture{
+			{"an alias in a signature", map[string]string{"internal/mfp/a.go": "package mfp\n\ntype Wire = map[string]any\n", "internal/mfp/b.go": "package mfp\n\nfunc Probe(w Wire) Wire { return w }\n"}},
+			{"an unexported alias in a signature", map[string]string{"internal/mfp/a.go": "package mfp\n\ntype wire = map[string]any\n\nfunc Probe(w wire) {}\n"}},
+			{"a defined type", map[string]string{"internal/garmin/a.go": "package garmin\n\ntype Wire map[string]interface{}\n"}},
+			{"a field of an exported struct", map[string]string{"internal/mfp/a.go": "package mfp\n\ntype ExportRequest struct{ Extra map[string]any }\n"}},
+			{"a chain of unexported types behind an exported func", map[string]string{"gconnect/a.go": "package gconnect\n\ntype raw = map[string]any\ntype box struct{ r []raw }\n\nfunc Open() *box { return nil }\n"}},
+			{"a method on an exported type", map[string]string{"internal/garmin/a.go": "package garmin\n\ntype opts struct{ m map[string]any }\ntype C struct{}\n\nfunc (C) Set(o opts) {}\n"}},
+		}},
+		{"CL-275 the other host reads of os and syscall happen only in cmd, and UserHomeDir only in guard", "outside cmd/", func() []fixture {
+			var out []fixture
+			// Listed here, not read from hostNames: a name dropped from that map must fail this test.
+			for _, n := range []string{"UserCacheDir", "UserConfigDir", "TempDir", "NewFile", "Hostname", "Getwd", "Executable"} {
+				out = append(out, fixture{"os." + n, map[string]string{"internal/garmin/a.go": src("garmin", `"os"`, "var _ = os."+n)}})
+			}
+			return append(out,
+				fixture{"os.UserHomeDir outside guard", map[string]string{"internal/mfp/a.go": src("mfp", `"os"`, "var _ = os.UserHomeDir")}},
+				fixture{"os.UserCacheDir under an alias", map[string]string{"internal/mfp/a.go": src("mfp", `o "os"`, "var _ = o.UserCacheDir")}},
+				fixture{"syscall.Getwd", map[string]string{"internal/mfp/a.go": src("mfp", `"syscall"`, "var _ = syscall.Getwd")}},
+			)
+		}()},
+		{"CL-276 cgo is not allowed anywhere in the module", "cgo", []fixture{
+			{"internal/mfp", map[string]string{"internal/mfp/a.go": src("mfp", `"C"`, "var _ = C.getenv")}},
+			{"gconnect", map[string]string{"gconnect/a.go": src("gconnect", `"C"`, "var _ = C.getenv")}},
+			{"cmd", map[string]string{"cmd/app/main.go": src("main", `"C"`, "var _ = C.getenv")}},
+			{"a test file", map[string]string{"internal/garmin/a_test.go": src("garmin", `"C"`, "var _ = C.getenv")}},
+		}},
+		{"CL-277 no //go:linkname directive in a non-test file", "go:linkname", []fixture{
+			{"internal/garmin", map[string]string{"internal/garmin/a.go": "package garmin\n\nimport _ \"unsafe\"\n\n//go:linkname getenv syscall.Getenv\nfunc getenv(string) (string, bool)\n"}},
+			{"cmd", map[string]string{"cmd/app/main.go": "package main\n\n//go:linkname getenv syscall.Getenv\nfunc getenv(string) (string, bool)\n"}},
+		}},
+		{"CL-278 unsafe is imported only in cmd", "unsafe outside cmd/", []fixture{
+			{"internal/mfp", map[string]string{"internal/mfp/a.go": src("mfp", `_ "unsafe"`, "")}},
+			{"internal/guard under an alias", map[string]string{"internal/guard/a.go": src("guard", `u "unsafe"`, "var _ = u.Pointer(nil)")}},
+		}},
 	}
 	for _, c := range cases {
 		t.Run(c.id, func(t *testing.T) {
@@ -318,6 +430,8 @@ func TestArchitectureCheckerCatchesEachRule(t *testing.T) {
 		})
 	}
 	t.Run("CL-271 a clean tree passes: cmd and test files may read the environment, and the allowed edges are allowed", func(t *testing.T) {
+		// It also pins the sanctioned cases: os.UserHomeDir in internal/guard, unsafe in cmd, linkname
+		// and unsafe in a test file, and an unexported map alias that no exported name uses.
 		bad := run(t, map[string]string{
 			"cmd/app/main.go":            src("main", `"os"`+"\n"+`"`+fake+`internal/protocol"`+"\n"+`"`+fake+`internal/mfp"`, `var _ = os.Getenv("X")`+"\nvar _ protocol.Emitter\nvar _ = mfp.Export\nfunc decode(map[string]any) {}"),
 			"internal/mfp/a.go":          src("mfp", `"os"`+"\n"+`"`+fake+`internal/guard"`, "var _ = os.ReadFile\nvar _ = guard.InsideHome\nfunc export(req map[string]any) {}"),
@@ -327,6 +441,9 @@ func TestArchitectureCheckerCatchesEachRule(t *testing.T) {
 			"gconnect/gconnecttest/a.go": src("gconnecttest", `"`+fake+`gconnect"`, "var _ gconnect.Hosts"),
 			"internal/guard/a.go":        src("guard", `"os"`, "var _ = os.UserHomeDir"),
 			"internal/mfp/testdata/x.go": src("x", `"os"`, `var _ = os.Getenv("X")`),
+			"cmd/app/unsafe.go":          src("main", `_ "unsafe"`, ""),
+			"internal/mfp/b_test.go":     "package mfp\n\nimport _ \"unsafe\"\n\n//go:linkname now time.now\nfunc now() (int64, int32, int64)\n",
+			"gconnect/gconnecttest/b.go": "package gconnecttest\n\ntype obj = map[string]any\n\nfunc send(o obj) {}\n",
 		})
 		if len(bad) != 0 {
 			t.Fatalf("the clean fixture failed: %v", bad)
