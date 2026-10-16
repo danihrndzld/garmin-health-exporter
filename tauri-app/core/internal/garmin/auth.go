@@ -77,6 +77,15 @@ type LoginError struct{ Code, Msg string }
 
 func (e *LoginError) Error() string { return e.Msg }
 
+// LoginResult is the garmin-connect failure result for err.
+func LoginResult(err error) map[string]any {
+	var le *LoginError
+	if !errors.As(err, &le) {
+		le = &LoginError{codeError, err.Error()}
+	}
+	return map[string]any{"ok": false, "errorCode": le.Code, "error": le.Msg}
+}
+
 const (
 	codeBadPassword = "GARMIN_BAD_PASSWORD"
 	codeMFA         = "GARMIN_MFA"

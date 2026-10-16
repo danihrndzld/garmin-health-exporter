@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/garmin/garmintest"
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/mfp"
 	"github.com/danihrndzld/garmin-health-exporter/tauri-app/core/internal/mfp/mfptest"
 )
@@ -218,4 +219,64 @@ func TestBinaryGarminStatusAndDisconnect(t *testing.T) {
 	if !strings.Contains(string(out), `"errorCode":"GARMIN_INPUT"`) {
 		t.Errorf("CL-217 dataDir outside home answered %s", out)
 	}
+}
+
+func TestBinaryGarminConnect(t *testing.T) {
+	t.Parallel()
+	fake := garmintest.New(nil)
+	t.Cleanup(fake.Close)
+	home, _ := os.UserHomeDir()
+	connect := func(password string) (map[string]any, string, string) {
+		dir, err := os.MkdirTemp(home, ".garmin-binary-test-")
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { os.RemoveAll(dir) })
+		b, _ := json.Marshal(map[string]any{"cmd": "garmin-connect", "dataDir": dir, "email": "e2e@example.invalid", "password": password})
+		c := exec.Command(binary)
+		c.Stdin = strings.NewReader(string(b) + "\n")
+		c.Env = append(os.Environ(), "GARMIN_FAKE_SERVER="+fake.URL())
+		out, err := c.CombinedOutput()
+		if err != nil {
+			t.Fatalf("binary failed: %v", err)
+		}
+		lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+		var m map[string]any
+		if err := json.Unmarshal([]byte(lines[len(lines)-1]), &m); err != nil {
+			t.Fatalf("stdout %q: %v", out, err)
+		}
+		return m, dir, string(out)
+	}
+	t.Run("CL-226 the right password saves a 0600 tokens.json and never prints the password", func(t *testing.T) {
+		r, dir, out := connect("right-password")
+		if r["ok"] != true || r["connected"] != true || r["expired"] != false || r["loginKind"] != "di" {
+			t.Fatalf("result = %v", r)
+		}
+		fi, err := os.Stat(filepath.Join(dir, "tokens.json"))
+		if err != nil || fi.Mode().Perm() != 0o600 {
+			t.Fatalf("tokens.json: %v %v", fi, err)
+		}
+		if strings.Contains(out, "right-password") {
+			t.Fatal("stdout holds the password")
+		}
+	})
+	t.Run("CL-227 a wrong password answers GARMIN_BAD_PASSWORD and writes no tokens.json", func(t *testing.T) {
+		r, dir, _ := connect("nope")
+		if r["ok"] != false || r["errorCode"] != "GARMIN_BAD_PASSWORD" {
+			t.Fatalf("result = %v", r)
+		}
+		if _, err := os.Stat(filepath.Join(dir, "tokens.json")); !os.IsNotExist(err) {
+			t.Fatalf("tokens.json exists: %v", err)
+		}
+	})
+	t.Run("CL-228 an empty password answers GARMIN_INPUT and sends nothing", func(t *testing.T) {
+		fake.Reset()
+		r, _, _ := connect("")
+		if r["ok"] != false || r["errorCode"] != "GARMIN_INPUT" {
+			t.Fatalf("result = %v", r)
+		}
+		if n := len(fake.Calls("")); n != 0 {
+			t.Fatalf("%d requests", n)
+		}
+	})
 }

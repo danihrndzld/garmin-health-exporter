@@ -42,6 +42,25 @@ func main() {
 		}
 		s := garmin.StatusOf(dataDir, time.Now())
 		out.Result(map[string]any{"ok": true, "connected": s.Connected, "expired": s.Expired, "savedAt": s.SavedAt, "loginKind": s.Kind}) // not "kind": Emitter.Result sets that to "result"
+	case "garmin-connect":
+		dir, _ := req["dataDir"].(string)
+		email, _ := req["email"].(string)
+		password, _ := req["password"].(string)
+		dataDir, err := guard.InsideHome(dir)
+		if err == nil {
+			err = guard.Credentials(email, password)
+		}
+		if err != nil {
+			out.Result(map[string]any{"ok": false, "errorCode": "GARMIN_INPUT", "error": err.Error()})
+			return
+		}
+		a := &garmin.Auth{DataDir: dataDir, Log: func(m string) { out.Log("dim", m) }}
+		if _, err := a.Login(context.Background(), email, password); err != nil {
+			out.Result(garmin.LoginResult(err))
+			return
+		}
+		s := garmin.StatusOf(dataDir, time.Now())
+		out.Result(map[string]any{"ok": true, "connected": s.Connected, "expired": s.Expired, "savedAt": s.SavedAt, "loginKind": s.Kind})
 	default:
 		out.Result(map[string]any{"ok": false, "error": "Unknown command."})
 	}
