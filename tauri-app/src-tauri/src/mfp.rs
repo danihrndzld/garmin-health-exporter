@@ -164,12 +164,23 @@ pub async fn mfp_connect(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// A missing file is already disconnected; any other error (permissions) must reach the UI.
+fn remove_session(path: &PathBuf) -> Result<(), String> {
+    match fs::remove_file(path) {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e.to_string()),
+        _ => Ok(()),
+    }
+}
+
 #[tauri::command]
 pub async fn mfp_disconnect(app: AppHandle) -> Result<(), String> {
+    // An open sign in window would otherwise save a new session after the disconnect.
+    if let Some(w) = app.get_webview_window("mfp-login") {
+        let _ = w.close();
+    }
     let path = session_path(&app)?;
-    let _ = fs::remove_file(&path);
     clear_mfp_cookies(&app);
-    Ok(())
+    remove_session(&path)
 }
 
 #[cfg(test)]
@@ -190,6 +201,16 @@ mod tests {
         ]);
         let names: Vec<_> = kept.iter().map(|c| c.name.as_str()).collect();
         assert_eq!(names, vec![SESSION_COOKIE, "cf_clearance", "root"]);
+    }
+
+    #[test]
+    fn remove_session_ignores_a_missing_file_and_reports_other_errors() {
+        let dir = std::env::temp_dir().join(format!("mfp-remove-{}", std::process::id()));
+        let path = dir.join("mfp_session.json");
+        fs::create_dir_all(&path).unwrap(); // a directory where the file should be: remove_file fails
+        assert!(remove_session(&path).is_err());
+        fs::remove_dir_all(&dir).unwrap();
+        assert_eq!(remove_session(&path), Ok(()));
     }
 
     #[test]
