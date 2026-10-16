@@ -55,13 +55,15 @@ class BumpTest(unittest.TestCase):
 class FakeRunner:
     """Records every command; answers the read only ones like a clean repo."""
 
-    def __init__(self, version: str, archs: str = "x86_64 arm64") -> None:
-        self.version, self.archs, self.cmds = version, archs, []
+    def __init__(self, version: str, archs: str = "x86_64 arm64", status: str = "") -> None:
+        self.version, self.archs, self.status, self.cmds = version, archs, status, []
 
     def __call__(self, cmd, cwd=None, dry=False, check=True, capture=False):
         self.cmds.append(cmd)
         out, rc = "", 0
-        if cmd[:3] == ["git", "rev-parse", "--abbrev-ref"]:
+        if cmd[:2] == ["git", "status"]:
+            out = self.status
+        elif cmd[:3] == ["git", "rev-parse", "--abbrev-ref"]:
             out = "feat/x"
         elif cmd[:3] == ["git", "worktree", "list"]:
             out = "worktree /repo\nHEAD abc\nbranch refs/heads/main\n"
@@ -115,6 +117,13 @@ class OrderTest(unittest.TestCase):
             self.run_release(r)
         self.assertFalse([c for c in r.cmds if publishing(c)])
         self.assertIn("detach", [c[1] for c in r.cmds if c[0] == "hdiutil"])
+
+    def test_a_dirty_tree_is_refused_with_exit_2(self) -> None:
+        r = FakeRunner("9.8.7", status=" M tauri-app/package.json")
+        with self.assertRaises(SystemExit) as cm, mock.patch("sys.stderr"):
+            self.run_release(r)
+        self.assertEqual(cm.exception.code, 2)
+        self.assertFalse([c for c in r.cmds if c[:2] == ["git", "commit"] or publishing(c)])
 
 
 if __name__ == "__main__":

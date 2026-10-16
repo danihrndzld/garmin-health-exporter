@@ -34,8 +34,8 @@ Usage:
 
 Exit codes:
   0  success (release URL printed to stdout as the last line)
-  1  stage failure (stderr contains details)
-  2  invalid arguments / bad environment / preflight failure
+  1  bump, build, verify, merge, push or release failed (stderr contains details)
+  2  refused before any change: invalid arguments or a preflight refusal
 """
 from __future__ import annotations
 
@@ -111,7 +111,7 @@ def git(args: list[str], dry: bool = False, capture: bool = False, check: bool =
 def read_version() -> str:
     v = json.loads(PACKAGE_JSON.read_text()).get("version")
     if not v or not SEMVER_RE.match(v):
-        raise SystemExit(f"!! tauri-app/package.json has no valid version: {v!r}")
+        refuse(f"!! tauri-app/package.json has no valid version: {v!r}")
     return v
 
 
@@ -202,37 +202,43 @@ def dmg_path(version: str) -> Path:
     return DIST_DIR / f"Garmin Export_{version}_universal.dmg"
 
 
+def refuse(msg: str) -> None:
+    """A preflight refusal: nothing has changed yet, so exit 2 (not 1)."""
+    sys.stderr.write(msg + "\n")
+    raise SystemExit(2)
+
+
 def preflight(new_version: str, source: str, skip_merge: bool, dry: bool) -> None:
     log("stage: preflight")
 
     if not PACKAGE_JSON.exists():
-        raise SystemExit(f"!! {rel(PACKAGE_JSON)} not found; wrong repo?")
+        refuse(f"!! {rel(PACKAGE_JSON)} not found; wrong repo?")
     if not CI_PIPELINE.exists():
-        raise SystemExit(f"!! {rel(CI_PIPELINE)} not found; did the tool move?")
+        refuse(f"!! {rel(CI_PIPELINE)} not found; did the tool move?")
     if not shutil.which("cargo", path=ENV.get("PATH")):
-        raise SystemExit("!! cargo is not on PATH (it refreshes Cargo.lock). Pass --cargo-home or fix PATH.")
+        refuse("!! cargo is not on PATH (it refreshes Cargo.lock). Pass --cargo-home or fix PATH.")
 
     clean, dirty = working_tree_clean()
     if not clean:
-        raise SystemExit(f"!! working tree not clean; commit first:\n{dirty}")
+        refuse(f"!! working tree not clean; commit first:\n{dirty}")
 
     if not gh_authed():
-        raise SystemExit("!! gh CLI is not authenticated. Run `gh auth login` and retry.")
+        refuse("!! gh CLI is not authenticated. Run `gh auth login` and retry.")
 
     branch = current_branch()
     if branch != source:
-        raise SystemExit(
+        refuse(
             f"!! current branch is {branch!r} but --source is {source!r}. "
             f"Check out {source} first or pass --source={branch}."
         )
 
     tag = f"v{new_version}"
     if tag_exists_local(tag):
-        raise SystemExit(f"!! local tag {tag} already exists")
+        refuse(f"!! local tag {tag} already exists")
     if tag_exists_remote(tag):
-        raise SystemExit(f"!! remote tag {tag} already exists on origin")
+        refuse(f"!! remote tag {tag} already exists on origin")
     if release_exists(tag):
-        raise SystemExit(f"!! GitHub release {tag} already exists")
+        refuse(f"!! GitHub release {tag} already exists")
 
     if skip_merge:
         log("merge is skipped (on main or --skip-merge)", prefix="  ")
@@ -241,12 +247,12 @@ def preflight(new_version: str, source: str, skip_merge: bool, dry: bool) -> Non
         git(["fetch", "origin", MAIN_BRANCH], dry=dry)
         for ref in (f"origin/{MAIN_BRANCH}", MAIN_BRANCH):
             if not is_ancestor(ref):
-                raise SystemExit(f"!! {ref} is not an ancestor of {source}; rebase onto origin/{MAIN_BRANCH} first")
+                refuse(f"!! {ref} is not an ancestor of {source}; rebase onto origin/{MAIN_BRANCH} first")
         mc = main_checkout()
         if mc is not None:
             dirty = git(["-C", str(mc), "status", "--porcelain"], capture=True).stdout.strip()
             if dirty:
-                raise SystemExit(f"!! the main checkout {mc} has uncommitted changes:\n{dirty}")
+                refuse(f"!! the main checkout {mc} has uncommitted changes:\n{dirty}")
 
     log("preflight ok", prefix="  ")
 

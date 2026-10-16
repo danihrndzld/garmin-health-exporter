@@ -36,7 +36,7 @@ When build or verify fails, origin is untouched. The tool prints how to undo the
 
 `--dry-run` prints every command in this order and changes no tracked file, branch, tag or remote. It still runs the read only checks (`git status`, `git tag --list`, `git ls-remote`, `git merge-base --is-ancestor`, `git worktree list`, `gh auth status`, `gh release view`), runs `ci_pipeline.py --no-open --dry-run` so the build commands are printed too, and writes the notes to `.tmp/release-notes-vX.Y.Z.md` (gitignored scratch) so the printed `gh release create` command works when pasted.
 
-Exit codes: 0 success (the release URL is the last line of stdout), 1 stage failure, 2 bad arguments or a failed preflight.
+Exit codes: 0 success (the release URL is the last line of stdout). 1 a bump, build, verify, merge, push or release step failed; after a build or verify failure origin is untouched. 2 refused before any change: bad arguments, an invalid version in `tauri-app/package.json`, or a preflight refusal (the message goes to stderr).
 
 ### Invocation patterns
 
