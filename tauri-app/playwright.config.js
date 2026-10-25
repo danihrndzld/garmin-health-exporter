@@ -2,6 +2,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const PORT = 4173;
+// tools/test_report.py sets E2E_REPORT_DIR: JUnit for the report, JSON for the flaky count.
+const reportDir = process.env.E2E_REPORT_DIR;
 
 /**
  * Black-box regression of the UI in ui/, driven through ui/dev-mock.js (the
@@ -15,7 +17,9 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
-  reporter: 'html',
+  reporter: reportDir
+    ? [['list'], ['html', { open: 'never' }], ['junit', { outputFile: `${reportDir}/e2e-junit.xml` }], ['json', { outputFile: `${reportDir}/e2e.json` }]]
+    : 'html',
   use: {
     baseURL: `http://127.0.0.1:${PORT}`,
     trace: 'on-first-retry',

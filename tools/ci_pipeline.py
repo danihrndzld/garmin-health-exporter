@@ -12,8 +12,9 @@ Stages (run in order):
   1. clean     remove tauri-app/dist, src-tauri/binaries and the bundle/ folders
                under src-tauri/target/*/release/ (never the cargo cache)
   2. install   bun install in tauri-app/
-  3. test      bun run test (test IDs, Go, ui/__tests__, Playwright), then
-               bun run core (host Go binary for tauri-build) and cargo test
+  3. test      tools/test_report.py: test IDs, Go, ui/__tests__, Playwright, then
+               bun run core (host Go binary for tauri-build) and cargo test; JUnit
+               files and report.html/pdf in tauri-app/reportes-pruebas/<date>-ci/
   4. build     git worktree add .worktrees/build-<sha> HEAD, bun install and
                bun run release there (universal DMG), copy the DMG and the .app
                to tauri-app/dist/, remove the worktree. --here builds in this
@@ -102,17 +103,10 @@ def stage_install() -> int:
 
 def stage_test() -> int:
     log("stage: test")
-    # tauri-build checks that binaries/garmin-export-core-<host triple> exists,
-    # and clean removed it, so cargo test needs bun run core first.
-    for cmd, cwd in (
-        (["bun", "run", "test"], APP_DIR),
-        (["bun", "run", "core"], APP_DIR),
-        (["cargo", "test"], APP_DIR / "src-tauri"),
-    ):
-        rc = run(cmd, cwd)
-        if rc != 0:
-            return rc
-    return 0
+    # tools/test_report.py runs test IDs, Go, ui, Playwright and cargo (after bun run core,
+    # which tauri-build needs and clean removed), each to the end, then writes the report to
+    # tauri-app/reportes-pruebas/<date>-ci/. GitHub Actions runs the same script.
+    return run([sys.executable, str(REPO_ROOT / "tools" / "test_report.py")], REPO_ROOT)
 
 
 def check_rust() -> int:

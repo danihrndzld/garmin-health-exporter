@@ -30,7 +30,7 @@ Speed: 30 days took 5 s with the key (about 10 requests). The login sends 19 req
 | Saved | Export uses | Gets |
 | --- | --- | --- |
 | key only | Personal API | wellness, sleep, HRV, Body Battery, activities; one `PERSONAL_API_LIMITS` warning names what is missing |
-| key and login | Personal API first, login for the rest | everything, with fewer login requests |
+| key and login | Personal API first, login for the rest | everything, with fewer login requests; the key wins the names it answers, so `lastSevenDaysAvgRestingHeartRate` and the 5 sleep columns above stay empty even with the login |
 | login only | connectapi, as before 4.6 | everything |
 | expired key and live login | login, with a `GARMIN_KEY_EXPIRED` warning | everything |
 
