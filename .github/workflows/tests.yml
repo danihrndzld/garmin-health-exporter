@@ -1,6 +1,7 @@
 # Runs the same script as the local pipeline (tools/ci_pipeline.py, stage test) and uploads
 # its report: JUnit per suite, Go coverage, report.html, report.pdf and summary.html.
-# Cargo is left to the local pipeline: the Tauri crate needs the macOS toolchain and WebKit.
+# macOS, as the app: the layout checks are calibrated for macOS fonts (CL-11 overflowed by
+# 5 px on Ubuntu Chromium on 2026-10-25), and cargo needs the macOS Tauri toolchain.
 name: tests
 
 on:
@@ -16,8 +17,8 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    runs-on: macos-latest
+    timeout-minutes: 40
     env:
       CI: "1"
       ART_OF_CICD: ${{ github.workspace }}/.skills/skills/testing/art-of-cicd
@@ -38,9 +39,9 @@ jobs:
           bun-version: 1.3.11
       - name: install
         working-directory: tauri-app
-        run: bun install --frozen-lockfile && bunx playwright install --with-deps chromium webkit
+        run: bun install --frozen-lockfile && bunx playwright install chromium webkit
       - name: test suites and report
-        run: python3 tools/test_report.py --suites ids,go,ui,e2e
+        run: python3 tools/test_report.py
       - name: job summary
         if: always()
         run: |
