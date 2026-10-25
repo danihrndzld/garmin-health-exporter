@@ -40,7 +40,7 @@ Speed: 30 days took 5 s with the key (about 10 requests). The login sends 19 req
 
 ## Tools
 
-- `uv run tools/probe_personal_api.py [--end YYYY-MM-DD] [--days N]`: one token request, then one GET per path the app uses. Prints status per path and writes `.tmp/personal_api_probe.json`. Exit 1 when a path API key mode needs stops answering 200.
+- `go run -C tools . probe [--end YYYY-MM-DD] [--days N]` (run from the repo root): one token request through `gconnect.Auth.ExchangeAPIKey`, then one GET per path the app uses through the gconnect client, 0.5 s apart. Prints status per path and writes `.tmp/personal_api_probe.json`. Exit 1 when a path API key mode needs stops answering 200. The table of paths is `probeRows` in `tools/probe.go`; every name in it is a gconnect endpoint, and a test fails when gconnect adds a Personal API range the table does not list.
 
 ## Outputs
 
@@ -60,3 +60,4 @@ Speed: 30 days took 5 s with the key (about 10 requests). The login sends 19 req
 - The activity list caps `limit` at 20 per page; the app already pages by 20.
 - Range limits: 90 days for the v2 summary and HRV, 31 for sleep and Body Battery, 28 for steps. A longer range answers 400; the app splits ranges.
 - A night without sleep data comes back as a row of nulls with `calendarDate: null`; it adds no sleep row.
+- The probe asks through the gconnect client, as the app does, so it follows the client's rules: it waits and retries up to 2 times on a 429, it buys a new token once after a 401, and it stops after 5 answers of 403 in a row or one 403 on `social_profile`. The rows after a stop show status 0 and the client's code. `goals` also sends `Sec-Fetch-Site: same-origin`, as in the app.

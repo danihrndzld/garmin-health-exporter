@@ -1,5 +1,6 @@
-# Runs the same script as the local pipeline (tools/ci_pipeline.py, stage test) and uploads
-# its report: JUnit per suite, Go coverage, report.html, report.pdf and summary.html.
+# Runs the same command as the local pipeline (go run -C tools . ci, stage test) and uploads
+# its report: JUnit per suite, Go coverage, report.html, report.pdf and summary.html. The
+# command also writes the verdict and the suites table to the job summary.
 # macOS, as the app: the layout checks are calibrated for macOS fonts (CL-11 overflowed by
 # 5 px on Ubuntu Chromium on 2026-10-25), and cargo needs the macOS Tauri toolchain.
 name: tests
@@ -33,7 +34,9 @@ jobs:
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
         with:
           go-version-file: tauri-app/core/go.mod
-          cache-dependency-path: tauri-app/core/go.sum
+          cache-dependency-path: |
+            tauri-app/core/go.sum
+            tools/go.sum
       - uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
         with:
           bun-version: 1.3.11
@@ -41,20 +44,7 @@ jobs:
         working-directory: tauri-app
         run: bun install --frozen-lockfile && bunx playwright install chromium webkit
       - name: test suites and report
-        run: python3 tools/test_report.py
-      - name: job summary
-        if: always()
-        run: |
-          d=$(ls -d tauri-app/reportes-pruebas/*-ci | tail -1)
-          python3 - "$d" >> "$GITHUB_STEP_SUMMARY" <<'PY'
-          import json, sys
-          r = json.load(open(sys.argv[1] + "/report.json"))
-          print(f"## {r['title']}: {r['verdict']['status']}\n\n{r['verdict']['text']}\n")
-          t = r["sections"][0]["table"]
-          print("| " + " | ".join(t["columns"]) + " |\n|" + "---|" * len(t["columns"]))
-          for row in t["rows"]:
-              print("| " + " | ".join(map(str, row)) + " |")
-          PY
+        run: go run -C tools . test-report
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:

@@ -13,7 +13,7 @@ Optional context from the user:
 - **Platform**: macOS only (universal DMG and `.app`). If the user asks for Windows or Linux, stop and say the tool does not build them.
 
 ## Tool
-`tools/ci_pipeline.py`
+`go run -C tools . ci` ([tools/ci.go](../tools/ci.go)), run from the repo root.
 
 ### Stage contract
 
@@ -21,7 +21,7 @@ Optional context from the user:
 | ------- | ------------ | ------------- |
 | clean   | `rm -rf tauri-app/dist tauri-app/src-tauri/binaries` and every `tauri-app/src-tauri/target/*/release/bundle`. It never removes the cargo cache. | File permissions. |
 | install | `bun install` in `tauri-app/`. | Registry or lockfile problem. |
-| test    | `tools/test_report.py`: test IDs, Go vet and tests (JUnit + coverage), `ui/__tests__` (JUnit), Playwright Chromium + WebKit (JUnit, flaky count), then `bun run core` and `cargo test` in `src-tauri/` (log). Every suite runs to the end; then `report.html`, `report.pdf` and `summary.html` are built in `tauri-app/reportes-pruebas/<date>-ci/`. `bun run core` builds the host Go core, because tauri-build refuses to compile without it and clean removed it. GitHub Actions (`.github/workflows/tests.yml`, macos-latest) runs the same script on every push and uploads the folder as the `test-report` artifact. | A real regression: the stage fails after the report is written. Open `report.html`, then the suite's `.log`. Stop. |
+| test    | `test-report` (the same Go program, in the same process): test IDs, Go vet and tests (JUnit + coverage), `ui/__tests__` (JUnit), Playwright Chromium + WebKit (JUnit, flaky count), then `bun run core` and `cargo test` in `src-tauri/` (log). Every suite runs to the end; then `report.html`, `report.pdf` and `summary.html` are built in `tauri-app/reportes-pruebas/<date>-ci/`. `bun run core` builds the host Go core, because tauri-build refuses to compile without it and clean removed it. GitHub Actions (`.github/workflows/tests.yml`, macos-latest) runs `go run -C tools . test-report` on every push, writes the verdict and the suites table to the job summary, and uploads the folder as the `test-report` artifact. | A real regression: the stage fails after the report is written. Open `report.html`, then the suite's `.log`. Stop. |
 | build   | Checks `rustup target list --installed` for both targets. Then `git worktree add --detach .worktrees/build-<sha> HEAD`, `bun install` and `bun run release` there, copies `Garmin Export_<ver>_universal.dmg` and `Garmin Export.app` from `src-tauri/target/universal-apple-darwin/release/bundle/` to `tauri-app/dist/` (`cp` and `ditto`), and runs `git worktree remove --force`. With `--here`, the same `bun install`, `bun run release` and copy run in this checkout. | A missing rust target, or a Go, Rust or bundler error. |
 | open    | `codesign --verify --deep --strict "tauri-app/dist/Garmin Export.app"`, then `open -n` on it. | A broken signature or a launch failure. |
 
@@ -29,25 +29,25 @@ Optional context from the user:
 
 `--stages`, `--skip-clean`, `--skip-install`, `--skip-tests`, `--skip-build`, `--no-open`, `--here`, `--dry-run`, `--rustup-home`, `--cargo-home`. `--stages` overrides the `--skip-*` flags. `--dry-run` prints every command and runs none of them; it still reads `git status`, `git rev-parse` and `rustup target list`, which change nothing. `--cargo-home` also puts `$CARGO_HOME/bin` first on `PATH`, so the rustup `cargo` wins over Homebrew's.
 
-Exit codes: 0 success, 1 stage failure, 2 bad arguments or no `tauri-app/`.
+Exit codes: 0 success, 1 stage failure, 2 bad arguments or no `tauri-app/`. `go run` turns every non zero code into 1 and prints `exit status N`, where N is the tool's own code.
 
 ### Invocation patterns
 
 ```bash
 # Full pipeline with an isolated rustup
-uv run tools/ci_pipeline.py --rustup-home "$RUST/rustup" --cargo-home "$RUST/cargo"
+go run -C tools . ci --rustup-home "$RUST/rustup" --cargo-home "$RUST/cargo"
 
 # Fast inner loop: tests only
-uv run tools/ci_pipeline.py --stages test
+go run -C tools . ci --stages test
 
 # Build a DMG without reinstalling, testing or launching
-uv run tools/ci_pipeline.py --skip-install --skip-tests --no-open
+go run -C tools . ci --skip-install --skip-tests --no-open
 
 # Build in this checkout (the app must be closed)
-uv run tools/ci_pipeline.py --here --no-open
+go run -C tools . ci --here --no-open
 
 # See every command without running anything
-uv run tools/ci_pipeline.py --dry-run
+go run -C tools . ci --dry-run
 ```
 
 ## Expected Outputs
@@ -72,3 +72,4 @@ uv run tools/ci_pipeline.py --dry-run
 When a run fails, record the diagnosis here before moving on. Keep entries short (date, symptom, fix).
 
 - 2026-10-16: rewritten for `tauri-app/`; the electron-builder entries live in git history before this date.
+- 2026-10-25: the Python tools moved to one Go program in `tools/` (`go run -C tools . ci`). The `--dry-run` output is the same as before, except that stage test now prints `go run -C tools . test-report`.

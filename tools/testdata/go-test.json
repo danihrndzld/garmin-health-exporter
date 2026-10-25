@@ -1,0 +1,9 @@
+{"Action":"run","Package":"m/b","Test":"TestB"}
+{"Action":"output","Package":"m/b","Test":"TestB/x","Output":"want <1> & \"2\"\n"}
+{"Action":"fail","Package":"m/b","Test":"TestB/x","Elapsed":0.01}
+{"Action":"fail","Package":"m/b","Test":"TestB","Elapsed":0.02}
+{"Action":"pass","Package":"m/a","Test":"TestA","Elapsed":1.5}
+{"Action":"skip","Package":"m/a","Test":"TestS","Elapsed":0}
+{"Action":"pass","Package":"m/a","Test":"TestMain","Elapsed":0}
+not json
+{"Action":"pass","Package":"m/a","Elapsed":2}

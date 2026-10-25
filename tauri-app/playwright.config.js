@@ -2,7 +2,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const PORT = 4173;
-// tools/test_report.py sets E2E_REPORT_DIR: JUnit for the report, JSON for the flaky count.
+// The test-report tool (go run -C tools . test-report) sets E2E_REPORT_DIR: JUnit for the report, JSON for the flaky count.
 const reportDir = process.env.E2E_REPORT_DIR;
 
 /**
