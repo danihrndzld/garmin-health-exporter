@@ -12,7 +12,7 @@
 
 **[Download the latest version](https://github.com/danihrndzld/garmin-health-exporter/releases/latest)**
 
-[What it exports](#what-it-exports) | [Install](#install) | [First export](#first-export) | [Give the data to an LLM](#give-the-data-to-an-llm) | [MyFitnessPal](#add-your-myfitnesspal-food-diary) | [Questions](#questions) | [Build it yourself](#build-it-yourself)
+[What it exports](#what-it-exports) | [Install](#install) | [First export](#first-export) | [API key or email login](#api-key-or-email-login) | [Give the data to an LLM](#give-the-data-to-an-llm) | [MyFitnessPal](#add-your-myfitnesspal-food-diary) | [Questions](#questions) | [Build it yourself](#build-it-yourself)
 
 <br>
 
@@ -22,9 +22,9 @@
 
 <br>
 
-Garmin Export signs in to Garmin Connect with your account, downloads each day in the range you pick, and writes one CSV file per kind of data. The files are plain text with a header row, so you can open them in Numbers, Excel, or pandas, or upload them to a chat with an LLM.
+Garmin Export reads your Garmin Connect data with an official Personal API key, with your Garmin email and password, or with both. It downloads each day in the range you pick, and it writes one CSV file per kind of data. The files are plain text with a header row, so you can open them in Numbers, Excel, or pandas, or upload them to a chat with an LLM.
 
-Garmin Export is for personal use with your own account. It isn't affiliated with Garmin. It reads your data through the unofficial API that Garmin's own phone app uses, so it can stop working when Garmin changes that API.
+Garmin Export is for personal use with your own account, and it isn't affiliated with Garmin. With the API key, the app uses the Personal API that Garmin documents and supports. With the email login, it uses the unofficial API that Garmin's own phone app uses, so that part can stop working when Garmin changes that API.
 
 ---
 
@@ -63,17 +63,13 @@ You only do this once for each version. To check for a new version, click the ve
 
 ## First export
 
-1. In the Setup card, click connect on the Garmin row, type your Garmin Connect email and password, and click sign in. You only do this once. The app remembers your email.
+1. In the Setup card, click connect on the Garmin row. The form asks for a Personal API key first. Click get a key, create the key on Garmin's page, paste it, and click save key. To get training data and laps too, also add your email login, as described in [API key or email login](#api-key-or-email-login).
 2. Pick a range at the top of the window. You can choose the last 7, 30, or 90 days, or choose Custom and set a start and end date.
 3. Click the Pull button, or press Command and Return. The Run card shows each step, and you can press Escape to cancel.
 
-The app sends your password to Garmin once, when you connect, and it never saves the password. Garmin answers with a login token, and the app saves that token, not the password, in a file in its Application Support folder that only your user can read. Every later export uses the token, so you don't type the password again. The app renews the token before it expires, so a long export doesn't stop halfway. Unlike MyFitnessPal, the app does see your Garmin password, once, because Garmin's sign in is an API and not a web page that the app could show you.
-
-When Garmin ends the login, the Garmin row says Session expired and its button changes to reconnect. Click reconnect and sign in again. The disconnect button deletes the saved token.
+Downloaded days are also kept in a local cache, so a second export of the same range only asks Garmin for the newest days.
 
 Each source in the Setup card has an Include switch that turns it on or off for the next exports. When you switch Garmin off, MyFitnessPal runs alone, and the folder holds only the MyFitnessPal files.
-
-Downloaded days are also kept in a local cache, so a second export of the same range only asks Garmin for the newest days.
 
 <div align="center">
 <img src="docs/images/export-done.png" alt="The main Garmin Export window after a 7 day export: five progress rings on the left, the Setup card with Garmin Connect and MyFitnessPal both connected, the six run steps, and the step and recovery charts" width="900">
@@ -82,6 +78,44 @@ Downloaded days are also kept in a local cache, so a second export of the same r
 <div align="center">
 <img src="docs/images/theme-ocean.png" alt="The LLM pack panel in the ocean accent color" width="290"> <img src="docs/images/theme-coral.png" alt="The LLM pack panel in the coral accent color" width="290"> <img src="docs/images/theme-violet.png" alt="The LLM pack panel in the violet accent color" width="290">
 </div>
+
+## API key or email login
+
+Version 4.6 added the Personal API key, and version 4.5.0 and earlier only have the email login. You can save the key, the email login, or both, and the Garmin row shows which ones the app has, e.g., "API key + email login". We recommend saving both, because the key reads only part of the data, as the table below shows.
+
+### How the app uses each one
+
+Garmin started offering the Personal API key in October 2026. You create the key at [connect.garmin.com/app/settings/personalApiToken](https://connect.garmin.com/app/settings/personalApiToken), choose how long it lasts (30, 90, 180, or 365 days), and copy it, because Garmin shows it only once. The app trades the key for a token once to check that it works, and it saves the key in a file in its Application Support folder that only your user can read. The key doesn't need your password, and it works with accounts that use two step verification.
+
+The email login sends your password to Garmin once, when you connect, and the app never saves the password. Garmin answers with a login token, and the app saves that token in its own file next to the key, so a key that stops working never deletes the login. Every later export uses the token, and the app renews it before it expires, so you don't type the password again. The app does see your Garmin password once, because Garmin's sign in is an API and not a web page that the app could show you.
+
+When you save both, each export asks the Personal API first for everything the key covers. It then uses the email login only for the data the key can't read, so the export is faster and sends about half as many requests with the login.
+
+### What each one can read
+
+These results come from tests against Garmin on 2026-10-24.
+
+| Data | API key | Email login |
+| --- | --- | --- |
+| `daily_summary.csv` | 19 of 26 columns. Empty: the seven day average resting heart rate, the steps goal, the steps from wellness, and the 4 hydration columns. | All columns |
+| `sleep.csv` | 31 of 36 columns. Empty: unmeasurable seconds, sleep result type, restless moments, skin temperature, and the Body Battery change. | All columns |
+| `hrv.csv`, `body_battery.csv`, `spo2_respiration.csv` | All columns | All columns |
+| `activities.csv` and the file for each type | All columns except VO2 max | All columns |
+| `daily_steps_aggregated.csv`, fitness age, weight | All columns | All columns |
+| `training.csv` (training readiness, training status, VO2 max, load, endurance score) | Only the dates, with every other column empty | All columns |
+| Laps files, goals, blood pressure, hill score, running tolerance, weekly intensity, race predictions | Missing | All |
+
+With only the key saved, the log shows one warning that lists the data the key can't read. With both saved, the key still fills the columns it answers, so the empty columns in the first two rows stay empty even though the login could fill them.
+
+The two also differ in other ways.
+
+- Speed: with the key, a 30 day export took 5 seconds and about 10 requests. With only the email login, it sends 19 requests for each day, with a pause of half a second between them, which is about 5 minutes for 30 days. With both, a 14 day export took 80 seconds.
+- Expiry: the key stops working on the date you chose, and Garmin emails you about a week before. Create a new key and click reconnect. The email login lasts until Garmin ends it, which is usually months.
+- Sign in limits: Garmin blocks an account for a while after about 4 email sign ins in 40 minutes, and the block also affects Garmin's own app. The key has no such limit.
+
+### When a login stops working
+
+When Garmin refuses the key, the Garmin row says API key expired. When Garmin ends the email login, the row says Session expired. In both cases the button changes to reconnect, and you save a new key or sign in again. If the key expires while the email login still works, exports keep running on the email login, and the log shows a warning that the key expired. The disconnect button deletes the saved key and the saved login token.
 
 ## Give the data to an LLM
 
@@ -141,7 +175,7 @@ Version 4 is a new app named Garmin Export built with Tauri instead of Electron.
 <details>
 <summary>Why can't I sign in?</summary>
 
-Since version 4.2, the app signs in the same way as Garmin's own phone app, through a sign in service that Garmin introduced in 2026. When Garmin blocks that service, e.g., from some VPNs or office networks, the app tries the older sign in once. The message under the Garmin row says which case you hit.
+The questions below are about the email login, and the API key avoids all of them. Since version 4.2, the app signs in the same way as Garmin's own phone app, through a sign in service that Garmin introduced in 2026. When Garmin blocks that service, e.g., from some VPNs or office networks, the app tries the older sign in once. The message under the Garmin row says which case you hit.
 
 - Wrong email or password: check them on connect.garmin.com.
 - Two-step verification: Garmin Export can't sign in to accounts with two-step verification yet.
@@ -190,7 +224,7 @@ When a change to the Garmin CSV files is intended, rebuild the golden files with
 <summary>Project layout</summary>
 
 - `tauri-app/ui` holds the window, written in plain HTML, CSS, and JavaScript with no build step. `ui/dev-mock.js` lets you open `index.html` in a browser with fake data.
-- `tauri-app/core` holds `garmin-export-core`, a Go program that connects Garmin, keeps the login token, downloads the Garmin data, writes the CSV files, builds the summary, the LLM pack and the bug report links, and downloads the MyFitnessPal diary. The window starts it for each command and sends one JSON request on its standard input, so your password never appears in the process list. It checks the range, the refresh window, and the folders before it does anything. The Garmin sign in and API client is the library [`github.com/danihrndzld/gconnect`](https://github.com/danihrndzld/gconnect), which never touches the disk.
+- `tauri-app/core` holds `garmin-export-core`, a Go program that connects Garmin with the API key or the email login, keeps the key and the login token, downloads the Garmin data, writes the CSV files, builds the summary, the LLM pack and the bug report links, and downloads the MyFitnessPal diary. The window starts it for each command and sends one JSON request on its standard input, so your password never appears in the process list. It checks the range, the refresh window, and the folders before it does anything. The Garmin sign in and API client is the library [`github.com/danihrndzld/gconnect`](https://github.com/danihrndzld/gconnect), which never touches the disk.
 - The 3.x Electron app and the earlier JavaScript code are at the git tag `archive/electron-app`.
 - The original Python scripts (`garmin_health_export.py`, `json_to_csv.py`, `download_activity_details.py`) were removed in 4.5.0; they are in the git history.
 
