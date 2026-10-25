@@ -39,18 +39,45 @@ func garminStatus(_ context.Context, req map[string]any, _ *protocol.Emitter) (a
 	return garmin.StatusOf(dir, time.Now()), nil
 }
 
+// garminDisconnect removes the login named by which ("login" or "apiKey"), or both when which is missing.
 func garminDisconnect(_ context.Context, req map[string]any, _ *protocol.Emitter) (any, error) {
 	dir, err := dataDir(req)
 	if err != nil {
 		return nil, err
 	}
-	if err := garmin.Delete(dir); err != nil {
-		return nil, &garmin.CodeError{Code: "GARMIN_ERROR", Msg: err.Error()}
+	var dels []func(string) error
+	switch str(req, "which") {
+	case "login":
+		dels = append(dels, garmin.Delete)
+	case "apiKey":
+		dels = append(dels, garmin.DeleteAPIKey)
+	case "":
+		dels = append(dels, garmin.Delete, garmin.DeleteAPIKey)
+	default:
+		return nil, inputError(`which must be "login" or "apiKey"`)
+	}
+	for _, del := range dels {
+		if err := del(dir); err != nil {
+			return nil, &garmin.CodeError{Code: "GARMIN_ERROR", Msg: err.Error()}
+		}
 	}
 	return garmin.StatusOf(dir, time.Now()), nil
 }
 
+// garminConnect saves a Personal API key when the request holds apiKey (one token request,
+// never a sign in), and otherwise signs in with email and password.
 func garminConnect(ctx context.Context, req map[string]any, out *protocol.Emitter) (any, error) {
+	if _, ok := req["apiKey"]; ok {
+		key := str(req, "apiKey")
+		dir, err := guard.InsideHome(str(req, "dataDir"))
+		if err == nil {
+			err = guard.APIKey(key)
+		}
+		if err != nil {
+			return nil, inputError(err.Error())
+		}
+		return garmin.ConnectAPIKey(ctx, &gconnect.Auth{Hosts: garminHosts()}, dir, key, time.Now())
+	}
 	email, password := str(req, "email"), str(req, "password")
 	dir, err := guard.InsideHome(str(req, "dataDir"))
 	if err == nil {

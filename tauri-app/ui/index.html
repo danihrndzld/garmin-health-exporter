@@ -86,16 +86,23 @@
         </div>
         <div class="err" id="range-err" role="alert" hidden></div>
       </div>
-      <div class="field full"><span>Garmin Connect <i class="hint" title="Connect once. The app saves a login token, not your password.">?</i></span>
+      <div class="field full"><span>Garmin Connect <i class="hint" title="Connect once with a Personal API key (recommended) or your email. The app saves a token, never your password.">?</i></span>
         <div class="mfp-row"><span class="mono" id="garmin-state">Not connected</span><span class="grow"></span>
           <label class="switch"><input type="checkbox" id="garmin-on"><span>Include</span></label>
+          <button type="button" class="link mono" id="garmin-add" hidden>add login</button>
           <button type="button" class="link mono" id="garmin-btn">connect</button></div>
-        <div class="garmin-form" id="garmin-form" hidden>
-          <label><span>Email</span><input type="email" id="email" autocomplete="username" spellcheck="false" placeholder="you@example.com"></label>
-          <label><span>Password</span><span class="pw"><input type="password" id="password" autocomplete="current-password" placeholder="••••••••">
-            <button type="button" class="eye" id="eye" aria-label="Show password">show</button></span></label>
+        <div class="garmin-form" id="garmin-form" data-mode="key" hidden>
+          <div class="garmin-fields" id="garmin-key-fields">
+            <label><span>Personal API key <button type="button" class="link mono" id="garmin-getkey">get a key ↗</button></span>
+              <input type="password" id="apikey" autocomplete="off" spellcheck="false" placeholder="the key Garmin showed once"></label>
+            <p class="note" id="garmin-key-note">Official and read only: no password, no sign in limits. It has no training status, readiness, laps or goals; add your email login too for those.</p></div>
+          <div class="garmin-fields" id="garmin-login-fields" hidden>
+            <label><span>Email</span><input type="email" id="email" autocomplete="username" spellcheck="false" placeholder="you@example.com"></label>
+            <label><span>Password</span><span class="pw"><input type="password" id="password" autocomplete="current-password" placeholder="••••••••">
+              <button type="button" class="eye" id="eye" aria-label="Show password">show</button></span></label></div>
           <p class="err" id="garmin-err" role="alert" hidden></p>
-          <button type="button" class="link mono" id="garmin-signin">sign in</button>
+          <button type="button" class="link mono" id="garmin-signin">save key</button>
+          <button type="button" class="link mono" id="garmin-mode">use email instead</button>
           <button type="button" class="link mono" id="garmin-cancel">cancel</button></div></div>
       <div class="field full"><span>MyFitnessPal <i class="hint" title="Adds your food diary to each export. You sign in on MyFitnessPal's own page; the app never sees your password.">?</i></span>
         <div class="mfp-row"><span class="mono" id="mfp-state">Not connected</span><span class="grow"></span>

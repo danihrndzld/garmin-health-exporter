@@ -310,6 +310,114 @@ func TestBinaryGarminConnect(t *testing.T) {
 	})
 }
 
+// runGarmin sends one request to the binary with GARMIN_FAKE_SERVER set and returns its result line.
+func runGarmin(t *testing.T, fakeURL string, req map[string]any) (map[string]any, string) {
+	t.Helper()
+	b, _ := json.Marshal(req)
+	c := exec.Command(binary)
+	c.Stdin = strings.NewReader(string(b) + "\n")
+	c.Env = append(os.Environ(), "GARMIN_FAKE_SERVER="+fakeURL)
+	out, err := c.CombinedOutput()
+	if err != nil {
+		t.Fatalf("binary failed: %v", err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	var m map[string]any
+	if err := json.Unmarshal([]byte(lines[len(lines)-1]), &m); err != nil {
+		t.Fatalf("stdout %q: %v", out, err)
+	}
+	return m, string(out)
+}
+
+func homeDir(t *testing.T) string {
+	t.Helper()
+	home, _ := os.UserHomeDir()
+	dir, err := os.MkdirTemp(home, ".garmin-binary-test-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(dir) })
+	return dir
+}
+
+func TestBinaryGarminAPIKey(t *testing.T) {
+	t.Parallel()
+	fake := gconnecttest.New()
+	t.Cleanup(fake.Close)
+	t.Run("AC-706 garmin-connect with apiKey saves the key, answers apiKey connected, never signs in and never prints the key", func(t *testing.T) {
+		dir := homeDir(t)
+
+		r, out := runGarmin(t, fake.URL(), map[string]any{"cmd": "garmin-connect", "dataDir": dir, "apiKey": "right-api-key"})
+
+		key, _ := r["apiKey"].(map[string]any)
+		if r["ok"] != true || key["connected"] != true || r["connected"] != false || strings.Contains(out, "right-api-key") {
+			t.Fatalf("result %v", r)
+		}
+		if len(fake.Calls("/mobile/api/login")) != 0 || len(fake.Calls("/sso/signin")) != 0 {
+			t.Fatal("garmin-connect with a key signed in")
+		}
+	})
+	t.Run("EP-712 garmin-connect with an apiKey holding a line break: GARMIN_INPUT before any request", func(t *testing.T) {
+		before := len(fake.Calls(""))
+
+		r, _ := runGarmin(t, fake.URL(), map[string]any{"cmd": "garmin-connect", "dataDir": homeDir(t), "apiKey": "a\nb"})
+
+		if r["errorCode"] != "GARMIN_INPUT" || len(fake.Calls("")) != before {
+			t.Fatalf("result %v", r)
+		}
+	})
+	t.Run("EP-713 garmin-connect with a key Garmin refuses: GARMIN_BAD_KEY", func(t *testing.T) {
+		r, _ := runGarmin(t, fake.URL(), map[string]any{"cmd": "garmin-connect", "dataDir": homeDir(t), "apiKey": "wrong-key"})
+
+		if r["errorCode"] != "GARMIN_BAD_KEY" {
+			t.Fatalf("result %v", r)
+		}
+	})
+	both := func(t *testing.T) string {
+		dir := homeDir(t)
+		must(t, os.WriteFile(filepath.Join(dir, "tokens.json"), []byte(`{"di":{"access_token":"a.b.c","refresh_token":"r","client_id":"c","expires_at":1,"refresh_token_expires_at":null}}`), 0o600))
+		must(t, os.WriteFile(filepath.Join(dir, "garmin-api-key.json"), []byte(`{"personal":{"api_key":"k"}}`), 0o600))
+		return dir
+	}
+	exists := func(dir, name string) bool { _, err := os.Stat(filepath.Join(dir, name)); return err == nil }
+	t.Run("DT-R701 garmin-disconnect which=apiKey removes only garmin-api-key.json", func(t *testing.T) {
+		dir := both(t)
+
+		runGarmin(t, fake.URL(), map[string]any{"cmd": "garmin-disconnect", "dataDir": dir, "which": "apiKey"})
+
+		if exists(dir, "garmin-api-key.json") || !exists(dir, "tokens.json") {
+			t.Fatal("wrong file removed")
+		}
+	})
+	t.Run("DT-R702 garmin-disconnect which=login removes only tokens.json", func(t *testing.T) {
+		dir := both(t)
+
+		runGarmin(t, fake.URL(), map[string]any{"cmd": "garmin-disconnect", "dataDir": dir, "which": "login"})
+
+		if !exists(dir, "garmin-api-key.json") || exists(dir, "tokens.json") {
+			t.Fatal("wrong file removed")
+		}
+	})
+	t.Run("DT-R703 garmin-disconnect without which removes both", func(t *testing.T) {
+		dir := both(t)
+
+		runGarmin(t, fake.URL(), map[string]any{"cmd": "garmin-disconnect", "dataDir": dir})
+
+		if exists(dir, "garmin-api-key.json") || exists(dir, "tokens.json") {
+			t.Fatal("a file was kept")
+		}
+	})
+	t.Run("DT-R704 garmin-disconnect with an unknown which: GARMIN_INPUT and both files kept", func(t *testing.T) {
+		dir := both(t)
+
+		r, _ := runGarmin(t, fake.URL(), map[string]any{"cmd": "garmin-disconnect", "dataDir": dir, "which": "all"})
+
+		if r["errorCode"] != "GARMIN_INPUT" || !exists(dir, "garmin-api-key.json") || !exists(dir, "tokens.json") {
+			t.Fatalf("result %v", r)
+		}
+	})
+}
+
 func TestBinaryClearCache(t *testing.T) {
 	t.Parallel()
 	home, _ := os.UserHomeDir()

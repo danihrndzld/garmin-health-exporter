@@ -333,7 +333,7 @@
 
   // ── Export ──────────────────────────────────────────────────────────────
   function lock(on) {
-    [emailEl, passEl, eye, outBtn, clearCacheBtn, fromEl, toEl, mfpBtn, mfpOn, garminBtn, garminOn, signInBtn, cancelBtn].forEach((el) => { el.disabled = on; });
+    [emailEl, passEl, eye, keyEl, modeBtn, garminAdd, outBtn, clearCacheBtn, fromEl, toEl, mfpBtn, mfpOn, garminBtn, garminOn, signInBtn, cancelBtn].forEach((el) => { el.disabled = on; });
     if (!on) { mfpOn.disabled = !mfp.connected; garminOn.disabled = !garmin.connected; }
     rangeSeg.querySelectorAll('button').forEach((b) => { b.disabled = on; });
     refreshSeg.querySelectorAll('button').forEach((b) => { b.disabled = on; });
@@ -801,22 +801,53 @@
   }
 
   // ── Garmin ──────────────────────────────────────────────────────────────
-  // The Go core signs in once and keeps tokens.json; every export runs from it without a password.
-  const garminState = $('garmin-state'), garminBtn = $('garmin-btn'), garminOn = $('garmin-on');
+  // Two saved credentials, each in its own file in the Go core: a Personal API key
+  // (garmin-api-key.json, preferred) and the email sign in (tokens.json). An export uses the key
+  // for what the Personal API serves and the login, when saved, for the rest.
+  const garminState = $('garmin-state'), garminBtn = $('garmin-btn'), garminOn = $('garmin-on'), garminAdd = $('garmin-add');
   const garminForm = $('garmin-form'), garminErr = $('garmin-err'), signInBtn = $('garmin-signin'), cancelBtn = $('garmin-cancel');
-  let garmin = { connected: false, expired: false };
+  const modeBtn = $('garmin-mode'), keyEl = $('apikey');
+  const KEY_URL = 'https://connect.garmin.com/app/settings/personalApiToken';
+  let garmin = { connected: false, expired: false, key: false, login: false };
   const usable = (s, sw) => sw.checked && s.connected && !s.expired;
   const goRun = (req) => platform.run(req, () => {}).done.catch((e) => ({ ok: false, error: String(e?.message || e) }));
+  function garminLabel() {
+    if (garmin.expired) return garmin.keySaved && !garmin.loginSaved ? 'API key expired' : 'Session expired';
+    if (garmin.key && garmin.login) return 'API key + email login';
+    if (garmin.key) return garmin.loginSaved ? 'API key · login expired' : 'API key';
+    if (garmin.login) return garmin.keySaved ? 'Email login · API key expired' : 'Email login';
+    return 'Not connected';
+  }
   function renderGarmin() {
-    garminState.textContent = garmin.expired ? 'Session expired' : garmin.connected ? 'Connected' : 'Not connected';
+    garminState.textContent = garminLabel();
     garminBtn.textContent = garmin.expired ? 'reconnect' : garmin.connected ? 'disconnect' : 'connect';
+    // One live credential: offer the other. The key adds speed; the login adds training data.
+    garminAdd.hidden = !garmin.connected || garmin.expired || (garmin.key && garmin.login);
+    garminAdd.textContent = garmin.key ? 'add email login' : 'add API key';
     garminOn.disabled = !!running || !garmin.connected;
     garminOn.checked = garmin.connected && store.get('garmin_on', '1') === '1';
-    if (garmin.connected && !garmin.expired) garminForm.hidden = true;
+    if (garmin.connected && !garmin.expired && garmin.key && garmin.login) garminForm.hidden = true;
   }
+  // s is garmin-status: the email login at the top level, the key under s.apiKey.
   function setGarmin(s) {
-    garmin = { connected: !!s.connected, expired: !!s.expired, savedAt: s.savedAt };
+    const k = s.apiKey || {};
+    const key = !!k.connected && !k.expired, login = !!s.connected && !s.expired;
+    garmin = { connected: !!k.connected || !!s.connected, expired: (!!k.connected || !!s.connected) && !key && !login,
+      key, login, keySaved: !!k.connected, loginSaved: !!s.connected, savedAt: s.savedAt };
     renderGarmin();
+  }
+  function setMode(mode) {
+    garminForm.dataset.mode = mode;
+    $('garmin-key-fields').hidden = mode !== 'key';
+    $('garmin-login-fields').hidden = mode !== 'login';
+    signInBtn.textContent = mode === 'key' ? 'save key' : 'sign in';
+    modeBtn.textContent = mode === 'key' ? 'use email instead' : 'use API key instead';
+    showGarminError('');
+  }
+  function openForm(mode) {
+    setMode(mode);
+    garminForm.hidden = false;
+    (mode === 'key' ? keyEl : emailEl).focus();
   }
   function showGarminError(msg) {
     garminErr.textContent = msg;
@@ -825,9 +856,27 @@
   async function refreshGarmin() {
     const s = await goRun({ cmd: 'garmin-status', dataDir: paths.dataDir });
     // Expired stays until a sign in or a disconnect, as for MyFitnessPal.
-    if (s.ok) setGarmin({ ...s, expired: s.expired || (garmin.expired && s.connected) });
+    if (!s.ok) return;
+    const wasExpired = garmin.expired;
+    setGarmin(s);
+    if (wasExpired && garmin.connected && !garmin.expired) { garmin.expired = true; renderGarmin(); }
+  }
+  async function saveKey() {
+    if (signInBtn.disabled) return; // Enter twice must not send two requests
+    const apiKey = keyEl.value.trim();
+    if (!apiKey) { showGarminError('Paste your Personal API key.'); keyEl.focus(); return; }
+    const busy = [signInBtn, keyEl, modeBtn];
+    busy.forEach((el) => { el.disabled = true; });
+    let res;
+    try { res = await goRun({ cmd: 'garmin-connect', apiKey, dataDir: paths.dataDir }); } finally { keyEl.value = ''; busy.forEach((el) => { el.disabled = false; }); }
+    if (!res.ok) { showGarminError(res.error); keyEl.focus(); return; }
+    showGarminError('');
+    garminForm.hidden = true;
+    setGarmin(res);
+    toast('Garmin API key saved.');
   }
   async function signIn() {
+    if (garminForm.dataset.mode === 'key') return saveKey();
     if (signInBtn.disabled) return; // Enter twice must not send two of Garmin's few sign ins
     const email = emailEl.value.trim(), password = passEl.value;
     if (!email || !password) { showGarminError('Enter your email and password.'); (email ? passEl : emailEl).focus(); return; }
@@ -838,6 +887,7 @@
     try { res = await goRun({ cmd: 'garmin-connect', email, password, dataDir: paths.dataDir }); } finally { passEl.value = ''; busy.forEach((el) => { el.disabled = false; }); }
     if (!res.ok) { showGarminError(res.error); passEl.focus(); return; }
     showGarminError('');
+    garminForm.hidden = true;
     setGarmin(res);
     toast('Garmin connected.');
   }
@@ -849,12 +899,14 @@
       toast('Garmin disconnected.');
       return;
     }
-    showGarminError('');
-    garminForm.hidden = false;
-    emailEl.focus();
+    // Reconnect opens the credential that expired; a first connect opens the key.
+    openForm(garmin.expired && garmin.loginSaved && !garmin.keySaved ? 'login' : 'key');
   });
+  garminAdd.addEventListener('click', () => openForm(garmin.key ? 'login' : 'key'));
+  modeBtn.addEventListener('click', () => openForm(garminForm.dataset.mode === 'key' ? 'login' : 'key'));
+  $('garmin-getkey').addEventListener('click', () => platform.openUrl(KEY_URL));
   signInBtn.addEventListener('click', signIn);
-  cancelBtn.addEventListener('click', () => { garminForm.hidden = true; passEl.value = ''; showGarminError(''); });
+  cancelBtn.addEventListener('click', () => { garminForm.hidden = true; passEl.value = ''; keyEl.value = ''; showGarminError(''); });
   garminOn.addEventListener('change', () => { store.set('garmin_on', garminOn.checked ? '1' : '0'); renderGarmin(); });
 
   // ── Version + update check ──────────────────────────────────────────────

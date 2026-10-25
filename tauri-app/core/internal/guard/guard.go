@@ -112,6 +112,23 @@ func Credentials(email, password string) error {
 	return nil
 }
 
+// APIKey checks a Garmin Personal API key: 1 to 512 printable ASCII characters without spaces.
+// The key goes into an HTTP header, so a line break must never reach it.
+func APIKey(key string) error {
+	if key == "" {
+		return errors.New("the API key is required")
+	}
+	if len(key) > 512 {
+		return errors.New("the API key can be at most 512 bytes")
+	}
+	for _, c := range key {
+		if c <= ' ' || c > '~' {
+			return errors.New("the API key holds a space or a character that is not printable ASCII")
+		}
+	}
+	return nil
+}
+
 // NotFuture rejects an end date after today in local time. ISO dates compare as strings.
 func NotFuture(end string, now time.Time) error {
 	if end > now.In(time.Local).Format(layout) {

@@ -344,3 +344,7 @@ li[data-st="run"] .st { border: 2px solid #0000001a; border-top-color: var(--ink
 .garmin-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; margin-top: 8px; }
 .garmin-form label { display: flex; flex-direction: column; gap: 5px; flex: 1 1 180px; font-size: 11.5px; color: var(--mute); }
 .garmin-form .err { flex-basis: 100%; margin: 0; }
+.garmin-fields { display: contents; }
+.garmin-fields[hidden] { display: none; }
+.garmin-form .note { flex-basis: 100%; margin: 0; font-size: 11.5px; color: var(--mute); }
+.garmin-form label .link { padding: 0; margin-left: 6px; font-size: 11px; }

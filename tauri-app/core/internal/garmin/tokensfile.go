@@ -1,5 +1,5 @@
-// Package garmin is the app side of Garmin: tokens.json, the sign in cooldown and the
-// export. tokens.json keeps the exact shapes electron-app/garmin/auth.js writes, so Bun and
+// Package garmin is the app side of Garmin: tokens.json, garmin-api-key.json, the sign in
+// cooldown and the export. tokens.json keeps the exact shapes electron-app/garmin/auth.js writes, so Bun and
 // Go read each other's files. The Garmin API itself is in gconnect.
 package garmin
 
@@ -23,19 +23,35 @@ type tokenFile struct {
 	ExpiredAt string `json:"expired_at,omitempty"`
 }
 
+// Status describes tokens.json (the email sign in) at the top level, as before the API key,
+// and garmin-api-key.json under APIKey.
 type Status struct {
+	Connected bool      `json:"connected"`
+	Expired   bool      `json:"expired"`
+	SavedAt   *string   `json:"savedAt"`
+	Kind      *string   `json:"loginKind"` // never "kind": the protocol sets that to "result"
+	APIKey    KeyStatus `json:"apiKey"`
+}
+
+// KeyStatus describes garmin-api-key.json. Garmin does not say when a key expires, so
+// Expired turns true only after Garmin refused it.
+type KeyStatus struct {
 	Connected bool    `json:"connected"`
 	Expired   bool    `json:"expired"`
 	SavedAt   *string `json:"savedAt"`
-	Kind      *string `json:"loginKind"` // never "kind": the protocol sets that to "result"
 }
 
 var ErrNoLogin = errors.New("no Garmin login")
 
-const tokensFile = "tokens.json"
+const (
+	tokensFile = "tokens.json"
+	apiKeyFile = "garmin-api-key.json" // its own file: a dead key must never replace the email sign in
+)
 
-func readRaw(dataDir string) (*tokenFile, bool) {
-	b, err := os.ReadFile(filepath.Join(dataDir, tokensFile))
+func readRaw(dataDir string) (*tokenFile, bool) { return readFile(dataDir, tokensFile) }
+
+func readFile(dataDir, name string) (*tokenFile, bool) {
+	b, err := os.ReadFile(filepath.Join(dataDir, name))
 	if err != nil {
 		return nil, false
 	}
@@ -64,8 +80,10 @@ func LoadTokens(dataDir string) (*gconnect.Tokens, error) {
 	return &t.Tokens, nil
 }
 
-// save creates dataDir (0700) when missing and writes tokens.json atomically with mode 0600 and stamps SavedAt when empty.
-func (t *tokenFile) save(dataDir string) error {
+func (t *tokenFile) save(dataDir string) error { return t.saveAs(dataDir, tokensFile) }
+
+// saveAs creates dataDir (0700) when missing and writes name atomically with mode 0600 and stamps SavedAt when empty.
+func (t *tokenFile) saveAs(dataDir, name string) error {
 	if t.SavedAt == "" {
 		t.SavedAt = time.Now().UTC().Format(time.RFC3339)
 	}
@@ -76,28 +94,46 @@ func (t *tokenFile) save(dataDir string) error {
 	if err := os.MkdirAll(dataDir, 0o700); err != nil {
 		return err
 	}
-	return atomicfile.WriteFile(filepath.Join(dataDir, tokensFile), b)
+	return atomicfile.WriteFile(filepath.Join(dataDir, name), b)
 }
 
 // MarkExpired replaces the login with a marker that holds no secret.
-func MarkExpired(dataDir string, now time.Time) error {
+func MarkExpired(dataDir string, now time.Time) error { return markExpired(dataDir, tokensFile, now) }
+
+func markExpired(dataDir, name string, now time.Time) error {
 	m := tokenFile{ExpiredAt: now.UTC().Format(time.RFC3339), SavedAt: now.UTC().Format(time.RFC3339)}
-	if old, ok := readRaw(dataDir); ok && old.SavedAt != "" {
+	if old, ok := readFile(dataDir, name); ok && old.SavedAt != "" {
 		m.SavedAt = old.SavedAt
 	}
-	return m.save(dataDir)
+	return m.saveAs(dataDir, name)
 }
 
 // Delete removes tokens.json; a missing file is not an error.
-func Delete(dataDir string) error {
-	if err := os.Remove(filepath.Join(dataDir, tokensFile)); err != nil && !errors.Is(err, os.ErrNotExist) {
+func Delete(dataDir string) error { return remove(dataDir, tokensFile) }
+
+// DeleteAPIKey removes garmin-api-key.json; a missing file is not an error.
+func DeleteAPIKey(dataDir string) error { return remove(dataDir, apiKeyFile) }
+
+func remove(dataDir, name string) error {
+	if err := os.Remove(filepath.Join(dataDir, name)); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
 	return nil
 }
 
-// StatusOf reads tokens.json once and never sends a request.
+// StatusOf reads tokens.json and garmin-api-key.json once each and never sends a request.
 func StatusOf(dataDir string, now time.Time) Status {
+	s := loginStatus(dataDir, now)
+	if k, ok := readFile(dataDir, apiKeyFile); ok && (k.ExpiredAt != "" || k.Kind() == gconnect.KindPersonal) {
+		s.APIKey = KeyStatus{Connected: true, Expired: k.ExpiredAt != ""}
+		if k.SavedAt != "" {
+			s.APIKey.SavedAt = &k.SavedAt
+		}
+	}
+	return s
+}
+
+func loginStatus(dataDir string, now time.Time) Status {
 	t, ok := readRaw(dataDir)
 	if !ok {
 		return Status{}

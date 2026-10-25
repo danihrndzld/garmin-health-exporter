@@ -65,9 +65,23 @@
         // Garmin login, as the Go core answers it. localStorage.mock_garmin holds the save time;
         // mock_garmin_expired makes the next export end with GARMIN_SESSION; mock_garmin_marker is
         // tokens.json already holding the expired marker, so garmin-status answers expired.
-        const garminStatus = () => ({ ok: true, connected: !!localStorage.getItem('mock_garmin'), expired: !!localStorage.getItem('mock_garmin_marker'), savedAt: Number(localStorage.getItem('mock_garmin')) || 0, loginKind: 'di' });
+        // mock_garmin_key and mock_garmin_key_marker are the same for garmin-api-key.json.
+        const garminStatus = () => ({ ok: true, connected: !!localStorage.getItem('mock_garmin'), expired: !!localStorage.getItem('mock_garmin_marker'), savedAt: Number(localStorage.getItem('mock_garmin')) || 0, loginKind: 'di',
+          apiKey: { connected: !!localStorage.getItem('mock_garmin_key'), expired: !!localStorage.getItem('mock_garmin_key_marker'), savedAt: localStorage.getItem('mock_garmin_key') ? new Date(Number(localStorage.getItem('mock_garmin_key'))).toISOString() : null } });
         if (req.cmd === 'garmin-status') return garminStatus();
-        if (req.cmd === 'garmin-disconnect') { ['mock_garmin', 'mock_garmin_expired', 'mock_garmin_marker'].forEach((k) => localStorage.removeItem(k)); return garminStatus(); }
+        if (req.cmd === 'garmin-disconnect') {
+          const keys = { login: ['mock_garmin', 'mock_garmin_expired', 'mock_garmin_marker'], apiKey: ['mock_garmin_key', 'mock_garmin_key_marker'] };
+          (req.which ? keys[req.which] : [...keys.login, ...keys.apiKey]).forEach((k) => localStorage.removeItem(k));
+          return garminStatus();
+        }
+        if (req.cmd === 'garmin-connect' && 'apiKey' in req) {
+          localStorage.setItem('mock_garmin_key_connects', String(Number(localStorage.getItem('mock_garmin_key_connects') || 0) + 1));
+          await sleep(150);
+          if (req.apiKey === 'bad-key') return { ok: false, errorCode: 'GARMIN_BAD_KEY', error: 'Garmin did not accept this API key. Check it, or create a new one at connect.garmin.com/app/settings/personalApiToken.' };
+          localStorage.setItem('mock_garmin_key', String(Date.now()));
+          localStorage.removeItem('mock_garmin_key_marker');
+          return garminStatus();
+        }
         if (req.cmd === 'garmin-connect') {
           localStorage.setItem('mock_garmin_connects', String(Number(localStorage.getItem('mock_garmin_connects') || 0) + 1));
           await sleep(200);
@@ -85,7 +99,9 @@
           const r = req.daysBack ? window.DateRange.defaultCustomRange({ daysBack: req.daysBack }) : req;
           return { ok: true, path: `/Users/you/Documents/GarminExport/csv_${r.endDate}`, jsonPath: null, startDate: r.startDate, endDate: r.endDate };
         }
-        if (!localStorage.getItem('mock_garmin') || localStorage.getItem('mock_garmin_expired') || localStorage.getItem('mock_garmin_marker')) {
+        const loginLive = localStorage.getItem('mock_garmin') && !localStorage.getItem('mock_garmin_expired') && !localStorage.getItem('mock_garmin_marker');
+        const keyLive = localStorage.getItem('mock_garmin_key') && !localStorage.getItem('mock_garmin_key_marker');
+        if (!loginLive && !keyLive) {
           await sleep(300);
           return { ok: false, errorCode: 'GARMIN_SESSION', error: 'Connect Garmin first.' };
         }
@@ -93,7 +109,8 @@
         const stop = { GARMIN_RATE_LIMITED: 'Garmin is rate limiting requests (HTTP 429). The data so far is cached; try again in an hour.',
           GARMIN_BLOCKED: 'Garmin refused the profile request (HTTP 403). The saved login was kept.' }[localStorage.getItem('mock_garmin_export_code')];
         if (stop) { await sleep(300); return { ok: false, errorCode: localStorage.getItem('mock_garmin_export_code'), error: stop }; }
-        onEvent({ kind: 'log', type: 'dim', msg: 'Loaded saved tokens', ts: ts() });
+        onEvent({ kind: 'log', type: 'dim', msg: keyLive ? (loginLive ? 'Using the Garmin API key, and the saved login for what the Personal API lacks' : 'Using the Garmin API key') : 'Using the saved Garmin login', ts: ts() });
+        if (keyLive && !loginLive) onEvent({ kind: 'log', type: 'warn', msg: "API key only: Garmin's Personal API has no training readiness, training status, VO2 max, endurance or hill score, race predictions, laps, goals, blood pressure or body composition. Connect with email too to add them.", ts: ts() });
         await sleep(300);
         onEvent({ kind: 'log', type: 'warn', msg: '[skip] endurance_score: Empty response body [endurance_score] — Garmin returned HTTP 204 with no content. Usually no data for that day yet (the watch has not synced) or a metric this device does not record.', ts: ts() });
         await sleep(300);

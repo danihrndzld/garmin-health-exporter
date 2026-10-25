@@ -67,6 +67,25 @@ func Connect(ctx context.Context, a *gconnect.Auth, dataDir, email, password str
 	return StatusOf(dataDir, now), nil
 }
 
+// keyRefusedMsg names where a new key comes from; Garmin shows a key only once.
+const keyRefusedMsg = "Garmin did not accept this API key. Check it, or create a new one at connect.garmin.com/app/settings/personalApiToken."
+
+// ConnectAPIKey trades the key for an access token once, which proves Garmin accepts it, and
+// saves garmin-api-key.json. tokens.json is left alone. Every failure is a *CodeError.
+func ConnectAPIKey(ctx context.Context, a *gconnect.Auth, dataDir, key string, now time.Time) (Status, error) {
+	t, err := a.ExchangeAPIKey(ctx, key)
+	if errors.Is(err, gconnect.ErrSessionDead) {
+		return Status{}, &CodeError{"GARMIN_BAD_KEY", keyRefusedMsg}
+	}
+	if err != nil {
+		return Status{}, &CodeError{"GARMIN_ERROR", err.Error()}
+	}
+	if err := (&tokenFile{Tokens: *t}).saveAs(dataDir, apiKeyFile); err != nil {
+		return Status{}, &CodeError{"GARMIN_ERROR", "could not save the Garmin API key: " + err.Error()}
+	}
+	return StatusOf(dataDir, now), nil
+}
+
 // One process per export, so the cooldown after a 429 lives in a file Bun and Go share.
 func cooldownLeft(dataDir string, now time.Time) int64 {
 	var cd struct{ Until float64 }

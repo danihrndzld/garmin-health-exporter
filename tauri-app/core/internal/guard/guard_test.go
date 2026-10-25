@@ -229,3 +229,27 @@ func TestNotFutureEndsToday(t *testing.T) {
 		})
 	}
 }
+
+func TestAPIKey(t *testing.T) {
+	for _, c := range []struct {
+		id, key string
+		ok      bool
+	}{
+		{"EP-706 a key of letters, digits and dashes is accepted", "Ab3-x_y.z~9", true},
+		{"EP-707 an empty key is rejected", "", false},
+		{"BVA-706 a key of 512 bytes is accepted", strings.Repeat("k", 512), true},
+		{"BVA-707 a key of 513 bytes is rejected", strings.Repeat("k", 513), false},
+		{"EP-708 a key with a space is rejected", "abc def", false},
+		{"EP-709 a key with a line break is rejected, so no header can be injected", "abc\r\nX-Evil: 1", false},
+		{"EP-710 a key with a character beyond ASCII is rejected", "abcé", false},
+		{"EP-711 the error never contains the key", strings.Repeat("s3cret ", 3), false},
+	} {
+		t.Run(c.id, func(t *testing.T) {
+			err := APIKey(c.key)
+
+			if (err == nil) != c.ok || (err != nil && strings.Contains(err.Error(), "s3cret")) {
+				t.Fatalf("APIKey = %v", err)
+			}
+		})
+	}
+}
