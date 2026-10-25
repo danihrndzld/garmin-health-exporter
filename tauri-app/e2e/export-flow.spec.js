@@ -130,6 +130,6 @@ test.describe('error guessing', () => {
     scenario.garminNotConnected();
     await app.open();
     await app.garmin.connect({ ...VALID_LOGIN, email: `  ${VALID_LOGIN.email}  ` });
-    await expect(app.garmin.state).toHaveText('Connected');
+    await expect(app.garmin.state).toHaveText('Email login');
   });
 });

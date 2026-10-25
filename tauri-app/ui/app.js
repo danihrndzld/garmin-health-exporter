@@ -899,8 +899,7 @@
       toast('Garmin disconnected.');
       return;
     }
-    // Reconnect opens the credential that expired; a first connect opens the key.
-    openForm(garmin.expired && garmin.loginSaved && !garmin.keySaved ? 'login' : 'key');
+    openForm('key'); // connect and reconnect start on the preferred key; email is one click away
   });
   garminAdd.addEventListener('click', () => openForm(garmin.key ? 'login' : 'key'));
   modeBtn.addEventListener('click', () => openForm(garminForm.dataset.mode === 'key' ? 'login' : 'key'));

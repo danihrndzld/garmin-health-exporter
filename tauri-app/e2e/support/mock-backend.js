@@ -12,6 +12,10 @@ export class MockBackend {
   garminSessionExpired() { return this.#set('mock_garmin_expired', '1'); }
   /** tokens.json is already the expired marker at start: garmin-status answers expired. */
   garminExpiredAtStart() { return this.#set('mock_garmin_marker', '1'); }
+  /** garmin-api-key.json holds a live Personal API key. */
+  garminKeyConnected() { return this.#set('mock_garmin_key', String(Date.UTC(2026, 9, 1))); }
+  /** garmin-api-key.json is already the expired marker at start (Garmin refused the key). */
+  garminKeyExpiredAtStart() { return this.#set('mock_garmin_key', String(Date.UTC(2026, 9, 1))).#set('mock_garmin_key_marker', '1'); }
   garminExportRateLimited() { return this.#set('mock_garmin_export_code', 'GARMIN_RATE_LIMITED'); }
   garminExportBlocked() { return this.#set('mock_garmin_export_code', 'GARMIN_BLOCKED'); }
   mfpConnected() { return this.#set('mock_mfp', String(Date.UTC(2026, 9, 1))); }
@@ -51,6 +55,10 @@ export class MockBackend {
     return this;
   }
 }
+
+/** Personal API key the mock refuses (dev-mock.js: "bad-key"), and one it accepts. */
+export const REJECTED_KEY = 'bad-key';
+export const VALID_KEY = 'personal-api-key-from-garmin';
 
 /** Login the mock rejects as a wrong password (dev-mock.js: "fail@x.com"). */
 export const REJECTED_EMAIL = 'fail@x.com';
